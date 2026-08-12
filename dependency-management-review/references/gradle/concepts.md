@@ -189,11 +189,13 @@ Selenide в `implementation` НЕ нарушение. В обычном прил
 несовместимой с остальным кодом, - и проект падает в рантайме, хотя в `dependencies { }`
 всё выглядит нормально.
 
-Поэтому, **если есть Gradle wrapper и запуск разрешён**, не ограничивайся чтением
-build-файлов - посмотри дерево:
+Поэтому построить дерево - **обязательный шаг**, если есть Gradle (wrapper или локальный) и
+его запуск не запрещён (см. Шаг 5 SKILL.md). Для мультимодуля идёшь сначала по каждому
+модулю, потом полностью:
 ```
-./gradlew :app:dependencies --configuration runtimeClasspath
-./gradlew :app:dependencyInsight --dependency jackson-databind
+./gradlew :<модуль>:dependencies --configuration runtimeClasspath   # по каждому модулю
+./gradlew dependencies                                              # полный прогон
+./gradlew :<модуль>:dependencyInsight --dependency <artifact>       # почему выбрана версия
 ```
 На что смотреть: пометки `->` (версия подменена при резолюции); один и тот же
 `group:artifact` разных версий в разных ветках; разъехавшиеся транзитивные версии членов
