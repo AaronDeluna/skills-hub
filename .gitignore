@@ -1,0 +1,22 @@
+# JetBrains IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# macOS
+.DS_Store
+
+# Прочие ОС/редакторы
+Thumbs.db
+*.swp
+*~
+.vscode/
+
+# Артефакты упаковки скиллов
+*.skill
+
+# Генерируемые отчёты скилла (пишутся в проверяемый проект, не в этот репозиторий)
+DEPENDENCY-ANALYSIS.md
+dependency-review-findings.md
