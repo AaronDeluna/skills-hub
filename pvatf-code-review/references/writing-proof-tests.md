@@ -17,13 +17,38 @@
 на ноль - тест упадёт с `ArithmeticException`, и это доказательство. Если вернёт 100 - бага
 нет.
 
-## Фреймворк и язык
+## Тест-фреймворк - определи ДИНАМИЧЕСКИ (не предполагай JUnit 5)
 
-- **Только JUnit 5** (`org.junit.jupiter`): импорт `org.junit.jupiter.api.Test`, ассерты
-  `org.junit.jupiter.api.Assertions`. JUnit 4 не используем.
-- Язык теста - под язык кода: Java-код -> Java-тест, Kotlin -> Kotlin-тест (или Java, если
-  класс public и вызывается просто).
-- Посмотри существующие тесты в `src/test` и повтори их стиль (расположение, статик-импорты).
+Не зашивай фреймворк. Определи тот, что реально используется в проекте, и пиши свои тесты в
+нём же - иначе они не соберутся и не запустятся вместе с остальными.
+
+Важно: **зависимости сборки НЕ дают однозначного ответа** - в одном `pom.xml`/`build.gradle`
+часто объявлено сразу несколько раннеров (например, `junit-jupiter` + `junit-vintage`, чтобы
+рядом жили JUnit 5 и старые JUnit 4-тесты; или JUnit рядом с TestNG). Поэтому решает не
+список зависимостей, а то, что реально написано в тестах.
+
+Как определить (по приоритету):
+1. **Существующие тесты в `src/test`** - главный и решающий сигнал. Открой несколько файлов
+   (ближайших к области ревью) и посмотри импорт аннотации `@Test`:
+   - `org.junit.jupiter.api.Test` -> **JUnit 5** (Jupiter);
+   - `org.junit.Test` -> **JUnit 4**;
+   - `org.testng.annotations.Test` -> **TestNG**;
+   - Kotlin + `io.kotest...`/`kotlin.test` -> Kotest / kotlin-test.
+   Повтори их стиль: расположение, статик-импорты ассертов, базовые классы.
+2. **Если раннеров в тестах несколько** (проект правда смешанный) - не выбирай «по
+   зависимостям», а бери тот, которым написаны тесты **рядом с проверяемым кодом** (в том же
+   модуле/пакете); при равенстве - преобладающий. Свой тест пиши в нём.
+3. **Зависимости сборки** - только как подсказка, когда тестов ещё нет вообще:
+   `org.junit.jupiter*` -> JUnit 5; `junit:junit:4*` -> JUnit 4; `org.testng` -> TestNG.
+   Если объявлено несколько - выбрать нельзя, это NEEDS-HUMAN (спроси/отметь), пока не
+   появится хоть один тест-образец.
+4. Ничего нет (ни тестов, ни зависимостей) -> возьми **JUnit 5** как разумный дефолт, но
+   отметь это в отчёте.
+
+Запиши обнаруженный фреймворк в блок «Контекст» заметок и используй его скелет ниже.
+
+Язык теста - под язык кода: Java-код -> Java-тест, Kotlin -> Kotlin-тест (или Java, если
+класс public и вызывается просто).
 
 ## Именование
 
@@ -41,9 +66,9 @@
 Отдельный пакет `reviewproof` - чтобы в конце всё легко убрать одной папкой. Один тест на
 одно замечание.
 
-## Скелеты
+## Скелеты (возьми под обнаруженный фреймворк)
 
-Java:
+JUnit 5 (Jupiter), Java:
 ```java
 package reviewproof;
 
@@ -62,7 +87,7 @@ class ReviewProofF1DiscountTest {
 }
 ```
 
-Kotlin:
+JUnit 5 (Jupiter), Kotlin:
 ```kotlin
 package reviewproof
 
@@ -80,9 +105,43 @@ class ReviewProofF1DiscountTest {
 }
 ```
 
-Ожидаемое исключение (когда правильное поведение - именно бросить):
+JUnit 4, Java (если в проекте JUnit 4):
 ```java
-assertThrows(IllegalArgumentException.class, () -> obj.method(null));
+package reviewproof;
+
+import app.Pricing;
+import org.junit.Test;
+import static org.junit.Assert.*;
+
+public class ReviewProofF1DiscountTest {
+    @Test
+    public void discountWithZeroPercentReturnsOriginalPrice() {
+        assertEquals(100, new Pricing().discount(100, 0));
+    }
+}
+```
+
+TestNG, Java (если в проекте TestNG):
+```java
+package reviewproof;
+
+import app.Pricing;
+import org.testng.annotations.Test;
+import static org.testng.Assert.assertEquals;
+
+public class ReviewProofF1DiscountTest {
+    @Test
+    public void discountWithZeroPercentReturnsOriginalPrice() {
+        assertEquals(new Pricing().discount(100, 0), 100); // в TestNG порядок: actual, expected
+    }
+}
+```
+
+Ожидаемое исключение (когда правильное поведение - именно бросить):
+```
+JUnit 5: assertThrows(IllegalArgumentException.class, () -> obj.method(null));
+JUnit 4: @Test(expected = IllegalArgumentException.class)
+TestNG:  @Test(expectedExceptions = IllegalArgumentException.class)
 ```
 
 Конкурентность (JUnit 5, Java) - проверяем инвариант под нагрузкой:
@@ -102,36 +161,60 @@ assertEquals(threads * perThread, counter.get()); // упадёт, если не
 (явные типы, без `var` - в проекте `var` запрещён; нужны импорты
 `java.util.concurrent.ExecutorService/Executors/CountDownLatch`.)
 
+## Сначала определи раннер ДИНАМИЧЕСКИ (не зашивай `mvn`/`./gradlew`)
+
+Не предполагай конкретную команду сборки - определи её по проекту. Ниже команды написаны
+через плейсхолдер `<RUN>`; сначала вычисли, что это за команда, и дальше подставляй её.
+
+1. **Какая система сборки** (по файлам в корне модуля/проекта): есть `pom.xml` -> Maven;
+   есть `build.gradle` / `build.gradle.kts` / `settings.gradle(.kts)` -> Gradle. Есть и то,
+   и другое - бери ту, к которой относится область ревью (где лежит проверяемый код).
+2. **Есть ли wrapper** (предпочитается системному бинарнику - он фиксирует версию сборщика):
+   - Maven: `./mvnw` (или `mvnw.cmd` на Windows) рядом с проектом -> `<RUN>` = `./mvnw`.
+     Иначе, если в `PATH` есть `mvn` -> `<RUN>` = `mvn`.
+   - Gradle: `./gradlew` (или `gradlew.bat`) -> `<RUN>` = `./gradlew`.
+     Иначе, если в `PATH` есть `gradle` -> `<RUN>` = `gradle`.
+   Wrapper обычно лежит в корне проекта; если область ревью - вложенный модуль, ищи wrapper
+   вверх по дереву до корня.
+3. **Проверь, что раннер рабочий**, прежде чем полагаться на него: Maven - `<RUN> -v`,
+   Gradle - `<RUN> --version`. Команда не находится или падает -> раннера фактически нет.
+4. **Раннера нет / запуск запрещён** -> прогон невозможен: тесты всё равно пиши, но их
+   статус в отчёте `НЕ УДАЛОСЬ ПРОВЕРИТЬ (раннер недоступен)` с точной командой (уже с
+   подставленным `<RUN>`), которую человек выполнит вручную.
+
+Запиши определённый `<RUN>` и систему сборки в блок «Контекст» заметок и используй дальше.
+
 ## Как прогнать точечно (только свой тест, а не всю базу)
 
-Maven:
+Подставляй вычисленный `<RUN>`.
+
+Maven (`<RUN>` = `./mvnw` или `mvn`):
 ```
-mvn -q -pl <относительный/путь/модуля> -Dtest='ReviewProofF1*' test
-# JUnit5 через surefire: если не подхватывает, добавь -DfailIfNoTests=false
+<RUN> -q -pl <относительный/путь/модуля> -Dtest='ReviewProofF1*' -DfailIfNoTests=false test
 ```
 
-Gradle:
+Gradle (`<RUN>` = `./gradlew` или `gradle`):
 ```
-./gradlew :<модуль>:test --tests 'reviewproof.ReviewProofF1*'
+<RUN> :<модуль>:test --tests 'reviewproof.ReviewProofF1*'
 ```
 
 Проверка зелёной базы (Шаг 2) - те же команды без фильтра по классу, либо просто
-`mvn -q test` / `./gradlew test` для области ревью.
+`<RUN> test` для области ревью.
 
 ## Компиляция и checkstyle (Шаг 2 и обязательный Шаг 6)
 
-Компиляция боевого кода и тестов (без прогона тестов):
+Компиляция боевого кода и тестов (без прогона тестов), с тем же `<RUN>`:
 ```
-mvn -q -DskipTests compile test-compile        # Maven
-./gradlew compileJava compileTestJava           # Gradle (для Kotlin: compileKotlin compileTestKotlin)
+<RUN> -q -DskipTests compile test-compile        # Maven
+<RUN> compileJava compileTestJava                 # Gradle (для Kotlin: compileKotlin compileTestKotlin)
 ```
 
 Checkstyle - только если он настроен в проекте. Признаки: плагин `maven-checkstyle-plugin`
 в `pom.xml`, плагин `checkstyle` в Gradle, или файл `checkstyle.xml` / каталог
 `config/checkstyle/`.
 ```
-mvn -q checkstyle:check                          # Maven
-./gradlew checkstyleMain checkstyleTest          # Gradle
+<RUN> -q checkstyle:check                          # Maven
+<RUN> checkstyleMain checkstyleTest                # Gradle
 ```
 Если checkstyle не настроен - не запускай и отметь «не настроен». Если настроен - твои
 добавленные тестовые файлы обязаны проходить его без новых нарушений: оформляй их сразу по
