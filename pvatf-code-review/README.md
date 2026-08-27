@@ -44,7 +44,7 @@ git diff --name-only main...HEAD        # или весь diff ветки от �
    ⚠️ мнение (тестом не проверяется) · ❓ не удалось проверить.
 8. Если в области ревью есть Maven/Gradle-сборка (`pom.xml` / `build.gradle` / `gradle/`) -
    в конце спрашивает да/нет, запускать ли дополнительно ревью зависимостей
-   (скилл `dependency-management-review`).
+   (скилл `pvatf-dependency-review`).
 
 ## Договорённости проекта
 
