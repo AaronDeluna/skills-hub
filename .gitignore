@@ -20,3 +20,4 @@ Thumbs.db
 # Генерируемые отчёты скилла (пишутся в проверяемый проект, не в этот репозиторий)
 DEPENDENCY-ANALYSIS.md
 dependency-review-findings.md
+test-gen/
