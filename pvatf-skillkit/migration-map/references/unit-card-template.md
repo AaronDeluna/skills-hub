@@ -12,10 +12,10 @@
 ```markdown
 ---
 id: M-<nnn>
-type: env | core | usage | cleanup | arch
+type: env | core | usage | cleanup | arch | review | fix
 core_mode: <только для type: core - new | in-place; для остальных типов `-`>
 tech: <метка технологии из матрицы G: rest / ui / db / ... / core>
-phase: <1-4>
+phase: <1-5; 6 - юниты исправления, их заводит migration-review>
 status: todo
 depends_on: [<M-nnn>, ...]
 covers: [<G-n>, <A-n>, <L-n>, ...]
@@ -28,8 +28,8 @@ covers: [<G-n>, <A-n>, <L-n>, ...]
 
 ## Целевая картина
 Блок `T-<tech>` в разделе 2 карты - как код этой технологии должен выглядеть в конце.
-Исполнитель обязан прочитать его до правок. Для `core` и `usage` - обязательно; для
-остальных типов - `-`.
+Исполнитель обязан прочитать его до правок. Для `core`, `usage` и `review` - обязательно;
+для остальных типов - `-`.
 
 - Блок: `T-<tech>`
 - Что из него делает этот юнит: <1-2 строки>
