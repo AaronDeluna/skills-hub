@@ -164,6 +164,21 @@ grep -rlE "ConfigFactory\.create|new Properties\(\)|ResourceBundle\.getBundle|Sy
 Каждый найденный файл открой на первые 40 строк (`head -40`) и реши: хранит или читает
 настройки подключения -> находка `P11`; иначе - не находка.
 
+`simplelogger.properties` - настройка логирования проекта на фрейме, она должна быть в
+ресурсах тестов каждого модуля с тестами. Третья команда `P10` ничего не нашла, или в файле
+нет строки `org.slf4j.simpleLogger.defaultLogLevel` -> находка `P10`, «Как исправить»:
+«создать `<каталог ресурсов тестов>/simplelogger.properties`» с содержимым:
+```
+org.slf4j.simpleLogger.defaultLogLevel=INFO
+org.slf4j.simpleLogger.showShortLogName=true
+org.slf4j.simpleLogger.showDateTime=true
+org.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss:SSS
+org.slf4j.simpleLogger.logFile=System.out
+
+#org.slf4j.simpleLogger.log.ru.sber.at=INFO
+```
+Эта проверка делается и в режиме «без карты».
+
 Быстрые счётчики по правилам кода (только по файлам из Шага 2; нужны, чтобы сверить потом с
 находками сабагентов):
 

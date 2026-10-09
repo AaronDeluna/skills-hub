@@ -192,11 +192,15 @@
   org.slf4j.simpleLogger.defaultLogLevel=INFO
   org.slf4j.simpleLogger.showShortLogName=true
   org.slf4j.simpleLogger.showDateTime=true
-  org.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss.SSS
+  org.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss:SSS
   org.slf4j.simpleLogger.logFile=System.out
+
+  #org.slf4j.simpleLogger.log.ru.sber.at=INFO
   ```
-  Если в конспекте `doc-notes/common.md` или в проекте-примере файл выглядит иначе - бери
-  оттуда. Уровень для отдельного пакета - строкой `org.slf4j.simpleLogger.log.<пакет>=<уровень>`.
+  Файл обязателен в каждом мигрированном проекте: нет его - создай с этим содержимым (в
+  юните, где это записано в карточке). Последняя строка - закомментированный пример уровня
+  для отдельного пакета. Если в конспекте `doc-notes/common.md` или в проекте-примере файл
+  выглядит иначе - бери оттуда. Уровень для отдельного пакета - строкой `org.slf4j.simpleLogger.log.<пакет>=<уровень>`.
   Всё остальное логирование проекта - старое и удаляется (в юнитах, где это записано в
   карточке): конфигурации `logback.xml`, `logback-test.xml`, `log4j.xml`, `log4j2.xml`,
   `log4j.properties`, `log4j2.properties`, `logging.properties`; зависимости логгеров и их

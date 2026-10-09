@@ -302,8 +302,24 @@ ls .gigacode/data/migration/
    аппендеры, фильтры, форматтеры - вида «класс». Файлы из третьей команды (код пользуется
    не SLF4J, а другим логгером) впиши в `usage`-юниты их технологий с шагом «убрать ручное
    логирование запросов и ответов; оставшиеся сообщения перевести на `org.slf4j.Logger`».
-   Файл `simplelogger.properties` создаёт `env`-юнит технологии `common` в фазе 2 (если
-   файла ещё нет); старые конфигурации и зависимости логгеров удаляются в фазе 4
+   **Файл `simplelogger.properties` обязателен.** Проверь, есть ли он:
+   `find . -name simplelogger.properties -not -path "*/target/*" -not -path "*/build/*"`.
+   Нет -> его создаёт `env`-юнит технологии `common` в фазе 2: в карточку впиши шаг
+   «создать `<каталог ресурсов тестов>/simplelogger.properties`» и содержимое файла
+   ДОСЛОВНО, шесть строк:
+   ```
+   org.slf4j.simpleLogger.defaultLogLevel=INFO
+   org.slf4j.simpleLogger.showShortLogName=true
+   org.slf4j.simpleLogger.showDateTime=true
+   org.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss:SSS
+   org.slf4j.simpleLogger.logFile=System.out
+
+   #org.slf4j.simpleLogger.log.ru.sber.at=INFO
+   ```
+   (в конспекте `D-common-6` или в проекте-примере файл выглядит иначе - бери оттуда).
+   В проекте несколько модулей с тестами -> файл нужен в ресурсах тестов каждого. Файл уже
+   есть -> в карточке шаг «проверить, что в нём задан `defaultLogLevel`», содержимое не
+   перезаписывай; старые конфигурации и зависимости логгеров удаляются в фазе 4
    (финальная зачистка), когда код ими уже не пользуется.
    **Сборку проверь во ВСЕХ местах, где она хранит зависимости,** и на каждое найденное
    место заведи свою строку `L`:
