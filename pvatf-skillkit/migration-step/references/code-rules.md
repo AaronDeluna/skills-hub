@@ -131,6 +131,19 @@
   Когда DTO ответа остаётся: документация не даёт способа проверить или достать то, что
   нужно (после 8 формулировок запроса). Тогда DTO оставь и запиши во «Входящие»: файл, что
   именно фрейм не покрыл. DTO, которым СОБИРАЕТСЯ ТЕЛО ЗАПРОСА, - это данные, он остаётся.
+- **MR-48 · Проверка = готовый matcher фрейма прямо в `.should(...)`. Ничего своего.**
+  Пиши проверки строго по разделу «Как писать проверку» из `references/matchers.md`. Для
+  каждой проверки - matcher ИМЕННО ЕЁ вида: код ответа - matcher кода ответа, число -
+  matcher с условием на число, наличие поля - matcher наличия, размер - matcher размера.
+  Нельзя:
+  - проверять всё одним matcher (например, всё - сравнением текста значения по пути);
+  - переводить число или boolean в строку ради сравнения;
+  - собирать matchers в `List`/массив, проходить по ним циклом `for`/`forEach`;
+  - писать метод, который возвращает matcher или набор matchers;
+  - писать свою обёртку над `.should(...)`, свои классы matcher/condition, свои фабрики,
+    утилиты, enum'ы и `Map` «поле -> ожидаемое» ради проверок;
+  - «заодно» перестраивать шаги и классы, когда переводишь проверки.
+  Несколько проверок одного объекта - через запятую в одном `.should(m1, m2, m3)`.
 - **MR-44 · Стиль шагов `flow`: тест - цепочка шагов FlowRunner, логика - в классе-флоу.**
   Действует, только если в паспорте карты «Стиль шагов: flow». Точные имена классов и
   методов - из записи `D-common-7` конспекта; схема такая:
@@ -446,6 +459,8 @@ grep -cE "\.set[A-Z][A-Za-z0-9]*\(" <файл>                                  
 grep -c "getForCurrentThread()" <файл>                                               # MR-35: больше, чем разных сервисов в файле, - вынеси в один метод
 grep -nE "Assertions\.|assert(Equals|True|False|NotNull|Null|That|All)\(|SoftAssertions" <файлы юнита>   # MR-29: в usage-юните каждая строка либо заменена, либо записана во «Входящие»
 grep -nE "\.as\([A-Z][A-Za-z0-9_]*\.class\)|readValue\(|fromJson\(|\.getObject\(|\.extract\(\)" <файлы юнита>   # MR-41: ответ превращают в объект - замени на проверку через .should(), если это ради проверки
+grep -nE "List<[A-Za-z]*(Matcher|Condition)|(Matcher|Condition)\[\]|for *\([A-Za-z<>]*(Matcher|Condition)|forEach\([a-z]*::should|(implements|extends) +[A-Za-z]*(Matcher|Condition)|(String\.valueOf|toString)\(.*\)" <файлы юнита> | grep -E "Matcher|Condition|should"   # MR-48: список, цикл, свои matchers, сравнение числа строкой - должно быть пусто
+grep -nE "^\s*(public|private|protected)[^=(]*(Matcher|Condition)[A-Za-z<>?, ]* +[a-z][A-Za-z0-9]*\(" <файлы юнита>   # MR-48: метод возвращает matcher - должно быть пусто
 grep -nE "^[^/*]*[^A-Za-z0-9_.\"](org|com|ru|io|java)\.[a-z0-9_]+\.[a-z0-9_.]+\.[A-Z]" <файлы юнита> | grep -v "^[0-9]*:\(import\|package\)"   # MR-4: полное имя класса в коде
 grep -nE "\b(log|logger|LOG|LOGGER)\.(info|debug|trace|warn|error)\(|System\.(out|err)\.print|\.log\(\)\.(all|body|headers|ifValidationFails)|(Request|Response)LoggingFilter|\.prettyPrint\(|\.prettyPeek\(|\.peek\(" <файлы юнита>   # MR-43: строка логирует запрос, ответ, SQL или сообщение - удали; остаётся только сообщение о ходе сценария
 ```
