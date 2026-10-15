@@ -102,8 +102,8 @@ matcher фрейма сами.
 **2. Свой класс matcher или condition.** `class X implements ValidatableJsonMatcher`,
 `implements TextCondition`, `implements ...Matcher`, анонимный класс с `check(...)` или
 `test(...)` - НЕЛЬЗЯ никогда. Во фрейме есть условия для текста, чисел, дат, null. Нужного
-не нашлось после 8 формулировок запроса -> подшаг `blocked`, вопрос человеку. Свой matcher
-не пиши.
+не нашлось (конспект, сабагент, папка `docs` исходников фрейма) -> стандартный ассерт JUnit
+остаётся (`MR-29`), строка во «Входящие». Свой matcher не пиши, вопрос не задавай.
 
 **3. Список matchers и цикл.**
 ```java
@@ -115,10 +115,21 @@ for (int i = 0; i < rows.size(); i++) {
 response.shouldSoft(matchers.toArray(new ValidatableJsonMatcher[0]));
 ```
 Matchers не собираются в список, не возвращаются из методов списками
-(`List<...Matcher> cardPageInfoMatchers(...)`) и не складываются в цикле. Проверка массива
-целиком - это отдельный вопрос документации: «как проверить все элементы массива JSON» /
-«как сравнить массив JSON с таблицей БД» / «как сравнить с эталонным JSON». Документация
-не дала способа -> вопрос человеку в раздел 6 карты, а не цикл.
+(`List<...Matcher> cardPageInfoMatchers(...)`) и не складываются в цикле. Сначала спроси
+документацию: «как проверить все элементы массива JSON» / «как сравнить массив JSON с
+таблицей БД» / «как сравнить с эталонным JSON». Документация не дала способа -> так можно
+(вопрос не задавай):
+```java
+// МОЖНО, если matcher для массива целиком нет
+for (int i = 0; i < rows.size(); i++) {
+    ValidatableRow row = rows.get(i);
+    String item = "result.items[" + i + "]";
+    response.shouldSoft(
+            JsonMatchers.haveJsonValue(item + ".name", TextConditions.equalToText(row.getCellValue("name", String.class)), "name"),
+            JsonMatchers.haveJsonValueEqualTo(item + ".count", row.getCellValue("count", Integer.class)));
+}
+```
+Один вызов проверки на элемент, matchers прямо внутри, без списка и без хелперов.
 
 **4. Одно условие на всё.** Всё подряд проверяется текстом
 (`TextConditions.equalToText(String.valueOf(number))`) или строкой-выражением
@@ -148,6 +159,28 @@ assertEquals(row.getCellValue("state", Integer.class), intOrNull(result, "state"
 потом сравнить, - НЕЛЬЗЯ (см. п.5). Достать значение можно только для ДАННЫХ следующего
 шага (id для следующего запроса) - способом из документации.
 
+**8. `assertAll` вокруг проверок фрейма.** Matchers фрейма, завёрнутые в лямбды
+`assertAll`, - НЕЛЬЗЯ:
+```java
+// НЕЛЬЗЯ
+assertAll("ШАГ 4. Блок debiting.requisites",
+        () -> response.should(JsonMatchers.haveJsonValueEqualTo("debiting.requisites.type", "FL")),
+        () -> response.should(JsonMatchers.haveJsonValueEqualTo("debiting.requisites.kpp", "0")));
+// НУЖНО - несколько проверок сразу: один вызов .shouldSoft(...)
+response.shouldSoft(
+        JsonMatchers.haveJsonValueEqualTo("debiting.requisites.type", "FL"),
+        JsonMatchers.haveJsonValueEqualTo("debiting.requisites.kpp", "0"));
+// НУЖНО - если проверки должны быть отдельным шагом в отчёте: обычный шаг Allure
+Allure.step("ШАГ 4. Блок debiting.requisites", () -> response.shouldSoft(
+        JsonMatchers.haveJsonValueEqualTo("debiting.requisites.type", "FL"),
+        JsonMatchers.haveJsonValueEqualTo("debiting.requisites.kpp", "0")));
+```
+`assertAll` не используется вообще: ни вокруг matchers фрейма, ни вокруг шагов, ни для
+«заголовка» группы проверок. Нужна группа проверок - `.shouldSoft(...)`. Нужен именованный
+шаг в отчёте - `Allure.step("<описание>", () -> ...)` (или метод шага с `@Step`), внутри -
+обычные вызовы шагов и проверок. Текст из заголовка `assertAll` становится описанием шага. Стандартные ассерты, которые
+остались по `MR-29` (matcher не нашёлся), тоже пишутся без `assertAll` - подряд, по одному.
+
 **Перед тем как закончить подшаг** - выполни по своим файлам команду проверки `MR-48` из
 `code-rules.md`. Любая строка в выводе - это один из приёмов выше: переделай.
 
@@ -160,7 +193,7 @@ assertEquals(row.getCellValue("state", Integer.class), intOrNull(result, "state"
 |--------------------------|----------------------------|
 | код ответа REST, заголовки, куки, тело ответа | `RestMatchers`, `ValidatableResponseWrapper`, REST matchers, статус, заголовок, тело |
 | поля JSON, наличие ключа, значение по jsonPath, сравнение с эталонным JSON, JSON-схема, размер массива | `JsonMatchers`, `ValidatableJson`, JSON matchers, jsonPath, `toValidatableJson` |
-| строки и ячейки таблицы БД, количество строк, null в ячейке, JSON в ячейке | `DatabaseMatchers`, `ValidatableTable`, `ValidatableRow`, Table matchers, ячейка, колонка |
+| строки и ячейки таблицы БД, значение ячейки равно X, типизированное значение ячейки, количество строк, null в ячейке, JSON в ячейке | `DatabaseMatchers`, `ValidatableTable`, `ValidatableRow`, Table matchers, ячейка, колонка, cell value equal, typified cell value |
 | сообщения Kafka: количество, ключ, значение, ожидание сообщения | `KafkaMatchers`, `KafkaConsumerClient`, `ValidatableConsumerRecord`, Kafka matchers, запись, ключ, значение |
 | XML: значение по пути, сравнение, схема | `XmlMatchers`, `ValidatableXml`, XML matchers, xmlPath |
 | сравнение текста: равно, содержит, начинается, регулярное выражение, пусто | `TextConditions`, Text conditions |

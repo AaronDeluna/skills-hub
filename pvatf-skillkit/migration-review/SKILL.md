@@ -148,7 +148,7 @@ git diff --name-only <основная ветка из паспорта>...<ве
 | P10 | Старое логирование | три команды под таблицей | осталась конфигурация или зависимость другого логгера (logback, log4j); нет файла `simplelogger.properties` в ресурсах тестов |
 | P11 | Свои конфигурационные классы | две команды под таблицей | остался свой класс, который хранит или читает настройки подключения мигрированной технологии (не класс конфигурации фрейма); остался старый файл настроек, значения из которого перенесены |
 | P12 | Нить не сошлась: класс создан, но не подключён | две команды под таблицей | новый класс никто не вызывает; обращение к сервису фрейма повторяется в файлах, которые не являются классами шагов, хотя класс шагов для этого есть |
-| P13 | Свои конструкции вокруг проверок | команды `MR-48` под таблицей, по всем исходникам тестов | своя обёртка над matcher, свой класс matcher или condition, список matchers в цикле, разбор ответа в `JsonNode`, число или дата проверяются текстом |
+| P13 | Свои конструкции вокруг проверок | команды `MR-48` под таблицей, по всем исходникам тестов | своя обёртка над matcher, свой класс matcher или condition, список matchers в цикле, разбор ответа в `JsonNode`, число или дата проверяются текстом, `assertAll` |
 | P14 | Лишние слои | команды `MR-49` под таблицей, по всем исходникам тестов | метод-делегат (фасад), вложенный класс в классе шагов, класс «всё общее» (`...Common`, `...Helper`, `...Utils`) |
 
 Команды для `P10`:
@@ -163,7 +163,7 @@ grep-ом» (`code-rules.md` скилла `migration-step`), только вме
 `-r --include=*.java <каталоги исходников тестов>`:
 ```
 grep -rnE "implements [A-Za-z.]*(Matcher|Condition)\b|List<[A-Za-z.]*Matcher>|matchers\.add\(|\.toArray\(new [A-Za-z.]*Matcher|static [A-Za-z.<>]*(Matcher|Condition) [a-z][A-Za-z0-9]*\(" --include=*.java <каталоги исходников тестов>
-grep -rnE "getRestHistory\(\)\.getLast\(\)|JacksonHelper|JsonNode|textOrNull|intOrNull|compareNumbers|assertDatesEqual|bigDecimalsEqual|equalToText\(String\.valueOf" --include=*.java <каталоги исходников тестов>
+grep -rnE "getRestHistory\(\)\.getLast\(\)|JacksonHelper|JsonNode|textOrNull|intOrNull|compareNumbers|assertDatesEqual|bigDecimalsEqual|equalToText\(String\.valueOf|assertAll\(" --include=*.java <каталоги исходников тестов>
 grep -rnE "^\s+(public |private |protected )?(static )?(final )?class [A-Z]" --include=*.java <каталоги исходников тестов>
 grep -rnE "^\s+return [A-Z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*\([a-zA-Z, ]*\);" --include=*.java <каталоги исходников тестов>
 find <каталоги исходников тестов> \( -name "*Common.java" -o -name "*Helper.java" -o -name "*Utils.java" \) -not -path "*/target/*"
