@@ -81,6 +81,13 @@ public class Unit {
         System.out.println("Итоговый результат: " + oneLine(step.result));
         System.out.println("Чекпоинт: " + oneLine(step.checkpoint));
         List<String> ids = ruleIds(card, step);
+        Set<String> docIds = new LinkedHashSet<>();
+        Matcher d = Pattern.compile("\\bD-[a-z0-9-]+?-[0-9]+\\b").matcher(step.body);
+        while (d.find()) {
+            docIds.add(d.group());
+        }
+        System.out.println("Конспект подшага: " + (docIds.isEmpty() ? "-" : String.join(", ", docIds))
+                + "  (текст - в tmp/docs-now.md после Unit.java rules; поиск по конспекту - Notes.java find " + card.tech + " <слова>)");
         System.out.println("Правила подшага: " + String.join(", ", ids)
                 + "  (текст: java <скилл>/scripts/Unit.java rules " + card.id + " " + step.id + ")");
         System.out.println("Порядок: правила -> правки по «Что сделать» -> Unit.java check -> проверяющий -> чекпоинт -> коммит");
@@ -120,6 +127,7 @@ public class Unit {
         Path target = MIGRATION.resolve("tmp").resolve("rules-now.md");
         Files.createDirectories(target.getParent());
         Files.writeString(target, out.toString(), StandardCharsets.UTF_8);
+        int docs = writeDocs(card, step);
         if (print) {
             List<String> missing = new ArrayList<>(ids);
             missing.removeAll(found);
@@ -127,8 +135,46 @@ public class Unit {
             if (!missing.isEmpty()) {
                 System.out.println("НЕ НАЙДЕНЫ в code-rules.md: " + String.join(", ", missing) + " - проверь номера в карточке");
             }
-            System.out.println("Прочитай файл целиком перед правками.");
+            System.out.println("Записи конспекта подшага: " + docs + " - в .gigacode/data/migration/tmp/docs-now.md");
+            System.out.println("Прочитай оба файла целиком перед правками. Нужного имени фрейма там нет -> сначала Notes.java find, потом сабагент документации.");
         }
+    }
+
+    /** Записи конспекта, на которые ссылается подшаг и «Таблица подтверждений», - в tmp/docs-now.md. */
+    private static int writeDocs(Card card, Step step) throws IOException {
+        Set<String> ids = new LinkedHashSet<>();
+        Matcher m = Pattern.compile("\\bD-[a-z0-9-]+?-[0-9]+\\b").matcher(step.body + "\n" + card.confirmations);
+        while (m.find()) {
+            ids.add(m.group());
+        }
+        StringBuilder out = new StringBuilder("# Записи конспекта подшага " + card.id + " " + step.id + "\n\n");
+        int found = 0;
+        Path notes = MIGRATION.resolve("doc-notes");
+        for (String id : ids) {
+            String tech = id.substring(2, id.lastIndexOf('-'));
+            Path file = notes.resolve(tech + ".md");
+            String record = Files.exists(file) ? record(Files.readString(file, StandardCharsets.UTF_8), id) : null;
+            if (record == null) {
+                out.append("## ").append(id).append(" - НЕТ В КОНСПЕКТЕ (ссылка в карточке есть, записи нет)\n\n");
+            } else {
+                out.append(record).append('\n');
+                found++;
+            }
+        }
+        Path target = MIGRATION.resolve("tmp").resolve("docs-now.md");
+        Files.createDirectories(target.getParent());
+        Files.writeString(target, out.toString(), StandardCharsets.UTF_8);
+        return found;
+    }
+
+    private static String record(String notes, String id) {
+        Matcher start = Pattern.compile("(?m)^#{2,3} " + Pattern.quote(id) + "\\b").matcher(notes);
+        if (!start.find()) {
+            return null;
+        }
+        Matcher next = Pattern.compile("(?m)^#{1,3} ").matcher(notes);
+        int end = next.find(start.end()) ? next.start() : notes.length();
+        return notes.substring(start.start(), end);
     }
 
     /** Номера правил: из карточки, иначе - по виду подшага из таблицы в code-rules.md. */
@@ -375,6 +421,7 @@ public class Unit {
         String result = "";
         String checkpoint = "";
         String rules = "";
+        String body = "";
     }
 
     static final class Card {
@@ -384,6 +431,7 @@ public class Unit {
         String coreMode;
         List<Step> steps = new ArrayList<>();
         Step whole = new Step();
+        String confirmations = "";
 
         static Card read(Path path) throws IOException {
             if (!Files.exists(path)) {
@@ -422,6 +470,12 @@ public class Unit {
             whole.result = sections.getOrDefault("Цель", "");
             whole.checkpoint = sections.getOrDefault("Критерии готовности", "");
             whole.rules = sections.getOrDefault("Правила юнита", "");
+            whole.body = text;
+            int confirmStart = text.indexOf("### Таблица подтверждений");
+            if (confirmStart >= 0) {
+                int next = text.indexOf("\n#", confirmStart + 5);
+                card.confirmations = text.substring(confirmStart, next > 0 ? next : text.length());
+            }
             return card;
         }
 
@@ -441,6 +495,7 @@ public class Unit {
         }
 
         private static void fill(Step step, String body) {
+            step.body = body;
             step.files = fileTable(body);
             step.result = field(body, "Итоговый результат");
             step.checkpoint = field(body, "Чекпоинт");

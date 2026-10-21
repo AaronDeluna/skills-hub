@@ -23,7 +23,8 @@ public class SyncShared {
             "core-rules.md", List.of("orchestrator", "migration-map", "migration-step", "migration-review"),
             "matchers.md", List.of("migration-map", "migration-step"),
             "frame-topics.md", List.of("migration-map", "migration-step"),
-            "architecture-template.md", List.of("migration-map", "migration-review"));
+            "architecture-template.md", List.of("migration-map", "migration-review"),
+            "scripts/Notes.java", List.of("migration-map", "migration-step"));
 
     public static void main(String[] args) throws IOException {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
@@ -33,7 +34,9 @@ public class SyncShared {
             Path source = Paths.get("shared", entry.getKey());
             byte[] content = Files.readAllBytes(source);
             for (String skill : entry.getValue()) {
-                Path target = Paths.get(skill, "references", entry.getKey());
+                Path target = entry.getKey().startsWith("scripts/")
+                        ? Paths.get(skill, entry.getKey())
+                        : Paths.get(skill, "references", entry.getKey());
                 boolean same = Files.exists(target) && java.util.Arrays.equals(content, Files.readAllBytes(target));
                 if (same) {
                     continue;

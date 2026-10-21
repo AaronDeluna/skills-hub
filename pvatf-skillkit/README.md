@@ -48,9 +48,10 @@ Platform V AT Framework (PVATF). Сейчас в наборе - миграция
   |--------|------------|
   | `orchestrator/scripts/NextAction.java` | читает карту и печатает одно следующее действие; проверяет названный юнит или пачку |
   | `migration-step/scripts/Unit.java recite` | напоминание перед каждым подшагом: подшаг, файлы, итог, чекпоинт, правила |
-  | `migration-step/scripts/Unit.java rules` | кладёт текст правил текущего подшага в `tmp/rules-now.md` |
+  | `migration-step/scripts/Unit.java rules` | кладёт текст правил текущего подшага в `tmp/rules-now.md`, а записи конспекта, на которые он ссылается, - в `tmp/docs-now.md` |
   | `migration-step/scripts/Unit.java check` | самопроверка правил кода по файлам подшага и изменённые файлы вне карточки |
   | `migration-map/scripts/Card.java` | механическая проверка карточек: поля, лимиты, пустые слова, покрытие потребителей, `L`, записи конспекта |
+  | `scripts/Notes.java` (в `migration-map` и `migration-step`) | поиск по конспекту документации: `list`, `find`, `show`. Запускается перед каждым сабагентом документации, чтобы не изучать заново уже изученное |
 
 - **Карточки технологий строят сабагенты из файлов**, а не основной чат по памяти: разбор
   технологии -> составитель карточки -> `Card.java` -> проверяющий карточки.
@@ -58,7 +59,7 @@ Platform V AT Framework (PVATF). Сейчас в наборе - миграция
 ### Для разработчиков кита
 
 Общие файлы (`core-rules.md`, `matchers.md`, `frame-topics.md`,
-`architecture-template.md`) правьте только в `shared/`, потом разложите копии и проверьте:
+`architecture-template.md`, `scripts/Notes.java`) правьте только в `shared/`, потом разложите копии и проверьте:
 ```
 java -Dfile.encoding=UTF-8 scripts/SyncShared.java
 java -Dfile.encoding=UTF-8 scripts/SyncShared.java --check
