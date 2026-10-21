@@ -151,6 +151,27 @@ public class Card {
         if (!checkpoint.contains("`") || !checkpoint.contains("->")) {
             problems.add(id + ": «Чекпоинт» должен быть одной командой в `...` и ожидаемым выводом после ->");
         }
+        if (kind.equals("usage") || kind.equals("fix")) {
+            Map<String, String> criteria = new LinkedHashMap<>();
+            String table = field(body, "Критерии по файлам");
+            for (String line : table.split("\n")) {
+                String[] cells = cells(line);
+                if (cells.length >= 4 && !cells[0].equals("Файл") && !cells[0].startsWith("-") && !cells[0].startsWith("<")) {
+                    criteria.put(cells[0].replace("`", ""), cells[1]);
+                }
+            }
+            for (Map.Entry<String, String> file : stepFiles.entrySet()) {
+                if (!file.getValue().contains("изменить")) {
+                    continue;
+                }
+                String was = criteria.get(file.getKey());
+                if (was == null) {
+                    problems.add(id + ": нет строки «Критерии по файлам» для " + file.getKey());
+                } else if (!was.matches(".*[0-9].*")) {
+                    problems.add(id + ": в «Было» для " + file.getKey() + " нет чисел из разбора");
+                }
+            }
+        }
         if ((kind.equals("usage") || kind.equals("fix")) && !checkpoint.matches("(?s).*(assert|Matcher|JsonNode).*")) {
             problems.add(id + ": в «Чекпоинте» usage/fix нет команды MR-48 (ассерты, свои matchers, JsonNode)");
         }
