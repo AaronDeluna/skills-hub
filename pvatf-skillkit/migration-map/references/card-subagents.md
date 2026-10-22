@@ -164,7 +164,7 @@
 ## 5.3 Механическая проверка - скрипт
 
 ```
-java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Card.java M-<nnn>
+java -Dfile.encoding=UTF-8 .gigacode/skills/migration-map/scripts/Card.java M-<nnn>
 ```
 
 Скрипт проверяет: поля каждого подшага, пустые слова, лимиты файлов, «Правила подшага»,

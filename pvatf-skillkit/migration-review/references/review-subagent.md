@@ -84,5 +84,5 @@ V7 - `MR-36` · V8 - `MR-13`, `MR-30` · V9 - `MR-17`, `MR-20`, `MR-21`, `MR-23`
 V11, V12 - `MR-37` · V13 - `MR-38` · V14, V15 - `MR-39` · V16 - `MR-40`, `MR-45` · V17 - `MR-15` ·
 V18 - `MR-14`, `MR-22`, `MR-10` · V19 - `MR-41` · V20 - `MR-42` · V21 - `MR-43` · V22 - `MR-44` · V23 - `MR-46` · V24 - `MR-47` · V25 - `MR-48` · V26 - `MR-49`, `MR-30`.
 
-Тексты правил `MR` лежат в скилле `migration-step` (`references/code-rules.md`) - исправляет
+Тексты правил `MR` лежат в скилле `migration-step` (`.gigacode/skills/migration-step/references/code-rules.md`) - исправляет
 находки он, тебе достаточно кода правила.

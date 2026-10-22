@@ -5,7 +5,7 @@
 было работать, ничего не додумывая: точные пути, номера строк, что именно исправить.
 
 Юниты типа `arch` и `review`, которые заводит проверка, пишутся по общему шаблону карточки
-из `migration-map` (`references/unit-card-template.md`), в шагах - находки из отчёта.
+из `migration-map` (`.gigacode/skills/migration-map/references/unit-card-template.md`), в шагах - находки из отчёта.
 
 ```markdown
 ---

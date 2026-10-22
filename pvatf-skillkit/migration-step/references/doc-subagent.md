@@ -44,8 +44,8 @@
    словами документации (имя класса или сервиса фрейма, раздел, ключевые слова из второй
    строки конспекта). Латиницей ищется надёжнее:
    ```
-   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Notes.java find <tech> <слова>
-   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Notes.java show <D-id>
+   java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Notes.java find <tech> <слова>
+   java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Notes.java show <D-id>
    ```
    (`Notes.java list <tech>` - оглавление всего конспекта, одна строка на запись.)
    Нашлась запись со статусом `найден`, и она про то же -> бери её, сабагента НЕ запускай.

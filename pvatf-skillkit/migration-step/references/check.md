@@ -55,7 +55,7 @@
    пункт.)
 6. **Правила кода.** Запусти самопроверку:
    ```
-   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java check M-<nnn> S-<nn>
+   java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java check M-<nnn> S-<nn>
    ```
    Она проходит механические правила (`var`, сеттеры, `getForCurrentThread()`, ассерты, DTO,
    свои matchers, вложенные классы, делегаты, чтение настроек, имена, логирование, `sleep`,

@@ -19,8 +19,8 @@ import java.util.regex.Pattern;
  * Помощник исполнителя юнита (скилл migration-step). Запуск из корня мигрируемого проекта:
  *
  *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java recite M-007 [S-04]   - что делаю сейчас (напоминание)
- *   java <каталог скилла>/scripts/Unit.java rules  M-007 [S-04]   - правила подшага в tmp/rules-now.md
- *   java <каталог скилла>/scripts/Unit.java check  M-007 [S-04]   - самопроверка правил кода и границ
+ *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java rules  M-007 [S-04]   - правила подшага в tmp/rules-now.md
+ *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java check  M-007 [S-04]   - самопроверка правил кода и границ
  *
  * Подшаг не указан - берётся первый подшаг юнита со статусом не done.
  * Нужна только Java 17+, внешних команд (grep, awk) не использует, кроме git в check.
@@ -36,7 +36,12 @@ public class Unit {
             System.exit(2);
         }
         String command = args[0];
-        Card card = Card.read(MIGRATION.resolve("units").resolve(args[1] + ".md"));
+        Path cardPath = MIGRATION.resolve("units").resolve(args[1] + ".md");
+        if (!Files.exists(cardPath)) {
+            System.out.println("НЕТ КАРТОЧКИ " + cardPath + " - проверь ID юнита (раздел 4 карты) и что запускаешь из корня проекта, где лежит .gigacode/");
+            System.exit(2);
+        }
+        Card card = Card.read(cardPath);
         Step step = card.step(args.length > 2 ? args[2] : null);
         if (command.equals("recite")) {
             recite(card, step);
@@ -89,7 +94,7 @@ public class Unit {
         System.out.println("Конспект подшага: " + (docIds.isEmpty() ? "-" : String.join(", ", docIds))
                 + "  (текст - в tmp/docs-now.md после Unit.java rules; поиск по конспекту - Notes.java find " + card.tech + " <слова>)");
         System.out.println("Правила подшага: " + String.join(", ", ids)
-                + "  (текст: java <скилл>/scripts/Unit.java rules " + card.id + " " + step.id + ")");
+                + "  (текст: java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java rules " + card.id + " " + step.id + ")");
         System.out.println("Порядок: правила -> правки по «Что сделать» -> Unit.java check -> проверяющий -> чекпоинт -> коммит");
         System.out.println("Нельзя: вопросы человеку; файлы не из списка; DTO ответа; свои matchers и списки matchers;"
                 + " делегаты и вложенные классы; имена фрейма не из «Таблицы подтверждений».");
@@ -263,6 +268,10 @@ public class Unit {
                 findings++;
                 continue;
             }
+            if (file.toString().matches(".*\\.(properties|ya?ml)$")) {
+                findings += checkSettings(file);
+                continue;
+            }
             if (!file.toString().endsWith(".java") && !file.toString().endsWith(".kt")) {
                 continue;
             }
@@ -277,6 +286,35 @@ public class Unit {
         findings += checkBoundaries(step);
         System.out.println("ИТОГ: находок " + findings + (findings == 0 ? " - чисто" : " - исправь и запусти снова"));
         return findings == 0 ? 0 : 1;
+    }
+
+    /** Файл настроек: у каждого ключа есть значение, заглушек нет (MR-47, значения - из CONNECTIONS.md). */
+    private static int checkSettings(Path file) throws IOException {
+        int found = 0;
+        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        Pattern empty = Pattern.compile("^\\s*[^#!\\s][^=:]*[=:]\\s*$");
+        Pattern stub = Pattern.compile("(?i)TODO|changeme|change_me|<[^>]+>|\"\"\\s*$");
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line.trim().startsWith("#") || line.trim().startsWith("!")) {
+                continue;
+            }
+            boolean yamlParent = file.toString().matches(".*\\.ya?ml$") && line.trim().endsWith(":")
+                    && i + 1 < lines.size() && indent(lines.get(i + 1)) > indent(line);
+            if ((empty.matcher(line).matches() && !yamlParent) || stub.matcher(line).find()) {
+                System.out.println("MR-47 " + file + ":" + (i + 1) + " - ключ без значения или заглушка (значение - из CONNECTIONS.md): " + line.trim());
+                found++;
+            }
+        }
+        return found;
+    }
+
+    private static int indent(String line) {
+        int n = 0;
+        while (n < line.length() && line.charAt(n) == ' ') {
+            n++;
+        }
+        return n;
     }
 
     private static int scan(Path file, List<String> lines, String[][] checks) {
@@ -402,6 +440,10 @@ public class Unit {
                 Path script = Paths.get(argument).toAbsolutePath();
                 return script.getParent().getParent();
             }
+        }
+        Path inProject = Paths.get(".gigacode", "skills", "migration-step").toAbsolutePath();
+        if (Files.exists(inProject.resolve("references").resolve("code-rules.md"))) {
+            return inProject;
         }
         Path fallback = Paths.get(System.getProperty("user.home"), ".gigacode", "skills", "migration-step");
         if (Files.exists(fallback)) {

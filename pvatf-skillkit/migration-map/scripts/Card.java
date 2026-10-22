@@ -43,6 +43,10 @@ public class Card {
         String map = read(MIGRATION.resolve("MIGRATION-MAP.md"));
         List<Path> cards = new ArrayList<>();
         if (args[0].equals("all")) {
+            if (!Files.isDirectory(MIGRATION.resolve("units"))) {
+                System.out.println("Карточек нет: папки " + MIGRATION.resolve("units") + " нет. Запускай из корня проекта, где лежит .gigacode/");
+                System.exit(1);
+            }
             try (Stream<Path> files = Files.list(MIGRATION.resolve("units"))) {
                 files.filter(p -> p.getFileName().toString().matches("M-[0-9]+\\.md")).sorted().forEach(cards::add);
             }

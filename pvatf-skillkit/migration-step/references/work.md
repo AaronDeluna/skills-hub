@@ -7,7 +7,7 @@
 
 **Юнит типа `review` и подшаг `review` юнита технологии:** Шаги 3, 4 и 5 для него не выполняются. Вместо них прочитай
 `references/review-subagent.md` и действуй по разделу «Порядок работы в юните `review`»
-(текст правила `MR` для находки найди по номеру: `grep -n "MR-<n> ·" <каталог скилла>/references/code-rules.md` и прочитай только его). Потом - Шаг 6 (`references/check.md`, п.1, 2, 6, 8, 10) и
+(текст правила `MR` для находки найди по номеру: `grep -n "MR-<n> ·" .gigacode/skills/migration-step/references/code-rules.md` и прочитай только его). Потом - Шаг 6 (`references/check.md`, п.1, 2, 6, 8, 10) и
 Шаг 7 (`references/close.md`).
 
 1. Прочитай `references/doc-subagent.md` целиком - там правила, промпт и шаблон записи.
@@ -62,7 +62,7 @@
    «Правила подшага» карточки (в обычном юните - «Правила юнита»; поле пустое - по виду
    подшага) и кладёт их текст в файл:
    ```
-   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java rules M-<nnn> S-<nn>
+   java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java rules M-<nnn> S-<nn>
    ```
    Прочитай `.gigacode/data/migration/tmp/rules-now.md` целиком. Скрипт написал «НЕ
    НАЙДЕНЫ» - номер в карточке с ошибкой, поправь карточку и запусти снова. Весь
