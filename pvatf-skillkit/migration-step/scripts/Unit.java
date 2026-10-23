@@ -46,7 +46,7 @@ public class Unit {
         if (command.equals("recite")) {
             recite(card, step);
         } else if (command.equals("rules")) {
-            rules(card, step, true);
+            System.exit(rules(card, step, true));
         } else if (command.equals("check")) {
             System.exit(check(card, step));
         } else {
@@ -102,7 +102,8 @@ public class Unit {
 
     // ---------- rules ----------
 
-    private static void rules(Card card, Step step, boolean print) throws IOException {
+    /** @return 0 - все номера найдены; 1 - какого-то правила нет в code-rules.md (номер в карточке с ошибкой). */
+    private static int rules(Card card, Step step, boolean print) throws IOException {
         Path codeRules = skillDir().resolve("references").resolve("code-rules.md");
         String text = Files.readString(codeRules, StandardCharsets.UTF_8);
         List<String> ids = ruleIds(card, step);
@@ -133,16 +134,21 @@ public class Unit {
         Files.createDirectories(target.getParent());
         Files.writeString(target, out.toString(), StandardCharsets.UTF_8);
         int docs = writeDocs(card, step);
+        List<String> missing = new ArrayList<>(ids);
+        missing.removeAll(found);
+        if (ids.isEmpty()) {
+            missing.add("(номеров нет ни в карточке, ни в substep-rules.md для вида " + step.kind + ")");
+        }
         if (print) {
-            List<String> missing = new ArrayList<>(ids);
-            missing.removeAll(found);
             System.out.println("Записано в " + target + ": " + found.size() + " правил - " + String.join(", ", found));
             if (!missing.isEmpty()) {
-                System.out.println("НЕ НАЙДЕНЫ в code-rules.md: " + String.join(", ", missing) + " - проверь номера в карточке");
+                System.out.println("ОШИБКА: не найдены в code-rules.md: " + String.join(", ", missing)
+                        + " - исправь номера в карточке (таблица - references/substep-rules.md), потом запусти снова");
             }
             System.out.println("Записи конспекта подшага: " + docs + " - в .gigacode/data/migration/tmp/docs-now.md");
             System.out.println("Прочитай оба файла целиком перед правками. Нужного имени фрейма там нет -> сначала Notes.java find, потом сабагент документации.");
         }
+        return missing.isEmpty() ? 0 : 1;
     }
 
     /** Записи конспекта, на которые ссылается подшаг и «Таблица подтверждений», - в tmp/docs-now.md. */
@@ -182,7 +188,7 @@ public class Unit {
         return notes.substring(start.start(), end);
     }
 
-    /** Номера правил: из карточки, иначе - по виду подшага из таблицы в code-rules.md. */
+    /** Номера правил: из карточки, иначе - по виду подшага из таблицы references/substep-rules.md. */
     private static List<String> ruleIds(Card card, Step step) throws IOException {
         List<String> ids = new ArrayList<>();
         Matcher m = Pattern.compile("MR-[0-9H]+").matcher(step.rules);
@@ -193,7 +199,7 @@ public class Unit {
             return ids;
         }
         String kind = step.kind;
-        String text = Files.readString(skillDir().resolve("references").resolve("code-rules.md"), StandardCharsets.UTF_8);
+        String text = Files.readString(skillDir().resolve("references").resolve("substep-rules.md"), StandardCharsets.UTF_8);
         for (String line : text.split("\n")) {
             if (!line.startsWith("| `")) {
                 continue;
@@ -230,7 +236,7 @@ public class Unit {
 
     private static final String[][] FILE_CHECKS = {
         {"MR-33", "(^|[^A-Za-z0-9_])var +[A-Za-z_][A-Za-z0-9_]* *(=|:)", "var вместо явного типа"},
-        {"MR-29", "Assertions\\.|assert(Equals|True|False|NotNull|Null|That|All)\\(|SoftAssertions", "ассерт вместо matcher (в usage - заменить или во «Входящие»)"},
+        {"MR-29", "Assertions\\.|assert(Equals|True|False|NotNull|Null|That|All)\\(|SoftAssertions", "ассерт вместо matcher: замени на matcher; matcher нет в документации - запиши в «Сделано» подшага «исключение MR-29: <файл>:<строка>» и строку во «Входящие»"},
         {"MR-41", "\\.as\\([A-Z][A-Za-z0-9_]*\\.class\\)|readValue\\(|fromJson\\(|\\.getObject\\(|\\.extract\\(\\)", "ответ превращают в объект"},
         {"MR-4", "^[^/*\"]*[^A-Za-z0-9_.\"](org|com|ru|io|java)\\.[a-z0-9_]+\\.[a-z0-9_.]+\\.[A-Z]", "полное имя класса в коде вместо import"},
         {"MR-43", "\\b(log|logger|LOG|LOGGER)\\.(info|debug|trace|warn|error)\\(|System\\.(out|err)\\.print|\\.log\\(\\)\\.(all|body|headers|ifValidationFails)|(Request|Response)LoggingFilter|\\.prettyPrint\\(|\\.prettyPeek\\(|\\.peek\\(", "ручное логирование (остаётся только ход сценария)"},
@@ -254,6 +260,7 @@ public class Unit {
     private static int check(Card card, Step step) throws IOException, InterruptedException {
         int findings = 0;
         System.out.println("CHECK " + card.id + " " + step.id + " (" + step.kind + "), файлов: " + step.files.size());
+        Set<String> exceptions = exceptions(step);
         for (Map.Entry<String, String> entry : step.files.entrySet()) {
             Path file = Paths.get(entry.getKey());
             if (entry.getValue().contains("удал")) {
@@ -276,9 +283,9 @@ public class Unit {
                 continue;
             }
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-            findings += scan(file, lines, FILE_CHECKS);
+            findings += scan(file, lines, FILE_CHECKS, exceptions);
             if (lines.stream().anyMatch(l -> l.matches("\\s*@Test\\b.*"))) {
-                findings += scan(file, lines, TEST_CLASS_CHECKS);
+                findings += scan(file, lines, TEST_CLASS_CHECKS, exceptions);
             }
             findings += checkSetters(file, lines);
             findings += checkServiceLookups(file, lines);
@@ -317,7 +324,21 @@ public class Unit {
         return n;
     }
 
-    private static int scan(Path file, List<String> lines, String[][] checks) {
+    /**
+     * Разрешённые исключения подшага: строка «исключение MR-29: <файл>:<строка>» в его разделе
+     * карточки. MR-29 разрешает стандартный ассерт, если matcher нет в документации (и есть
+     * строка во «Входящие»); другие правила исключений не имеют.
+     */
+    private static Set<String> exceptions(Step step) {
+        Set<String> allowed = new LinkedHashSet<>();
+        Matcher m = Pattern.compile("исключение (MR-29): `?([^`\\s:]+):([0-9]+)").matcher(step.body);
+        while (m.find()) {
+            allowed.add(m.group(1) + " " + m.group(2) + ":" + m.group(3));
+        }
+        return allowed;
+    }
+
+    private static int scan(Path file, List<String> lines, String[][] checks, Set<String> exceptions) {
         int count = 0;
         boolean inBlockComment = false;
         for (int i = 0; i < lines.size(); i++) {
@@ -338,6 +359,9 @@ public class Unit {
                 }
                 if (Pattern.compile(check[1]).matcher(line).find()) {
                     if (check[0].equals("MR-49") && check[2].startsWith("вложенный") && isBuilder(line)) {
+                        continue;
+                    }
+                    if (exceptions.contains(check[0] + " " + file.toString().replace('\\', '/') + ":" + (i + 1))) {
                         continue;
                     }
                     System.out.println(check[0] + " " + file + ":" + (i + 1) + " - " + check[2] + ": " + trimmed);
@@ -401,19 +425,23 @@ public class Unit {
 
     /** Изменённые файлы вне списка подшага. */
     private static int checkBoundaries(Step step) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder("git", "status", "--porcelain").redirectErrorStream(true).start();
+        // -z: пути как есть (пробелы, кириллица); --untracked-files=all: новые файлы поимённо, а не каталогом
+        Process process = new ProcessBuilder("git", "status", "--porcelain", "-z", "--untracked-files=all")
+                .redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         process.waitFor();
         int count = 0;
-        for (String line : output.split("\n")) {
-            if (line.length() < 4) {
+        String[] entries = output.split("\0");
+        for (int i = 0; i < entries.length; i++) {
+            String entry = entries[i];
+            if (entry.length() < 4) {
                 continue;
             }
-            String path = line.substring(3).trim();
-            if (path.contains(" -> ")) {
-                path = path.substring(path.indexOf(" -> ") + 4);
+            String status = entry.substring(0, 2);
+            String path = entry.substring(3);
+            if (status.contains("R") || status.contains("C")) {
+                i++; // следующая запись - старый путь переименования
             }
-            path = path.replace("\"", "");
             if (path.startsWith(".gigacode/")) {
                 continue;
             }

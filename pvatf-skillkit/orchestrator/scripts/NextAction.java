@@ -28,6 +28,8 @@ public class NextAction {
 
     private static final Path MIGRATION = Paths.get(".gigacode", "data", "migration");
     private static final int BATCH_LIMIT = 5;
+    private static final List<String> STATUSES = List.of("todo", "in-progress", "done", "blocked");
+    private static final List<String> BROKEN_ROWS = new ArrayList<>();
 
     public static void main(String[] args) throws IOException {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
@@ -56,6 +58,16 @@ public class NextAction {
         List<Unit> units = units(text);
         Set<String> archived = archived(text);
         boolean core = head.getOrDefault("scope", "full").equals("core");
+        if (!BROKEN_ROWS.isEmpty()) {
+            say("карта повреждена", "в разделе 4 строки юнитов не разбираются (нужно 8 колонок и статус "
+                    + String.join("/", STATUSES) + "): " + String.join(" | ", BROKEN_ROWS)
+                    + " - исправь таблицу, юниты не запускаются");
+            return;
+        }
+        if (units.isEmpty() && archived.isEmpty()) {
+            say("карта повреждена", "в разделе 4 нет ни одного юнита и строки «В архиве» - исправь таблицу, юниты не запускаются");
+            return;
+        }
 
         if (args.length > 0) {
             requested(args[0], units, archived, core);
@@ -71,7 +83,7 @@ public class NextAction {
             }
         }
         for (Unit unit : units) {
-            if (unit.status.equals("todo") && allowed(unit, core) && depsDone(unit, units, archived)) {
+            if (unit.status.equals("todo") && allowed(unit, core) && depsDone(unit, units, archived, core)) {
                 say("migration-step " + unit.id, "первый todo сверху, все зависимости done" + nextStep(unit));
                 mapSizeNote(text);
                 return;
@@ -151,8 +163,7 @@ public class NextAction {
             }
             for (String dep : unit.deps) {
                 Unit depUnit = find(units, dep);
-                boolean ok = archived.contains(dep) || earlier.contains(dep)
-                        || (depUnit != null && depUnit.status.equals("done"));
+                boolean ok = earlier.contains(dep) || depSatisfied(dep, units, archived, core);
                 if (!ok) {
                     say("нельзя", id + " ждёт " + dep + " (" + (depUnit == null ? "нет в таблице" : depUnit.status) + ")"
                             + (notes.isEmpty() ? "" : "; " + String.join("; ", notes)));
@@ -184,6 +195,11 @@ public class NextAction {
         List<Unit> units = new ArrayList<>();
         for (String line : section(text, "4.").split("\n")) {
             String[] cells = cells(line);
+            if (line.trim().startsWith("| M-") && (cells.length < 8 || !cells[0].matches("M-[0-9]+")
+                    || !STATUSES.contains(cells[cells.length - 1]))) {
+                BROKEN_ROWS.add(line.trim());
+                continue;
+            }
             if (cells.length >= 8 && cells[0].matches("M-[0-9]+")) {
                 Unit unit = new Unit();
                 unit.id = cells[0];
@@ -291,14 +307,32 @@ public class NextAction {
         }
     }
 
-    private static boolean depsDone(Unit unit, List<Unit> units, Set<String> archived) {
+    private static boolean depsDone(Unit unit, List<Unit> units, Set<String> archived, boolean core) {
         for (String dep : unit.deps) {
-            Unit depUnit = find(units, dep);
-            if (!archived.contains(dep) && (depUnit == null || !depUnit.status.equals("done"))) {
+            if (!depSatisfied(dep, units, archived, core)) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * Зависимость выполнена: юнит done или в архиве. При scope: core юнит tech считается
+     * выполненным, когда сделаны его подшаги разбор, env и core: usage, cleanup и review при
+     * этом объёме не делаются, и ждать их полного done - значит заблокировать следующую технологию.
+     */
+    private static boolean depSatisfied(String dep, List<Unit> units, Set<String> archived, boolean core) {
+        if (archived.contains(dep)) {
+            return true;
+        }
+        Unit depUnit = find(units, dep);
+        if (depUnit == null) {
+            return false;
+        }
+        if (depUnit.status.equals("done")) {
+            return true;
+        }
+        return core && depUnit.type.equals("tech") && coreStepsLeft(dep) == 0;
     }
 
     private static Unit find(List<Unit> units, String id) {

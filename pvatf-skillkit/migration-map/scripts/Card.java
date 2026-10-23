@@ -8,8 +8,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -33,6 +35,10 @@ public class Card {
     private static final Map<String, Integer> LIMITS = Map.of("env", 6, "core", 6, "usage", 3, "cleanup", 15, "review", 15);
 
     private static final List<String> problems = new ArrayList<>();
+
+    /** Таблица references/substep-rules.md: вид подшага -> обязательные номера правил; не нашлась - null. */
+    private static Map<String, List<String>> ruleTable;
+    private static boolean flowStyle;
 
     public static void main(String[] args) throws IOException {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
@@ -86,6 +92,8 @@ public class Card {
 
     private static void checkTech(String text, String map) {
         Map<String, String> sections = sections(text);
+        String coreMode = front(text, "core_mode");
+        flowStyle = Pattern.compile("(?m)^- Стиль шагов: flow").matcher(map).find();
         List<String[]> steps = new ArrayList<>();
         for (String line : sections.getOrDefault("Подшаги", "").split("\n")) {
             String[] cells = cells(line);
@@ -118,7 +126,7 @@ public class Card {
             if (kind.equals("разбор") || kind.equals("review")) {
                 continue;
             }
-            checkStep(id, kind, body, files.get(id));
+            checkStep(id, kind, coreMode, body, files.get(id));
         }
         checkConsumers(sections.getOrDefault("Разбор технологии", ""), steps, files);
         checkCreatedAreUsed(steps, files, bodies, front(text, "tech"));
@@ -132,7 +140,7 @@ public class Card {
         }
     }
 
-    private static void checkStep(String id, String kind, String body, Map<String, String> stepFiles) {
+    private static void checkStep(String id, String kind, String coreMode, String body, Map<String, String> stepFiles) {
         if (stepFiles.isEmpty()) {
             problems.add(id + ": нет таблицы файлов (Файл | Строк | Действие)");
         }
@@ -179,17 +187,7 @@ public class Card {
         if ((kind.equals("usage") || kind.equals("fix")) && !checkpoint.matches("(?s).*(assert|Matcher|JsonNode).*")) {
             problems.add(id + ": в «Чекпоинте» usage/fix нет команды MR-48 (ассерты, свои matchers, JsonNode)");
         }
-        String rules = field(body, "Правила подшага");
-        int count = 0;
-        Matcher rule = Pattern.compile("MR-[0-9H]+").matcher(rules);
-        while (rule.find()) {
-            count++;
-        }
-        if (count == 0) {
-            problems.add(id + ": пустое поле «Правила подшага»");
-        } else if (count > 10) {
-            problems.add(id + ": правил " + count + ", больше 10 не бывает");
-        }
+        checkRules(id, kind, coreMode, field(body, "Правила подшага"));
         for (Map.Entry<String, String> file : stepFiles.entrySet()) {
             Path path = Paths.get(file.getKey());
             if (file.getValue().contains("создать")) {
@@ -212,6 +210,101 @@ public class Card {
                 problems.add(id + ": " + file.getKey() + " - не читается");
             }
         }
+    }
+
+    /**
+     * «Правила подшага» - строго по таблице references/substep-rules.md: все номера строки вида
+     * подшага (плюс MR-44 при стиле flow для core и usage), лишних нет. Разрешены сверх строки
+     * только MR-46 и правила человека MR-H. У fix обязательны MR-9 и MR-11, остальное - по находкам.
+     */
+    private static void checkRules(String id, String kind, String coreMode, String field) {
+        Set<String> present = new LinkedHashSet<>();
+        Matcher rule = Pattern.compile("MR-[0-9H]+").matcher(field);
+        while (rule.find()) {
+            present.add(rule.group());
+        }
+        if (present.isEmpty()) {
+            problems.add(id + ": пустое поле «Правила подшага»");
+            return;
+        }
+        Map<String, List<String>> table = ruleTable();
+        String key = kind.equals("core") ? "core " + (coreMode.equals("in-place") ? "in-place" : "new") : kind;
+        if (table == null || !table.containsKey(key)) {
+            return;
+        }
+        Set<String> required = new LinkedHashSet<>(table.get(key));
+        if (flowStyle && (kind.equals("core") || kind.equals("usage"))) {
+            required.add("MR-44");
+        }
+        List<String> missing = new ArrayList<>(required);
+        missing.removeAll(present);
+        if (!missing.isEmpty()) {
+            problems.add(id + ": в «Правила подшага» нет обязательных для " + key + ": " + String.join(", ", missing)
+                    + " (references/substep-rules.md)");
+        }
+        if (kind.equals("fix")) {
+            return;
+        }
+        List<String> extra = new ArrayList<>();
+        for (String number : present) {
+            if (!required.contains(number) && !number.equals("MR-46") && !number.startsWith("MR-H")) {
+                extra.add(number);
+            }
+        }
+        if (!extra.isEmpty()) {
+            problems.add(id + ": лишние номера в «Правила подшага»: " + String.join(", ", extra)
+                    + " - для " + key + " их нет в references/substep-rules.md");
+        }
+    }
+
+    /** Разбирает таблицу правил один раз; «то же, что core new, плюс ...» - строка core new и добавленные номера. */
+    private static Map<String, List<String>> ruleTable() {
+        if (ruleTable != null) {
+            return ruleTable;
+        }
+        Path file = skillDir().resolve("references").resolve("substep-rules.md");
+        if (!Files.exists(file)) {
+            System.out.println("ВНИМАНИЕ: нет " + file + " - состав «Правила подшага» не проверяется");
+            return null;
+        }
+        Map<String, List<String>> table = new LinkedHashMap<>();
+        for (String line : read(file).split("\n")) {
+            if (!line.startsWith("| `")) {
+                continue;
+            }
+            String[] parts = line.split("\\|");
+            if (parts.length < 3) {
+                continue;
+            }
+            String head = parts[1];
+            String kind = head.substring(head.indexOf('`') + 1, head.indexOf('`', head.indexOf('`') + 1));
+            String key = kind.equals("core") ? "core " + (head.contains("in-place") ? "in-place" : "new") : kind;
+            List<String> numbers = new ArrayList<>();
+            if (parts[2].contains("то же, что `core` `new`") && table.containsKey("core new")) {
+                numbers.addAll(table.get("core new"));
+            }
+            Matcher number = Pattern.compile("MR-[0-9]+").matcher(parts[2]);
+            while (number.find()) {
+                numbers.add(number.group());
+            }
+            table.put(key, numbers);
+        }
+        ruleTable = table;
+        return table;
+    }
+
+    /** Каталог скилла: где лежит этот скрипт; иначе .gigacode/skills/migration-map проекта; иначе домашний. */
+    private static Path skillDir() {
+        for (String argument : ProcessHandle.current().info().arguments().orElse(new String[0])) {
+            if (argument.endsWith("Card.java")) {
+                return Paths.get(argument).toAbsolutePath().getParent().getParent();
+            }
+        }
+        Path inProject = Paths.get(".gigacode", "skills", "migration-map").toAbsolutePath();
+        if (Files.isDirectory(inProject)) {
+            return inProject;
+        }
+        return Paths.get(System.getProperty("user.home"), ".gigacode", "skills", "migration-map");
     }
 
     /** Каждый потребитель - ровно в одном usage, и в колонке «Подшаг» стоит этот usage. */
