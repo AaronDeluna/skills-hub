@@ -207,7 +207,7 @@ Allure.step("ШАГ 4. Блок debiting.requisites", () -> response.shouldSoft(
 
 Вопрос ставь про конкретную проверку из файла юнита, а не «какие есть matchers»:
 
-| В старом коде | Вопрос сабагенту | Раздел документации в промпте |
+| В старом коде | Вопрос сабагенту | Раздел документации в задании |
 |---------------|------------------|-------------------------------|
 | `assertEquals(200, response.statusCode())` | «Каким matcher из RestMatchers проверить код ответа REST через .should()?» | Matchers and Conditions |
 | `assertEquals("x", json.getString("a.b"))` | «Каким matcher из JsonMatchers проверить, что значение JSON по jsonPath равно строке?» | Matchers and Conditions |

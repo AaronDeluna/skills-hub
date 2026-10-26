@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,6 +15,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Следующее действие миграции по карте (скилл orchestrator). Запуск из корня проекта:
@@ -22,17 +25,26 @@ import java.util.regex.Pattern;
  *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/NextAction.java M-012        - можно ли взять этот юнит
  *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/NextAction.java M-001..M-005 - пачка (или список через запятую)
  *
- * Печатает строку «ДЕЙСТВИЕ: ...» и строку «ПОЧЕМУ: ...». Ничего не меняет.
+ * Печатает строку «ДЕЙСТВИЕ: ...» и строку «ПОЧЕМУ: ...». Карту не меняет. Единственное, что
+ * пишет, - агенты кита: копирует <каталог скилла>/agents/*.md в .gigacode/agents/ проекта,
+ * если их там нет или они отличаются.
  */
 public class NextAction {
 
     private static final Path MIGRATION = Paths.get(".gigacode", "data", "migration");
+    private static final Path AGENTS = Paths.get(".gigacode", "agents");
     private static final int BATCH_LIMIT = 5;
     private static final List<String> STATUSES = List.of("todo", "in-progress", "done", "blocked");
     private static final List<String> BROKEN_ROWS = new ArrayList<>();
 
     public static void main(String[] args) throws IOException {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
+        List<String> installed = installAgents();
+        if (!installed.isEmpty()) {
+            say("агенты установлены", "в .gigacode/agents/ записаны: " + String.join(", ", installed)
+                    + " - GigaCode читает агентов при запуске: перезапустите GigaCode (выйдите и запустите заново) и повторите запрос");
+            return;
+        }
         Path mapFile = MIGRATION.resolve("MIGRATION-MAP.md");
         if (!Files.exists(mapFile)) {
             say("migration-map", "карты нет - строим с Этапа 1");
@@ -395,6 +407,47 @@ public class NextAction {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    /** Агенты кита -> .gigacode/agents/ проекта. Возвращает имена файлов, которые записаны сейчас. */
+    private static List<String> installAgents() throws IOException {
+        Path skill = skillDir();
+        Path source = skill == null ? null : skill.resolve("agents");
+        if (source == null || !Files.isDirectory(source)) {
+            System.out.println("ЗАМЕТКА: не нашёл каталог agents скилла orchestrator - агенты pvatf-* не проверены;"
+                    + " запускай как java <каталог скилла>/scripts/NextAction.java");
+            return List.of();
+        }
+        List<Path> files;
+        try (Stream<Path> listing = Files.list(source)) {
+            files = listing.filter(file -> file.getFileName().toString().endsWith(".md")).sorted().collect(Collectors.toList());
+        }
+        List<String> written = new ArrayList<>();
+        for (Path file : files) {
+            Path target = AGENTS.resolve(file.getFileName().toString());
+            byte[] content = Files.readAllBytes(file);
+            if (!Files.exists(target) || !Arrays.equals(Files.readAllBytes(target), content)) {
+                Files.createDirectories(AGENTS);
+                Files.write(target, content);
+                written.add(file.getFileName().toString());
+            }
+        }
+        return written;
+    }
+
+    /** Каталог скилла: родитель каталога scripts, где лежит этот файл. */
+    private static Path skillDir() {
+        for (String argument : ProcessHandle.current().info().arguments().orElse(new String[0])) {
+            if (argument.endsWith("NextAction.java")) {
+                return Paths.get(argument).toAbsolutePath().getParent().getParent();
+            }
+        }
+        Path inProject = Paths.get(".gigacode", "skills", "orchestrator").toAbsolutePath();
+        if (Files.isDirectory(inProject.resolve("agents"))) {
+            return inProject;
+        }
+        Path inHome = Paths.get(System.getProperty("user.home"), ".gigacode", "skills", "orchestrator");
+        return Files.isDirectory(inHome.resolve("agents")) ? inHome : null;
     }
 
     private static void say(String action, String why) {
