@@ -2,8 +2,8 @@
 
 Путь: `.gigacode/data/migration/units/M-<nnn>.md` (номер трёхзначный: `M-001`, `M-002`...).
 
-**Этот шаблон - для маленьких юнитов:** `env` фазы 1, `arch`, `cleanup` фазы 4, `fix`,
-`review` после проверки. Юнит технологии (тип `tech`, фаза 2) пишется по другому шаблону -
+**Этот шаблон - для маленьких юнитов:** `env` фазы 1, `arch`, `cleanup` фазы 4, `markup`
+фазы 5, `fix`, `review` после проверки. Юнит технологии (тип `tech`, фаза 2) пишется по другому шаблону -
 `references/tech-unit-template.md`.
 
 Карточку читает исполнитель в ДРУГОМ чате. Он не видел твой анализ и не будет заново изучать
@@ -16,10 +16,10 @@
 ```markdown
 ---
 id: M-<nnn>
-type: env | core | usage | cleanup | arch | review | fix
+type: env | core | usage | cleanup | arch | markup | review | fix
 core_mode: <только для type: core - new | in-place; для остальных типов `-`>
 tech: <метка технологии из матрицы G: rest / ui / db / ... / core>
-phase: <1-4; 6 - юниты исправления, их заводит migration-review>
+phase: <1-5; 6 - юниты исправления, их заводит migration-review>
 status: todo
 depends_on: [<M-nnn>, ...]
 covers: [<G-n>, <A-n>, <L-n>, ...]

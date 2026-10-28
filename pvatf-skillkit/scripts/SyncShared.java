@@ -25,6 +25,7 @@ public class SyncShared {
             "frame-topics.md", List.of("migration-map", "migration-step"),
             "architecture-template.md", List.of("migration-map", "migration-review"),
             "substep-rules.md", List.of("migration-map", "migration-step"),
+            "markup-rules.md", List.of("migration-map", "migration-step", "migration-review"),
             "scripts/Notes.java", List.of("migration-map", "migration-step"));
 
     public static void main(String[] args) throws IOException {
