@@ -158,11 +158,11 @@
    `references/markup-rules.md` и сделай по порядку:
    1) `scope: core` -> в паспорт `Разметка: не нужна - scope core`, дальше не иди;
    2) выполни команды проверки из раздела 5 правил. Каждый тест-класс уже размечен
-      обязательным набором (сам или через базовый класс) -> `Разметка: не нужна - проект
+      набором агента из раздела 1 правил (сам или через базовый класс) -> `Разметка: не нужна - проект
       размечен`, дальше не иди;
-   3) по каждому ключу из раздела 4 правил (`model`, `system`, `stage`, `regress`,
+   3) по каждому ключу из раздела 4 правил (`model`, `system`, `stage`, `team`, `regress`,
       `story`) поищи значение в проекте: аннотации, настройки, README, Jenkinsfile
-      (`grep -rniE "CI0[0-9]{7}|testops|allure" --include=*.md --include=*.properties --include=*.yml --include=Jenkinsfile* . | grep -v "/target/\|/build/\|\.gigacode" | head`).
+      (`grep -rniE "CI0[0-9]{7}|@Team|team|testops|allure" --include=*.md --include=*.properties --include=*.yml --include=Jenkinsfile* . | grep -v "/target/\|/build/\|\.gigacode" | head`).
       Нашёл -> пиши в паспорт с пометкой `из проекта: <файл>`;
    4) ключи без значения - вопросы человеку. Фильтр вопросов к ним не применяется: эти
       значения есть только у человека. Задай их **прямо сейчас, по одному**, в порядке
