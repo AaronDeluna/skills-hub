@@ -422,17 +422,36 @@ public class NextAction {
         try (Stream<Path> listing = Files.list(source)) {
             files = listing.filter(file -> file.getFileName().toString().endsWith(".md")).sorted().collect(Collectors.toList());
         }
+        Path homeAgents = Paths.get(System.getProperty("user.home"), ".gigacode", "agents");
         List<String> written = new ArrayList<>();
         for (Path file : files) {
-            Path target = AGENTS.resolve(file.getFileName().toString());
+            String name = file.getFileName().toString();
             byte[] content = Files.readAllBytes(file);
-            if (!Files.exists(target) || !Arrays.equals(Files.readAllBytes(target), content)) {
-                Files.createDirectories(AGENTS);
-                Files.write(target, content);
-                written.add(file.getFileName().toString());
+            String expected = normalized(content);
+            Path target = AGENTS.resolve(name);
+            if (Files.exists(target) && normalized(Files.readAllBytes(target)).equals(expected)) {
+                continue;
             }
+            // такой же агент уже стоит у пользователя и в проекте его нет - GigaCode его видит
+            Path inHome = homeAgents.resolve(name);
+            if (!Files.exists(target) && Files.exists(inHome) && normalized(Files.readAllBytes(inHome)).equals(expected)) {
+                continue;
+            }
+            boolean existed = Files.exists(target);
+            Files.createDirectories(AGENTS);
+            Files.write(target, content);
+            written.add(name + (existed ? " (обновлён: текст отличался)" : " (новый)"));
         }
         return written;
+    }
+
+    /** Текст агента без BOM, \r и пробелов в конце строк: так копия с другими переводами строк не считается другой. */
+    private static String normalized(byte[] content) {
+        String text = new String(content, StandardCharsets.UTF_8);
+        if (text.startsWith("\uFEFF")) {
+            text = text.substring(1);
+        }
+        return text.replace("\r", "").replaceAll("[ \t]+\n", "\n").strip();
     }
 
     /** Каталог скилла: родитель каталога scripts, где лежит этот файл. */
