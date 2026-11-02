@@ -238,7 +238,7 @@ public class Unit {
         {"MR-33", "(^|[^A-Za-z0-9_])var +[A-Za-z_][A-Za-z0-9_]* *(=|:)", "var вместо явного типа"},
         {"MR-29", "Assertions\\.|assert(Equals|True|False|NotNull|Null|That|All)\\(|SoftAssertions", "ассерт вместо matcher: замени на matcher; matcher нет в документации - запиши в «Сделано» подшага «исключение MR-29: <файл>:<строка>» и строку во «Входящие»"},
         {"MR-41", "\\.as\\([A-Z][A-Za-z0-9_]*\\.class\\)|readValue\\(|fromJson\\(|\\.getObject\\(|\\.extract\\(\\)", "ответ превращают в объект"},
-        {"MR-4", "^[^/*\"]*[^A-Za-z0-9_.\"](org|com|ru|io|java)\\.[a-z0-9_]+\\.[a-z0-9_.]+\\.[A-Z]", "полное имя класса в коде вместо import"},
+        {"MR-4", "^(?!.*@ru\\.sber\\.qa\\.allure\\.system\\.System\\b)[^/*\"]*[^A-Za-z0-9_.\"](org|com|ru|io|java)\\.[a-z0-9_]+\\.[a-z0-9_.]+\\.[A-Z]", "полное имя класса в коде вместо import"},
         {"MR-43", "\\b(log|logger|LOG|LOGGER)\\.(info|debug|trace|warn|error)\\(|System\\.(out|err)\\.print|\\.log\\(\\)\\.(all|body|headers|ifValidationFails)|(Request|Response)LoggingFilter|\\.prettyPrint\\(|\\.prettyPeek\\(|\\.peek\\(", "ручное логирование (остаётся только ход сценария)"},
         {"MR-48", "implements [A-Za-z.]*(Matcher|Condition)\\b|List<[A-Za-z.]*Matcher>|matchers\\.add\\(|\\.toArray\\(new [A-Za-z.]*Matcher|static [A-Za-z.<>]*(Matcher|Condition) [a-z][A-Za-z0-9]*\\(", "своя конструкция вокруг matcher"},
         {"MR-48", "getRestHistory\\(\\)\\.getLast\\(\\)|JacksonHelper|JsonNode|\\.path\\(\"|textOrNull|intOrNull|longOrNull|boolOrNull|compareNumbers|assertDatesEqual|bigDecimalsEqual", "ответ разбирают руками или своими хелперами"},

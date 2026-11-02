@@ -41,7 +41,9 @@
 ## Импорты и имена
 
 - **MR-4 · Классы через `import`.** Не пиши полное имя класса с пакетом в коде
-  (`ru.sber.qa.x.Foo foo`) - добавь импорт. Исключение - конфликт двух одинаковых имён.
+  (`ru.sber.qa.x.Foo foo`) - добавь импорт. Исключение - конфликт двух одинаковых имён,
+  например `@ru.sber.qa.allure.system.System("<КЭ>")` в файле, где есть `java.lang.System`
+  (правила разметки, раздел 2, п.5).
 - **MR-5 · Чистые импорты.** Удали импорты, которые после миграции не используются. Не
   добавляй импорт со звёздочкой, если в проекте так не принято.
 - **MR-6 · Никаких старых импортов.** В файле юнита после миграции не должно остаться
@@ -596,7 +598,7 @@ grep -cE "\.set[A-Z][A-Za-z0-9]*\(" <файл>                                  
 grep -c "getForCurrentThread()" <файл>                                               # MR-35: больше, чем разных сервисов в файле, - вынеси в один метод
 grep -nE "Assertions\.|assert(Equals|True|False|NotNull|Null|That|All)\(|SoftAssertions" <файлы юнита>   # MR-29: в usage-юните каждая строка либо заменена, либо записана во «Входящие»
 grep -nE "\.as\([A-Z][A-Za-z0-9_]*\.class\)|readValue\(|fromJson\(|\.getObject\(|\.extract\(\)" <файлы юнита>   # MR-41: ответ превращают в объект - замени на проверку через .should(), если это ради проверки
-grep -nE "^[^/*]*[^A-Za-z0-9_.\"](org|com|ru|io|java)\.[a-z0-9_]+\.[a-z0-9_.]+\.[A-Z]" <файлы юнита> | grep -v "^[0-9]*:\(import\|package\)"   # MR-4: полное имя класса в коде
+grep -nE "^[^/*]*[^A-Za-z0-9_.\"](org|com|ru|io|java)\.[a-z0-9_]+\.[a-z0-9_.]+\.[A-Z]" <файлы юнита> | grep -v "^[0-9]*:\(import\|package\)" | grep -v "@ru.sber.qa.allure.system.System"   # MR-4: полное имя класса в коде
 grep -nE "\b(log|logger|LOG|LOGGER)\.(info|debug|trace|warn|error)\(|System\.(out|err)\.print|\.log\(\)\.(all|body|headers|ifValidationFails)|(Request|Response)LoggingFilter|\.prettyPrint\(|\.prettyPeek\(|\.peek\(" <файлы юнита>   # MR-43: строка логирует запрос, ответ, SQL или сообщение - удали; остаётся только сообщение о ходе сценария
 ```
 Проверка `MR-48` (свои конструкции вокруг проверок) - каждая строка вывода переделывается:

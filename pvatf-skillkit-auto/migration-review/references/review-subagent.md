@@ -29,7 +29,7 @@
 
 Чек-лист (код правила - что считается нарушением):
 V1 var - в коде есть `var` вместо явного типа (переменная, for, try, лямбда).
-V2 полное имя - класс написан с пакетом прямо в коде (`org.apache.kafka.common.header.Header h`) вместо `import`.
+V2 полное имя - класс написан с пакетом прямо в коде (`org.apache.kafka.common.header.Header h`) вместо `import`. Не находка: `@ru.sber.qa.allure.system.System(...)` в файле, где есть `java.lang.System`.
 V3 импорты - неиспользуемый импорт; импорт со звёздочкой; импорт старого пакета из списка выше.
 V4 ассерты - проверка через Assertions / assertEquals / assertTrue / assertThat / AssertJ / Hamcrest / SoftAssertions или через свой метод assertXxx / checkXxx, хотя это проверка ответа REST, JSON, таблицы БД или записи Kafka (для них во фрейме есть matchers: .should(...)).
 V5 сеттеры - объект создан через `new` и следом 4 и более вызовов setXxx подряд вместо билдера.
