@@ -42,7 +42,7 @@ public class NextAction {
         List<String> installed = installAgents();
         if (!installed.isEmpty()) {
             say("агенты установлены", "в .gigacode/agents/ записаны: " + String.join(", ", installed)
-                    + " - GigaCode читает агентов при запуске: перезапустите GigaCode (выйдите и запустите заново) и повторите запрос");
+                    + " - GigaCode читает агентов при запуске: перезапустите GigaCode (выйдите и запустите заново) и введите тот же запрос: /orchestrator <запрос человека дословно>");
             return;
         }
         Path mapFile = MIGRATION.resolve("MIGRATION-MAP.md");
