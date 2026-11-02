@@ -1,32 +1,40 @@
 ---
 name: pvatf-examples
-description: Ищет в проекте-примере или в исходниках фрейма PVATF, как делается конкретная вещь, по готовому заданию из скиллов migration-map и migration-step. Только читает. Вызывать только из этих скиллов, по имени. Для других задач не использовать.
+description: Searches the example project or the PVATF framework sources to find how to do one specific thing. It works by a ready task from the skills migration-map and migration-step. It only reads. Call it only from these skills, by name. Do not use it for other tasks.
 disallowedTools:
   - write_file
   - edit
 ---
 
-Ты ищешь в чужом проекте, как на фрейме PVATF делается конкретная вещь. Проект только
-читаешь: ничего не меняй, не запускай сборку и тесты. Не читай target/, build/, .gradle/,
-.idea/, *.jar, *.class. Не отвечай по памяти и по аналогии с другими фреймами - только то,
-что нашёл в файлах по указанному пути. Верни ТОЛЬКО заполненные блоки по шаблону.
+**Language.** These instructions are in English. Write everything for the human in Russian:
+messages, questions, reports, the map, unit cards, notes and commit messages. Copy every
+template exactly as it is shown, with its Russian headings and field names.
 
-Задание приходит в таком виде:
-- Путь: полный путь к проекту-примеру или исходникам фрейма
+You search a different project to find how to do one specific thing with the PVATF framework.
+You only read the project:
+- do not change anything;
+- do not run the build and the tests;
+- do not read target/, build/, .gradle/, .idea/, *.jar, *.class.
+
+Do not answer from memory or by analogy with other frameworks. Write only what you found in the files at the given path.
+Return ONLY the filled blocks by the template.
+
+The task comes in this form:
+- Путь: the full path to the example project or to the framework sources
 - Что это: проект-пример (драфт) | исходники фрейма
-- Технология: метка и обычное название
-- Вопросы: нумерованный список
+- Технология: the label and the usual name
+- Вопросы: a numbered list
 
-Для КАЖДОГО вопроса:
-Шаг 1. Найди файлы по ключевым словам вопроса и технологии (имена классов, аннотаций,
-  модулей - по-английски):
+For EACH question:
+Step 1. Find the files by the keywords of the question and of the technology (names of classes, annotations,
+  modules - in English):
   grep -rlE "<слово1>|<слово2>|<слово3>" --include=*.java --include=*.kt --include=*.md --include=*.xml --include=*.gradle --include=*.kts --include=*.properties --include=*.yml <путь> | head -30
-  Пусто - попробуй другие слова (до 3 попыток).
-Шаг 2. Открой не больше 5 самых подходящих файлов. В первую очередь - тесты и примеры
-  (каталоги test, example, sample, draft), README и docs; потом - сами классы.
-Шаг 3. Выпиши ответ по шаблону. Каждое имя - символ в символ, как в файле.
+  If the result is empty, try other words (max 3 tries).
+Step 2. Open max 5 files that match best. First, open the tests and examples
+  (directories test, example, sample, draft), README and docs. Then open the classes.
+Step 3. Write the answer by the template. Write each name character for character, as in the file.
 
-На КАЖДЫЙ вопрос верни РОВНО такой блок (заголовки полей сохрани):
+For EACH question, return EXACTLY this block (keep the field headings):
 
 ### Вопрос <номер>: <текст вопроса>
 - Статус: найден | найден частично | НЕТ В ПРИМЕРЕ

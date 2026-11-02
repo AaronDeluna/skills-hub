@@ -1,32 +1,36 @@
 ---
 name: pvatf-marker
-description: Размечает тесты проекта аннотациями allure-annotations (контур, слой, КЭ системы, команда, регресс, задача, TMS-link из @DisplayName) - по юниту markup из скилла migration-step после миграции на PVATF или по отдельной проверке разметки из orchestrator. Вызывать только из migration-step или orchestrator, по имени. Для других задач не использовать.
+description: Adds allure-annotations markup to the tests of a project (stage, layer, system КЭ, team, regress, task, TMS link from @DisplayName) - for the unit markup of the skill migration-step after the migration to PVATF, or for the separate markup check from orchestrator. Call it only from migration-step or orchestrator, by name. Do not use it for other tasks.
 approvalMode: auto-edit
 ---
 
-Ты размечаешь тесты проекта аннотациями библиотеки allure-annotations. Меняешь только
-файлы из пакета. Одно исключение - тест-классы из вывода перепроверки (п.7): в них только
-`@TmsLink` над тест-методами и импорт `io.qameta.allure.TmsLink`. Карточку, карту и файлы в .gigacode/ не меняешь. Сабагентов не
-запускаешь. Вопросов не задаёшь: значения разметки уже собраны в пакете; значения нет -
-эту аннотацию не ставишь и пишешь об этом в отчёте. Логику тестов не меняешь: только
-аннотации, их импорты и зависимость библиотеки. `@DisplayName` не меняешь никогда: ключ
-тест-кейса из него только копируешь в `@TmsLink` (раздел 2а правил).
+**Language.** These instructions are in English. Write everything for the human in Russian:
+messages, questions, reports, the map, unit cards, notes and commit messages. Copy every
+template exactly as it is shown, with its Russian headings and field names.
 
-Всё, что нужно, - в пакете, в правилах разметки и в файлах проекта. Импорты аннотаций - из
-таблицы в разделе 2, п.5 правил (у каждой свой пакет), версия - из дерева зависимостей и
-«Значений разметки».
+You add markup to the tests of the project with the annotations of the library allure-annotations. Change only the
+files from the task package. One exception: the test classes from the output of the final re-check (item 7). In them, change only
+`@TmsLink` above the test methods and the import `io.qameta.allure.TmsLink`. Do not change the unit card, the map and the files in .gigacode/. Do not
+start subagents. Do not ask questions: the task package already contains the markup values. If there is no value,
+do not add this annotation and write about it in the report. Do not change the test logic: change only
+the annotations, their imports and the library dependency. Never change `@DisplayName`: only copy the
+test-case key from it into `@TmsLink` (section 2a of the rules).
 
-**Работаешь только внутри проекта** (раздел 0 правил разметки). Запрещено:
-- выходить за корень проекта: `find /`, `find ~`, `cd ..`, другие проекты на компьютере;
-- проект фреймворка, его исходники, проект-пример, документация MCP;
-- `~/.m2`, `~/.gradle`, содержимое .jar (`unzip`, `jar tf`, `javap`), декомпиляция, интернет.
-Одно исключение - jar самой allure-annotations, когда её версия в сборке 2.x, и только для
-аннотации, которой нет в таблице импортов: путь из сборки, `jar tf`, `javap` (раздел 0 и
-раздел 5 правил). Больше ничего вне проекта.
-Не нашёл пакет, версию или что-то ещё -> дальше не ищи: не ставь то, что от этого зависит,
-и напиши в отчёте, чего не нашёл. Это нормальный результат, а не ошибка.
+All that you need is in the task package, in the markup rules and in the project files. Take the annotation imports from
+the table in section 2, item 5 of the rules (each annotation has its own package). Take the version from the dependency tree and
+from «Значений разметки».
 
-Пакет приходит в таком виде:
+**Work only inside the project** (section 0 of the markup rules). Prohibited:
+- going outside the project root: `find /`, `find ~`, `cd ..`, other projects on the computer;
+- the framework project, its sources, the example project, the MCP documentation;
+- `~/.m2`, `~/.gradle`, the contents of a .jar (`unzip`, `jar tf`, `javap`), decompilation, the internet.
+One exception: the jar of allure-annotations itself, when its version in the build is 2.x, and only for
+an annotation that is not in the import table: the path from the build, `jar tf`, `javap` (section 0 and
+section 5 of the rules). Nothing else outside the project.
+If you did not find a package, a version or a different thing -> do not search more. Do not add what depends on it,
+and write in the report what you did not find. This is a normal result, not an error.
+
+The task package comes in this form:
 - Проект: абсолютный путь к корню
 - Юнит: M-<nnn> · markup · название (или «без карты · markup · отдельная проверка разметки»)
 - Файлы: менять можно ТОЛЬКО их (путь - изменить)
@@ -35,88 +39,88 @@ approvalMode: auto-edit
 - Компиляция: команда
 - Коммит: сообщение коммита
 
-Правила разметки - прочитай целиком ДО правок:
+Markup rules - read them fully BEFORE the changes:
 <Проект>/.gigacode/skills/migration-step/references/markup-rules.md
-Аннотации и их значения - только оттуда и из пакета. Других аннотаций не придумывай.
-@TmsLink ставишь только там, где пункт «Что сделать» велит взять ключ тест-кейса
-(`<КОД>-T<цифры>`) из @DisplayName; @DisplayName при этом не меняешь;
-@ParameterizedTest - такой же тест-метод: @TmsLink над ним ставится так же, его запуски - не
-одинаковые ключи (раздел 2а правил).
-сам ключ не придумываешь.
+Take the annotations and their values only from there and from the task package. Do not make other annotations.
+Add @TmsLink only where the item «Что сделать» tells you to take the test-case key
+(`<КОД>-T<цифры>`) from @DisplayName. Do not change @DisplayName.
+@ParameterizedTest is a test method of the same type: add @TmsLink above it the same way. Its runs are not
+same keys (section 2a of the rules).
+Do not make up the key.
 
-Порядок:
-1. **Перед правками - раздел 2б правил разметки, по порядку. Не пройдена хоть одна проверка
-   -> ни одного файла не меняй и сразу верни отчёт.**
-   - `git status --porcelain -- . ':(exclude).gigacode'` не пустой -> «Статус: не сделан:
-     есть незакоммиченные изменения», в «Не сделано и почему» - файлы из вывода;
-   - версия: дерево зависимостей, команда «Зависимость и версия» из раздела 5 правил (по
-     файлам не ищи). Дерево сейчас - главное: после миграции зависимость могла появиться
-     или смениться. Команда упала -> «Статус: не сделан: не построилось дерево
-     зависимостей», в «Не сделано и почему» - первые 10 строк ошибки. Мажорная версия
-     (число до первой точки) 0 или 1, а в «Значениях разметки» нет `версия: поднять` ->
-     «Статус: не сделан: allure-annotations <версия>, нужна 2.x». Зависимость уже есть
-     2.x, а в «Что сделать» её добавить или поднять -> этот пункт не делай, в «Сделано»:
-     `уже есть <версия>`. Зависимости в дереве нет -> пока ничего не меняй, только
-     запомни: подключишь её в п.2, после проверки компиляции. Файла сборки модуля с тестами
-     нет в пакете -> «Статус: не сделан: нет allure-annotations, файла сборки нет в
+Order:
+1. **Before the changes - section 2b of the markup rules, in this order. If one or more checks are not passed
+   -> do not change any file and return the report immediately.**
+   - If `git status --porcelain -- . ':(exclude).gigacode'` is not empty -> «Статус: не сделан:
+     есть незакоммиченные изменения». In «Не сделано и почему», write the files from the output;
+   - version: the dependency tree, command «Зависимость и версия» from section 5 of the rules (do not
+     search in files). The tree now is the main source: after the migration, the dependency can be new
+     or changed. If the command failed -> «Статус: не сделан: не построилось дерево
+     зависимостей». In «Не сделано и почему», write the first 10 lines of the error. If the major version
+     (the number before the first dot) is 0 or 1, and «Значениях разметки» do not have `версия: поднять` ->
+     «Статус: не сделан: allure-annotations <версия>, нужна 2.x». If the dependency is already present as
+     2.x, but «Что сделать» tells you to add it or to upgrade it -> do not do this item. In «Сделано», write:
+     `уже есть <версия>`. If the dependency is not in the tree -> do not change anything yet, only
+     remember it: you add it in item 2, after the compilation check. If the build file of the module with tests
+     is not in the task package -> «Статус: не сделан: нет allure-annotations, файла сборки нет в
      пакете»;
-   - компиляция - команда из пакета. Ошибка -> «Статус: не сделан: проект не
-     компилируется до разметки», в «Не сделано и почему» - первые 10 строк ошибки.
-     Не чини её: это не твоя ошибка.
-   В повторе («Исправь ТОЛЬКО это») - те же проверки: прошлый запуск либо закоммитил свои
-   правки, либо вернул их, поэтому рабочее дерево чистое.
-2. Библиотека. В «Что сделать» есть пункт про allure-annotations (подключить или поднять
-   версию) или в п.1 зависимости в дереве не было -> подключи или подними её первым делом
-   (раздел 2, п.6 правил), даже если в «Что сделать» этого нет, и построй дерево
-   зависимостей ещё раз: в нём должна быть версия 2.x (мажорная 2 или больше). Импорты - из таблицы раздела 2, п.5 правил, у каждой аннотации свой пакет.
-   Аннотации нет в таблице -> проверь её по jar (раздел 5 правил, «Пакет и аннотации - из
-   jar библиотеки»); нет в jar -> не ставь, напиши в отчёте.
-   Прочитай файлы из списка (только их).
-3. Сделай остальные пункты «Что сделать» по порядку. Общие аннотации - над базовым
-   классом, над его наследниками их не ставь. Аннотация уже стоит в файле или в его базовом классе - не
-   ставь её второй раз. Импорты - явные, без `*`, по одному на аннотацию, из таблицы
-   раздела 2, п.5 правил. `@System`: в файле есть `System.<метод>` (java.lang) -> без
-   импорта, полным именем `@ru.sber.qa.allure.system.System("<КЭ>")` (там же, п.5).
-4. Компиляция - команда из пакета. До правок проект компилировался (п.1), значит ошибка -
-   в твоём коде: исправь; не вышло за 3 попытки - верни как было
-   (`git checkout -- <файлы из пакета>`) и напиши в отчёте.
-5. Самопроверка, из корня проекта:
+   - compilation - the command from the task package. If it fails -> «Статус: не сделан: проект не
+     компилируется до разметки». In «Не сделано и почему», write the first 10 lines of the error.
+     Do not fix it: it is not your error.
+   In a retry («Исправь ТОЛЬКО это»), do the same checks: the previous run committed its
+   changes or reverted them, thus the working tree is clean.
+2. Library. If «Что сделать» has an item about allure-annotations (add it or upgrade the
+   version), or in item 1 the dependency was not in the tree -> add it or upgrade it first
+   (section 2, item 6 of the rules), also if «Что сделать» does not have this. Then make the dependency
+   tree again: it must have version 2.x (major 2 or higher). Take the imports from the table of section 2, item 5 of the rules. Each annotation has its own package.
+   If an annotation is not in the table -> check it in the jar (section 5 of the rules, «Пакет и аннотации - из
+   jar библиотеки»). If it is not in the jar -> do not add it, write it in the report.
+   Read the files from the list (only them).
+3. Do the other items of «Что сделать» in their order. Add the common annotations above the base
+   class. Do not add them above its subclasses. If an annotation is already in the file or in its base class, do not
+   add it again. Imports - explicit, without `*`, one for each annotation, from the table of
+   section 2, item 5 of the rules. `@System`: if the file has `System.<метод>` (java.lang) -> do not use an
+   import, write the full name `@ru.sber.qa.allure.system.System("<КЭ>")` (same place, item 5).
+4. Compilation - the command from the task package. Before the changes the project compiled (item 1). Thus the error is
+   in your code: fix it. If you cannot fix it in 3 attempts, revert the changes
+   (`git checkout -- <файлы из пакета>`) and write it in the report.
+5. Self-check, from the project root:
    java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java check M-<nnn>
-   Исправь каждую строку вывода, пока не будет «находок 0».
-   Юнит «без карты» - вместо Unit.java выполни команды раздела 5 правил разметки по своим
-   файлам: каждый тест-класс из пакета размечен (сам или через базовый класс), у каждого
-   взятого ключа есть @TmsLink, а @DisplayName не изменился.
-6. Сверь каждый пункт «Что сделать» с кодом: сделан ровно он, и ничего сверх него.
-7. **Перепроверка в конце - обязательна** (раздел 6 правил разметки), по ВСЕМ каталогам
-   тестов проекта, а не только по файлам пакета:
-   - первой - команда «Одинаковые ключи тест-кейсов» (раздел 5 правил): ключам из её
-     вывода `@TmsLink` не ставишь никому, её вывод - в строку «Одинаковые ключи» отчёта;
-   - команда «Ключи тест-кейсов без @TmsLink» (раздел 5 правил). Строка вывода, где
-     условия раздела 2а выполнены, -> поставь `@TmsLink`, даже если файла нет в пакете: в
-     нём меняй только `@TmsLink` и его импорт, в «Файлы» - `<путь> - добавлен по
-     перепроверке`. Условие не выполнено (одинаковый ключ, два ключа, уже другой
-     `@TmsLink`) -> не ставь, в отчёт с причиной словами. Запусти команду ещё раз: в
-     выводе должны остаться только строки, которые есть в отчёте с причиной;
-   - набор агента на каждом тест-классе, импорты, `@DisplayName` не изменился.
-   `@TmsLink` не снимай и не переноси никогда, даже свой: строка вывода про метод, где он
-   уже стоит, - ошибка проверки, напиши о ней в отчёте и ничего не меняй (раздел 6
-   правил). Без этого шага коммит не делай.
-8. Коммит - файлы из пакета и добавленные по перепроверке, сообщение из поля «Коммит»:
+   Fix each output line until the output is «находок 0».
+   If the unit is «без карты», do not run Unit.java. Run the commands of section 5 of the markup rules on your
+   files. Each test class from the task package must have markup (itself or through a base class), each
+   taken key must have @TmsLink, and @DisplayName must not change.
+6. Compare each item of «Что сделать» with the code: you did exactly this item and nothing more.
+7. **Final re-check at the end - mandatory** (section 6 of the markup rules), on ALL test
+   directories of the project, not only on the files of the task package:
+   - first, run the command «Одинаковые ключи тест-кейсов» (section 5 of the rules). Do not add `@TmsLink` to any method
+     for the keys from its output. Write its output in the line «Одинаковые ключи» of the report;
+   - run the command «Ключи тест-кейсов без @TmsLink» (section 5 of the rules). If, for an output line,
+     the conditions of section 2a are true -> add `@TmsLink`, also if the file is not in the task package. In
+     such a file, change only `@TmsLink` and its import. In «Файлы», write `<путь> - добавлен по
+     перепроверке`. If a condition is false (same key, two keys, a different
+     `@TmsLink` already present) -> do not add it, write it in the report with the reason in words. Run the command again: the
+     output must contain only the lines that are in the report with a reason;
+   - the agent set on each test class, the imports, `@DisplayName` did not change.
+   Never remove and never move `@TmsLink`, also not your own. If an output line is about a method that
+   already has it, it is a check error: write about it in the report and do not change anything (section 6
+   of the rules). Without this step, do not make the commit.
+8. Commit - the files from the task package and the files added by the final re-check, the message from the field «Коммит»:
    git add <эти файлы> && git commit -m "<Коммит>"
-   Компиляция не прошла -> не коммить. Это повтор («Исправь ТОЛЬКО это») -> новый коммит с
-   тем же сообщением.
+   If the compilation failed -> do not commit. If this is a retry («Исправь ТОЛЬКО это») -> make a new commit with
+   the same message.
 
-Тесты не запускай: разметка не меняет их поведение, хватает компиляции.
+Do not run the tests: the markup does not change their behavior, the compilation is sufficient.
 
-Не можешь создать или изменить файл, или запустить команду (нет прав, инструмент
-недоступен) - ничего не обходи, верни свои правки (`git checkout -- <файлы, которые ты уже изменил>`) и
-сразу верни отчёт со статусом «не сделан» и причиной «нет прав: <что именно не вышло>».
-Вернуть правки не вышло -> перечисли эти файлы в «Не сделано и почему»: повтор без этого
-остановится на них как на чужих незакоммиченных изменениях.
+If you cannot make or change a file, or run a command (no permissions, the tool is not
+available), do not try a different way. Revert your changes (`git checkout -- <файлы, которые ты уже изменил>`) and
+immediately return the report with the status «не сделан» and the reason «нет прав: <что именно не вышло>».
+If you cannot revert the changes -> write these files in «Не сделано и почему». If you do not, the retry
+stops on them as on uncommitted changes of other people.
 
-Верни отчёт РОВНО по этому шаблону - это последнее, что ты пишешь. Блок целиком, все
-строки по порядку, ни одну не пропускай и не переименовывай. Пусто - пиши `нет`, а не
-опускай строку. Без блока или с пропущенной строкой работа считается не сделанной.
+Return the report EXACTLY by this template. It is the last thing that you write. Write the full block, all
+lines in their order. Do not skip a line and do not rename a line. If a line is empty, write `нет`. Do not
+skip the line. If there is no block or a line is missing, the work is not done.
 
 ```
 === ОТЧЁТ PVATF-MARKER ===
@@ -134,5 +138,5 @@ TmsLink поставлен: <n; по строке: Класс.метод - кл�
 === КОНЕЦ ОТЧЁТА ===
 ```
 
-Строка «Одинаковые ключи» заполняется ВСЕГДА из вывода команды, даже если в пакете про
-них ничего не сказано: команду запусти на шаге 7 и перепиши каждую её строку с тест-методами.
+ALWAYS fill the line «Одинаковые ключи» from the output of the command, also if the task package does not
+tell anything about them: run the command at step 7 and copy each line of its output with the test methods.

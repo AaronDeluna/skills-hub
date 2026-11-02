@@ -1,56 +1,60 @@
-# Ревью мигрированного кода (подшаг `review` юнита технологии и юниты типа `review`)
+# Review of the migrated code (the substep `review` of a technology unit and the units of type `review`)
 
-Подшаг `review` закрывает юнит каждой технологии: технология переведена, старое удалено -
-проверяем код ЭТОЙ технологии (не всего проекта), и только потом начинается следующая.
-Ниже «юнит `review`» - это и подшаг `review` в юните `tech`, и отдельный юнит `review`
-после проверки миграции; «файлы юнита» - файлы этого подшага. Задача: проверить, что
-получившийся код соответствует правилам `MR` из `references/code-rules.md`, и исправить
-найденное, чтобы ошибки не повторились в следующих технологиях.
-Проверяет сабагент с чистым контекстом - он не писал этот код и не будет оправдывать чужие
-решения. Исправляешь ты.
+The substep `review` closes the unit of each technology. The technology is migrated, the old code is removed.
+Then we check the code of THIS technology (not of the full project). Only after that the next technology starts.
+Below, «юнит `review`» means two things: the substep `review` in a unit `tech`, and a separate unit `review`
+after the migration check. «файлы юнита» means the files of this substep. The task: make sure that
+the resulting code obeys the rules `MR` from `references/code-rules.md`. Then fix the
+findings, so that the errors do not repeat in the next technologies.
+A subagent with a clean context does the check: it did not write this code and does not defend the decisions
+of other agents. You do the fixes.
 
-## Порядок работы в юните `review`
+## Work order in the unit `review` («Порядок работы в юните `review`»)
 
-1. **Механическая проверка.** Выполни по файлам юнита команды из раздела «Быстрая
-   самопроверка grep-ом» в `references/code-rules.md`. Вывод запиши в отчёт (шаг 3).
-   Затем сверь файлы юнита с архитектурным планом `.gigacode/data/migration/ARCHITECTURE.md`
-   (если он есть): каждый класс есть в разделе 3 или 5 плана и делает только то, что
-   записано в «За что отвечает». Класса нет в плане или он делает чужое дело -> находка
-   `V13`, пометка `крупно`.
-   **Проверка нити.** Для каждого класса, созданного подшагами `core` этой технологии:
+1. **Mechanical check.** For the files of the unit, run the commands from the section «Быстрая
+   самопроверка grep-ом» in `references/code-rules.md`. Write the output to the report (step 3).
+   Then compare the files of the unit with the architecture plan `.gigacode/data/migration/ARCHITECTURE.md`
+   (if it exists). Each class must be in section 3 or 5 of the plan and must do only what is
+   written in «За что отвечает». If a class is not in the plan or does the task of a different class -> finding
+   `V13`, mark `крупно`.
+   **Thread check.** For each class that the substeps `core` of this technology created, run:
    ```
    grep -rl "\b<ИмяКласса>\b" --include=*.java --include=*.kt <src> | grep -v "<ИмяКласса>.java" | wc -l
    <команда поиска прямых обращений к сервису фрейма из раздела «Разбор технологии» карточки>
    ```
-   Первая команда дала 0 -> находка «класс создан, но не подключён». Вторая нашла файлы,
-   которые не являются классами шагов из плана и не отложены в другую технологию, -> находка
-   «потребитель не переведён, логика повторяется». Обе - `V13`, пометка `крупно`.
-2. **Сабагенты ревью.** Раздели файлы юнита на группы не больше 8 файлов. На каждую группу -
-   один сабагент, промпт ниже дословно. Одновременно не больше 3 сабагентов. Сабагенты обязательны. Только если
-   вызов сабагента вернул ошибку (не «долго» и не «проще самому») -> покажи ошибку в чате, запиши в журнал карты `сабагент не запустился: <ошибка>` - пройди чек-лист из промпта сам, по одному файлу.
-3. **Отчёт.** Собери ответы сабагентов и вывод grep в файл
-   `.gigacode/data/migration/review/M-<nnn>.md` (шаблон ниже). Папки нет - создай:
-   `mkdir -p .gigacode/data/migration/review`. Сначала запиши отчёт, потом
-   исправляй.
-4. **Исправление.** Иди по отчёту сверху вниз, по одной находке:
-   - сначала сам открой файл и убедись, что находка настоящая. Сабагент ошибся -> пометь
-     `ложная` и причину, не исправляй;
-   - находка с пометкой `просто` -> исправь, пометь `исправлено`;
-   - находка с пометкой `крупно` (разделить класс, вынести ответственность, перевести файл
-     на класс шагов, подключить класс) -> в ЭТОМ подшаге не делай. Подшаг `review` в юните
-     `tech`: допиши на неё подшаг вида `fix` или `usage` в конец таблицы «Подшаги» карточки
-     (правила - «Дописывание подшагов» в `references/tech-flow.md`: до 3 файлов, действия с именами,
-     итоговый результат, чекпоинт командой), в отчёте пометь `подшаг S-<nn>`. Он выполнится
-     следующим, и юнит не закроется, пока он не `done`. Находка задевает другую технологию
-     или устройство слоёв всего проекта, либо это отдельный юнит `review` -> пометь `во
-     Входящие` и допиши пункт в раздел «5. Входящие» карты.
-5. **Проверка.** Компиляция, показательный тест из карточки, повторно команды
-   самопроверки grep-ом - по ним должно быть чисто (кроме записанных исключений).
-6. Дальше - обычные Шаг 7 и Шаг 8 скилла.
+   If the first command gave 0 -> finding «класс создан, но не подключён». The second command can find files
+   that are not step classes from the plan and are not postponed to a different technology. Then -> finding
+   «потребитель не переведён, логика повторяется». Both are `V13`, mark `крупно`.
+2. **Review subagents.** Divide the files of the unit into groups of max 8 files. For each group, use
+   one subagent with the prompt below, word for word. Run max 3 subagents at the same time. The subagents are mandatory.
+   Only if the subagent call returned an error (not «долго» and not «проще самому»):
+   - show the error in the chat;
+   - write `сабагент не запустился: <ошибка>` in the map log;
+   - go through the checklist from the prompt yourself, one file at a time.
+3. **Report.** Put the answers of the subagents and the grep output in the file
+   `.gigacode/data/migration/review/M-<nnn>.md` (the template is below). If there is no folder, create it:
+   `mkdir -p .gigacode/data/migration/review`. First write the report, then
+   do the fixes.
+4. **Fix.** Go through the report from the top down, one finding at a time:
+   - first, open the file yourself and make sure that the finding is real. If the subagent made an error -> mark
+     `ложная` and the reason. Do not fix it;
+   - a finding with the mark `просто` -> fix it, mark `исправлено`;
+   - a finding with the mark `крупно` -> do not do it in THIS substep. Examples: divide a class, move a
+     responsibility, change a file to use the step class, connect a class. If it is the substep `review` in a unit
+     `tech`: add a substep of type `fix` or `usage` for it at the end of the table «Подшаги» of the card.
+     The rules are in «Дописывание подшагов» in `references/tech-flow.md`: up to 3 files, actions with names,
+     final result, checkpoint with a command. In the report, mark `подшаг S-<nn>`. This substep runs
+     next, and the unit does not close until it is `done`.
+     If the finding touches a different technology or the layer structure of the full project,
+     or if this is a separate unit `review` -> mark `во
+     Входящие` and add an item to the section «5. Входящие» of the map.
+5. **Check.** Compilation, the demonstration test from the card, and again the commands
+   of the grep self-check. Their result must be clean (except the recorded exceptions).
+6. Then do the usual Step 7 and Step 8 of the skill.
 
-Исправляя, не меняй смысл тестов (`MR-9`..`MR-11`) и не трогай файлы вне карточки.
+When you fix, do not change the meaning of the tests (`MR-9`..`MR-11`) and do not change files outside the card.
 
-## Промпт сабагенту ревью (копируй дословно, подставь <...>)
+## Prompt for the review subagent (copy it word for word, replace <...>)
 
 ```
 Ты проверяешь Java-код проекта автотестов после миграции на фрейм PVATF. Ты только читаешь
@@ -115,17 +119,17 @@ V26 лишний слой - метод-делегат: тело - только �
 - <путь: причина>     (нет таких - напиши: нет)
 ```
 
-## Соответствие кодов ревью и правил MR
+## Map of review codes to the rules MR
 
 V1 - `MR-33` · V2 - `MR-4` · V3 - `MR-5`, `MR-6` · V4 - `MR-29` · V5 - `MR-34` · V6 - `MR-35` ·
 V7 - `MR-36` · V8 - `MR-13`, `MR-30` · V9 - `MR-17`, `MR-20`, `MR-21`, `MR-23` · V10 - `MR-1` ·
 V11, V12 - `MR-37` · V13 - `MR-38` · V14, V15 - `MR-39` · V16 - `MR-40`, `MR-45` · V17 - `MR-15` ·
 V18 - `MR-14`, `MR-22`, `MR-10` · V19 - `MR-41` · V20 - `MR-42` · V21 - `MR-43` · V22 - `MR-44` · V23 - `MR-46` · V24 - `MR-47` · V25 - `MR-48` · V26 - `MR-49`, `MR-30`.
 
-Как исправлять - смотри текст соответствующего правила `MR` в `references/code-rules.md`.
-Для V4, V19 и V25 - `references/matchers.md` (как писать проверку, запрещённые приёмы, как спросить документацию про нужный matcher).
+How to fix: read the text of the related rule `MR` in `references/code-rules.md`.
+For V4, V19 and V25, read `references/matchers.md` (how to write a check, the prohibited methods, how to ask the documentation about the necessary matcher).
 
-## Шаблон отчёта `.gigacode/data/migration/review/M-<nnn>.md`
+## Report template `.gigacode/data/migration/review/M-<nnn>.md`
 
 ```markdown
 # Ревью M-<nnn> · <технология> · <дата>

@@ -1,60 +1,70 @@
 ---
 name: migration-step
-description: 'Выполняет РОВНО ОДИН юнит миграции на фрейм PVATF по готовой карте: читает карточку юнита, берёт нужную документацию фрейма из MCP, меняет только файлы из карточки, проверяет результат (компиляция, тесты, остатки старого кода, правила кода, проверяющий сабагент после каждого подшага), записывает итог в карточку и карту, коммитит и останавливается. Используй, когда карта миграции уже построена и одобрена и просят выполнить следующий шаг/юнит миграции, продолжить миграцию, сделать юнит M-nnn; обычно вызывается из orchestrator.'
+description: 'Does EXACTLY ONE unit of the migration to the PVATF framework from an approved migration map. It reads the unit card and gets the necessary framework documentation from MCP. It changes only the files from the unit card. It checks the result: compilation, tests, remains of old code, code rules, the checker subagent after each substep. It writes the result into the unit card and the migration map, makes a commit and stops. Use it when the migration map is made and approved. Use it when the human asks to do the next migration step/unit, to continue the migration, or to do unit M-nnn. Usually orchestrator calls it.'
 ---
 
-# Исполнитель юнита миграции (migration-step)
+**Language.** These instructions are in English. Write everything for the human in Russian:
+messages, questions, reports, the map, unit cards, notes and commit messages. Copy every
+template exactly as it is shown, with its Russian headings and field names.
 
-Ты выполняешь один маленький кусок миграции - **юнит**. Что делать, уже решено и записано в
-карточке юнита. Твоя работа - сделать ровно это, строго по документации фрейма, проверить и
-записать результат. Ты не планируешь миграцию и не улучшаешь проект «заодно».
+# Executor of a migration unit (migration-step)
 
-Мигрируемый проект - ОТДЕЛЬНЫЙ проект автотестов (AQA): он снаружи проверяет сервис через
-REST, Kafka, базы данных, OpenShift и другие технологии. Фрейм PVATF - набор модулей для
-таких автотестов. Что они умеют и как ими пользоваться - известно ТОЛЬКО из документации.
+You do one small part of the migration - a **unit**. The unit card already tells what to do.
+Your work is to do exactly this, strictly by the framework documentation. Then check the
+result and write it down. You do not plan the migration. You do not improve the project
+«заодно».
 
-## Сначала узнай режим - от него зависит, правишь ли ты код
+The project that you migrate is a SEPARATE project of autotests (AQA). It checks a service
+from the outside through REST, Kafka, databases, OpenShift and other technologies. The
+framework (PVATF) is a set of modules for such autotests. ONLY the documentation tells what
+these modules can do and how to use them.
+
+## First, find the mode - it tells if you change the code
 
 ```
 grep -n "Режим исполнения" .gigacode/data/migration/MIGRATION-MAP.md
 ```
 
-| Строка паспорта | Кто правит код проекта | Твой путь по подшагу |
-|-----------------|------------------------|----------------------|
-| `менеджер` или строки нет (по умолчанию) | ТОЛЬКО сабагент-исполнитель. Ты - ни строчки | `references/manager.md`. `work.md` и `check.md` ты сам не выполняешь: по ним работает исполнитель |
-| `сам` | ты | `references/work.md` -> `references/check.md` |
+| Line in the map passport | Who changes the project code | Your path for a substep |
+|--------------------------|------------------------------|-------------------------|
+| `менеджер` or no line (default) | ONLY the executor subagent. You do not change one line | `references/manager.md`. You do not do `work.md` and `check.md` yourself: the executor works by them |
+| `сам` | you | `references/work.md` -> `references/check.md` |
 
-## Этот скилл разбит на части - читай только нужную
+## This skill is split into parts («Этот скилл разбит на части») - read only the part you need
 
-Весь скилл сразу не читай: чем меньше текста в голове, тем меньше забывается. Открывай
-файл ровно в тот момент, который указан в таблице.
+Do not read all of the skill at one time: with less text in your head, you forget less.
+Open a file exactly at the moment that the table shows.
 
-| Когда | Что прочитать |
-|-------|---------------|
-| Начало чата и после сжатия контекста | этот SKILL.md, затем `references/start.md` (Шаги 1-2, пачка юнитов) |
-| Перед КАЖДЫМ подшагом и после сжатия контекста | `java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java recite M-<nnn>` - что делаешь сейчас: подшаг, файлы, итог, чекпоинт, правила |
-| Юнит типа `tech` | `references/tech-flow.md` - порядок подшагов, подшаг `разбор`, дописывание подшагов |
-| Юнит типа `markup` | `references/markup.md` - разметка тестов, агент `pvatf-marker` |
-| Режим `менеджер` (по умолчанию): каждый подшаг | `references/manager.md` - подшаг делает сабагент-исполнитель, ты ведёшь карточку, проверяешь и коммитишь |
-| Режим `сам`: перед правками каждого подшага | `references/work.md` (Шаги 3-5); в Шаге 5 п.1 - правила подшага |
-| Режим `сам`: правки сделаны | `references/check.md` (Шаг 6: проверки и сабагент «проверяющий») |
-| Проверки пройдены | `references/close.md` (Шаг 7 - запись и коммит, Шаг 8 - сводка) |
-| Хочется спросить, не знаешь как, нет в документации, упёрся | `references/stuck.md` («Если упёрся», «Таблица решений по умолчанию») |
-| Подшаг или юнит `review` | `references/review-subagent.md` |
-| Нужна документация фрейма | `references/doc-subagent.md` (сабагент документации) |
-| Проверки (matchers) в `core`, `usage`, `fix` | `references/matchers.md`, «Как писать проверку» и «Запрещённые приёмы» |
+| When | What to read |
+|------|--------------|
+| Start of the chat and after context compression | this SKILL.md, then `references/start.md` (Steps 1-2, batch of units) |
+| Before EACH substep and after context compression | `java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java recite M-<nnn>` - what you do now: substep, files, result, checkpoint, rules |
+| Unit of type `tech` | `references/tech-flow.md` - order of substeps, substep `разбор`, adding substeps |
+| Unit of type `markup` | `references/markup.md` - markup of tests, agent `pvatf-marker` |
+| Mode `менеджер` (default): each substep | `references/manager.md` - the executor subagent does the substep; you keep the unit card, check and make the commit |
+| Mode `сам`: before the changes of each substep | `references/work.md` (Steps 3-5); in Step 5 item 1 - the rules of the substep |
+| Mode `сам`: the changes are done | `references/check.md` (Step 6: checks and the subagent «проверяющий») |
+| The checks are passed | `references/close.md` (Step 7 - record and commit, Step 8 - summary) |
+| You want to ask, you do not know how, it is not in the documentation, you are stuck | `references/stuck.md` («Если упёрся», «Таблица решений по умолчанию») |
+| Substep or unit `review` | `references/review-subagent.md` |
+| You need the framework documentation | `references/doc-subagent.md` (documentation subagent) |
+| Checks (matchers) in `core`, `usage`, `fix` | `references/matchers.md`, «Как писать проверку» and «Запрещённые приёмы» |
 
-`references/code-rules.md` целиком НЕ читается: правила текущего подшага кладёт в файл
-скрипт (`references/work.md`, Шаг 5, п.1).
+Do NOT read all of `references/code-rules.md`. A script writes the rules of the current
+substep into a file (`references/work.md`, Step 5, item 1).
 
-**Скрипты этого скилла лежат в `.gigacode/skills/migration-step/scripts/`.** Команды ниже - готовые:
-копируй и запускай как есть, из корня мигрируемого проекта (там, где `.gigacode/`); нужна
-Java 11+. Скрипта по этому пути нет (скиллы установлены в другое место) -> найди его один
-раз: `find . ~/.gigacode -path "*migration-step/scripts/*.java" 2>/dev/null | head -3` - и подставляй
-найденный каталог. Скрипт упал с ошибкой -> покажи ошибку в чате и сделай то же самое
-командами вручную по описанию в этом скилле; молча пропускать скрипт нельзя.
+**The scripts of this skill are in `.gigacode/skills/migration-step/scripts/`.** The commands
+below are ready: copy them and run them as they are. Run them from the root of the project
+that you migrate (where `.gigacode/` is). You need Java 11+.
 
-## Цикл работы
+If the script is not at this path (the skills are installed in a different place), find it
+one time: `find . ~/.gigacode -path "*migration-step/scripts/*.java" 2>/dev/null | head -3`.
+Then use the directory that you found.
+
+If the script fails with an error, show the error in the chat. Then do the same with
+manual commands, as this skill describes. Do not skip the script silently.
+
+## Work cycle
 
 ```
 Режим менеджер (по умолчанию):
@@ -69,87 +79,109 @@ Java 11+. Скрипта по этому пути нет (скиллы уста�
 -> чекпоинты юнита -> Шаг 7-8 (close.md) -> СТОП
 ```
 
-Подшаг - проверка - подшаг - проверка. Следующий подшаг не начинается, пока у текущего нет
-строки `проверка: ...` и коммита.
+Substep - check - substep - check. Do not start the next substep until the current substep
+has the line `проверка: ...` and a commit.
 
-## Правила исполнителя
+## Rules of the executor
 
-Общие правила миграции - `references/core-rules.md`, прочитай в начале чата. Ниже - только
-то, что касается исполнителя.
+The common migration rules are in `references/core-rules.md`. Read it at the start of the
+chat. Below are only the rules for the executor.
 
-0. **Режим менеджера - ты не трогаешь код проекта.** Правишь только файлы в `.gigacode/`
-   (карточка, карта, журнал). Файл вне `.gigacode/` не правишь никогда: ни «одну строку», ни
-   импорт, ни исправление находки проверяющего или `Unit.java check`, ни ошибку компиляции,
-   ни «быстрее самому». Всё это - повторный запуск исполнителя с находками
-   (`references/manager.md`, п.8). Перед КАЖДОЙ правкой файла спроси себя: путь начинается с
-   `.gigacode/`? Нет -> стоп, это работа исполнителя. Код в твоём контексте копится и
-   вытесняет правила - ради этого режим и существует.
-1. **Правило подтверждения.** Каждое имя PVATF (класс, метод, аннотация, matcher, настройка,
-   зависимость) сначала записано в «Таблицу подтверждений» карточки со ссылкой на запись
-   конспекта. Нет строки - не пишешь. Даже при `cannot find symbol` ответ - в документации,
-   не в `.jar`.
-2. **Ты вопросов не задаёшь.** Хочется спросить -> `references/stuck.md`: решение по таблице
-   или место с пометкой `решить человеку` во «Входящие», и дальше. Остановка - только когда
-   работать физически нельзя (не компилируется после 3 попыток, нет MCP, чужие изменения в
-   git). В разделе 6 карты вопрос с `ответ: -` -> СТОП на Шаге 1.
-3. **Один чат - один юнит, целиком.** Юнит `tech` - все подшаги подряд в этом чате. Контекст
-   сожмётся сам - тогда `Unit.java recite` и продолжай с первого несделанного подшага.
-   Несколько юнитов - только пачкой (`references/start.md`).
-4. **Одна нить.** Только шаги «Что сделать» текущего подшага по порядку; вспомнил другое
-   дело - строка во «Входящие» и назад к текущему шагу.
-5. **Вид подшага задаёт границы.** `env` - только сборка и конфигурация; `core` - по
-   `core_mode` (`new` - новое основание, старое не трогаешь; `in-place` - внутренности,
-   публичные методы прежние); `usage` - шаги и тесты на фрейм; `cleanup` - только удаляешь;
-   `fix` - только находки из карточки; `arch` - только шаги карточки; `markup` - только
-   аннотации разметки (`references/markup.md`); `review` - по
-   `references/review-subagent.md`.
-6. **Образец - карта, а не старый код.** Блок `T-<tech>`, архитектурный план и конспект.
-   Из старого берёшь только данные. Класс, которого нет в плане и в карточке, не создаёшь.
-   Legacy удаляется под корень: без адаптеров и «для совместимости».
-7. **Правила кода - только правила подшага** (`Unit.java rules`, `references/work.md`, Шаг 5,
-   п.1); механические ловит `Unit.java check`. Самые частые ошибки: ответ превращают в DTO
-   (`MR-41`), проверки - своими конструкциями вместо `.should(...)` с matchers (`MR-48`),
-   лишние слои, делегаты и вложенные классы (`MR-49`), своё чтение настроек (`MR-47`).
-8. **Каждый подшаг проверяет сабагент «проверяющий»** с чистым контекстом - до коммита
-   (`references/check.md`, Шаг 6, п.9).
-9. **Тесты - только точечно.** `env` и `core` режима `new` - только компиляция. Остальное -
-   ОДИН показательный тест из карточки, `timeout 600`. Весь набор, модуль, класс - никогда.
-10. **Данные подключения - только из `CONNECTIONS.md`.** Те же значения, что у проекта
-    раньше, в файлах настроек фрейма; несколько стендов - разные ключи. Пустых значений,
-    `TODO`, выдуманного нет.
-11. **Создал - подключи.** У созданного класса есть вызывающие или подшаги, которые на него
-    переводят (`references/check.md`, п.7).
-12. **Сабагенты исполнителя:** «документация» и «примеры» - агенты `pvatf-docs` и
-    `pvatf-examples` (`references/doc-subagent.md`), «проверяющий» - агент `pvatf-checker`
-    (`references/check.md`), «ревью» (`references/review-subagent.md`) - только читают и
-    отвечают. В режиме менеджера есть ещё «исполнитель подшага» - агент `pvatf-executor`
-    (`references/manager.md`): он меняет файлы своего подшага и запускает сборку и тест, но
-    карточку, карту и коммиты делаешь только ты. Юнит `markup` вместо него делает агент
-    `pvatf-marker` (`references/markup.md`): он сам коммитит свои файлы, карточку и карту
-    по-прежнему ведёшь ты. Агентов вызываешь по имени и передаёшь
-    только задание (`references/core-rules.md`, правило 7). Все они ОБЯЗАТЕЛЬНЫ там, где скилл их
-    называет (`references/core-rules.md`, правило 7).
+0. **Manager mode - you do not touch the project code.** Change only files in `.gigacode/`
+   (unit card, migration map, log). Never change a file outside `.gigacode/`. This includes
+   «одну строку», an import, a fix of a checker finding or of a `Unit.java check` finding,
+   a compilation error, and «быстрее самому». All of this is a retry of the executor with
+   the findings (`references/manager.md`, item 8). Before EACH change of a file, ask
+   yourself: does the path start with `.gigacode/`? If not -> stop, this is the work of the
+   executor. Code collects in your context and pushes out the rules. This mode exists to
+   prevent this.
+1. **Confirmation rule.** Each PVATF name (class, method, annotation, matcher, setting,
+   dependency) must first be in «Таблицу подтверждений» of the unit card. The line must
+   have a link to a doc notes record. If there is no line, do not write the name. Even for
+   `cannot find symbol`, the answer is in the documentation, not in the `.jar`.
+2. **You do not ask questions.** If you want to ask -> `references/stuck.md`: a decision
+   from the table, or a place with the mark `решить человеку` in «Входящие». Then continue.
+   Stop only when you physically cannot work:
+   - the project does not compile after 3 attempts;
+   - there is no MCP;
+   - there are changes of other people in git. If section 6 of the
+   migration map has a question with `ответ: -` -> СТОП at Step 1.
+3. **One chat - one unit, complete.** For a unit `tech`, do all substeps one after another
+   in this chat. The context compresses itself. Then run `Unit.java recite` and continue
+   from the first substep that is not done. Do more than one unit only as a batch
+   (`references/start.md`).
+4. **One thread.** Do only the steps of «Что сделать» of the current substep, in order. If
+   you remember a different task, write a line in «Входящие» and go back to the current step.
+5. **The kind of substep sets the limits.**
+   - `env` - only build and configuration.
+   - `core` - by `core_mode`: `new` - a new base, do not touch the old code; `in-place` -
+     the internal parts, the public methods stay the same.
+   - `usage` - move steps and tests to the framework.
+   - `cleanup` - only remove.
+   - `fix` - only the findings from the unit card.
+   - `arch` - only the steps of the unit card.
+   - `markup` - only the markup annotations (`references/markup.md`).
+   - `review` - by `references/review-subagent.md`.
+6. **The pattern is the migration map, not the old code.** Use the block `T-<tech>`, the
+   architecture plan and the doc notes. From the old code, take only the data. Do not make a
+   class that is not in the plan and not in the unit card. Remove legacy completely: no
+   adapters and nothing «для совместимости».
+7. **Code rules - only the rules of the substep** (`Unit.java rules`, `references/work.md`,
+   Step 5, item 1). `Unit.java check` finds the mechanical errors. The most frequent errors:
+   - the response is changed into a DTO (`MR-41`);
+   - checks use own constructions instead of `.should(...)` with matchers (`MR-48`);
+   - extra layers, delegates and nested classes (`MR-49`);
+   - own reading of settings (`MR-47`).
+8. **The subagent «проверяющий» checks each substep** with a clean context, before the
+   commit (`references/check.md`, Step 6, item 9).
+9. **Run only specific tests.** For `env`, and for `core` in mode `new` - only compilation.
+   For all other kinds - ONE representative test from the unit card, `timeout 600`. Never
+   run the full set, a module or a class.
+10. **Connection data - only from `CONNECTIONS.md`.** Use the same values that the project
+    used before, in the framework settings files. For more than one stand, use different
+    keys. Do not write empty values, `TODO` or invented values.
+11. **If you made it, connect it.** A class that you made must have callers, or substeps
+    that move code to it (`references/check.md`, item 7).
+12. **Subagents of the executor:**
+    - «документация» and «примеры» - agents `pvatf-docs` and `pvatf-examples`
+      (`references/doc-subagent.md`);
+    - «проверяющий» - agent `pvatf-checker` (`references/check.md`);
+    - «ревью» (`references/review-subagent.md`).
+    These subagents only read and answer. In manager mode there is also «исполнитель
+    подшага» - agent `pvatf-executor` (`references/manager.md`). It changes the files of its
+    substep and runs the build and the test. Only you change the unit card and the migration
+    map, and only you make commits. For a unit `markup`, agent `pvatf-marker` does this work
+    instead (`references/markup.md`). It makes commits of its files itself. You still keep
+    the unit card and the migration map. Call the agents by name and give only the task
+    (`references/core-rules.md`, rule 7). All of them are MANDATORY where the skill names
+    them (`references/core-rules.md`, rule 7).
 
-## Если потерял нить
+## If you lost the thread
 
-Признаки: делаешь то, чего нет в шагах карточки; начал второе дело, не закончив первое;
-правишь файл не из карточки; не можешь назвать номер шага, который выполняешь; контекст
-только что сжался и ты не помнишь, где был. Тогда остановись и:
+Signs:
+- you do something that is not in the steps of the unit card;
+- you started a second task before you finished the first;
+- you change a file that is not in the unit card;
+- you cannot name the number of the step that you do;
+- the context was compressed and you do not remember where you were.
 
-(1) выполни `Unit.java recite M-<nnn>` - он напечатает текущий подшаг, его файлы, итог и
-чекпоинт; (2) выполни `git status --short`, чтобы увидеть, что уже изменено; (3) открой
-файл из таблицы «Этот скилл разбит на части» для текущего момента и продолжи с первого
-невыполненного шага. Не помогло - перечитай этот SKILL.md и карточку юнита. Карточка - источник истины, не чат. Начатое
-постороннее дело верни как было (`git checkout -- <файл>`) и запиши строкой во «Входящие».
+Then stop and do these steps:
 
-## Перед каждым коммитом подшага - пять вопросов
+(1) run `Unit.java recite M-<nnn>` - it shows the current substep, its files, the result and
+the checkpoint; (2) run `git status --short` to see what is already changed; (3) open the
+file from the table «Этот скилл разбит на части» for the current moment and continue from
+the first step that is not done. If this does not help, read this SKILL.md and the unit card
+again. The unit card is the source of truth, not the chat. If you started an unrelated
+task, put it back as it was (`git checkout -- <файл>`) and write it as a line in «Входящие».
 
-0. Перед подшагом запускался `Unit.java recite`, а его вывод есть в чате?
-1. Правила подшага получены `Unit.java rules` и прочитаны, `Unit.java check` - `находок 0`
-   (последняя строка вывода переписана в «Сделано»)?
-2. В «Сделано» есть строка `проверка: ...` от проверяющего?
-3. Ни одного вопроса человеку, ни одного DTO ответа, ни одного пустого ключа настроек?
-4. Режим менеджера: файлы проекта в этом подшаге правил только исполнитель, а ты - только
-   файлы в `.gigacode/`?
+## Before each commit of a substep - five questions
 
-Хоть один ответ «нет» -> не коммить, вернись к нужному шагу.
+0. Did you run `Unit.java recite` before the substep, and is its output in the chat?
+1. Did you get the rules of the substep with `Unit.java rules` and read them? Does
+   `Unit.java check` show `находок 0` (the last line of the output is copied into «Сделано»)?
+2. Does «Сделано» have the line `проверка: ...` from the checker?
+3. Is there no question to the human, no response DTO, and no empty settings key?
+4. Manager mode: did only the executor change the project files in this substep, and did
+   you change only files in `.gigacode/`?
+
+If one answer is «нет» -> do not make the commit. Go back to the necessary step.

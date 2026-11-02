@@ -1,11 +1,11 @@
-# Шаблон карточки юнита исправления (fix)
+# Template of the fix unit card (fix)
 
-Путь: `.gigacode/data/migration/units/M-<nnn>.md`. Карточку читает исполнитель
-(`migration-step`) в другом чате - он не видел проверку. Пиши так, чтобы по карточке можно
-было работать, ничего не додумывая: точные пути, номера строк, что именно исправить.
+Path: `.gigacode/data/migration/units/M-<nnn>.md`. The executor (`migration-step`) reads the card
+in another chat - the executor did not see the check. Write the card so that the executor can work
+from it and does not have to guess anything: exact paths, line numbers, what exactly to fix.
 
-Юниты типа `arch` и `review`, которые заводит проверка, пишутся по общему шаблону карточки
-из `migration-map` (`.gigacode/skills/migration-map/references/unit-card-template.md`), в шагах - находки из отчёта.
+The check also adds units of type `arch` and `review`. Write them by the general unit card template
+from `migration-map` (`.gigacode/skills/migration-map/references/unit-card-template.md`). In their steps, put the findings from the report.
 
 ```markdown
 ---
@@ -96,25 +96,25 @@ covers: [review-round-<n>]
 -
 ```
 
-## Правила заполнения
+## Fill-in rules
 
-- **Размер:** до 10 файлов и до 30 находок на юнит. Больше - дели по пакету.
-- **Соответствие правил:** рядом с кодом `V`/`P` пиши правило `MR` (таблица соответствия -
-  в `references/review-subagent.md`), чтобы исполнитель знал, где читать, как исправлять.
-- **Находки про ассерты и DTO ответа (`V4`, `V19`):** в «Как исправить» пиши «заменить на
-  проверку через `.should()`; matcher взять из конспекта `D-<tech>-<n>`» и укажи запись
-  конспекта про matchers этой технологии. Записи нет - так и напиши: «matcher спросить у
+- **Size:** max 10 files and max 30 findings per unit. If there are more, divide the unit by package.
+- **Rule match:** next to the code `V`/`P`, write the rule `MR` (the match table is
+  in `references/review-subagent.md`). Then the executor knows where to read how to fix it.
+- **Findings about asserts and the response DTO (`V4`, `V19`):** in «Как исправить» write «заменить на
+  проверку через `.should()`; matcher взять из конспекта `D-<tech>-<n>`». Also give the doc notes
+  entry about the matchers of this technology. If there is no entry, write exactly this: «matcher спросить у
   сабагента документации».
-- **Показательный тест - быстрый**, одним методом; правила выбора те же, что в
-  `migration-map` (нет ожиданий, UI и контейнеров; из отчётов прошлых прогонов - быстрее
-  60 секунд).
+- **The sample test must be fast**, one method. The selection rules are the same as in
+  `migration-map` (no waits, no UI and no containers; from the reports of previous runs - faster than
+  60 seconds).
 
-## Минимальная карта (только для режима «без карты»)
+## Minimal map («Минимальная карта», only for mode «без карты»)
 
-Если проверка запущена без карты и нашла проблемы, создай
-`.gigacode/data/migration/MIGRATION-MAP.md` ровно в таком виде - этого достаточно, чтобы
-`orchestrator` и `migration-step` выполнили юниты исправления. Заголовки и номера разделов
-не меняй.
+If the check runs without the map and finds problems, make
+`.gigacode/data/migration/MIGRATION-MAP.md` exactly in this form. This is sufficient for
+`orchestrator` and `migration-step` to do the fix units. Do not change the headings and the
+section numbers.
 
 ```markdown
 ---

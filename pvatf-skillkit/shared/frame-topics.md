@@ -1,101 +1,103 @@
-# Разделы документации фрейма PVATF (справочник для запросов)
+# Sections of the PVATF framework documentation (reference for queries)
 
-Это оглавление документации фрейма: какие разделы в ней есть. Здесь ТОЛЬКО названия
-разделов. Как пользоваться технологией, какие классы, зависимости и настройки - тут нет, это
-берётся только из документации через сабагента.
+This is the table of contents of the framework documentation: the sections that it has.
+This file has ONLY the section names. It does not tell how to use a technology, which classes,
+dependencies and settings to use. Get this information only from the documentation, through the subagent.
 
-Зачем список:
-1. **Запросы в документацию.** Название раздела - самая точная формулировка запроса.
-   Передавай его сабагенту в строке «Раздел документации».
-2. **Метки технологий.** Технологии проекта называй метками из этого списка, свои не
-   придумывай, если подходящая есть.
-3. **Есть ли технология во фрейме.** Технологии нет в списке -> возможно, фрейм её не
-   поддерживает. Это НЕ приговор: список мог устареть. Всё равно спроси документацию.
-   Документация про технологию молчит -> решение `keep`: технология не мигрируется и
-   остаётся на старой реализации.
+Why you need this list:
+1. **Queries to the documentation.** The section name is the most exact text for a query.
+   Give it to the subagent in the line «Раздел документации».
+2. **Technology labels.** Name the project technologies with the labels from this list.
+   Do not make up your own labels if a suitable label exists.
+3. **Does the framework have the technology.** If the technology is not in the list -> the
+   framework possibly does not support it. This is NOT a final decision: the list can be old.
+   Ask the documentation in all cases.
+   If the documentation has nothing about the technology -> the decision is `keep`: the
+   technology is not migrated and stays on the old implementation.
 
-Название раздела пиши в запросе символ в символ, как здесь.
+In the query, write the section name character for character, as it is here.
 
-## Якорь технологии - первый запрос в документацию
+## Technology anchor - the first query to the documentation
 
-У каждой технологии во фрейме есть свой сервис. Имя сервиса - это **якорь**: самый первый
-запрос в документацию по технологии состоит только из него. По ответу видно, какими словами
-написана документация (классы, методы, настройки), и дальше вопросы задаются этими словами.
+Each technology in the framework has its own service. The service name is the **anchor**:
+the very first query to the documentation about the technology contains only this name.
+The answer shows which words the documentation uses (classes, methods, settings).
+Ask the next questions with these words.
 
-| Метка | Якорь | Откуда известен |
-|-------|-------|-----------------|
-| `rest` | `RestService` | из документации |
-| `db` | `DatabaseService` | из документации |
-| `kafka` | `KafkaService` | из документации |
-| `sbermock` | `SberMockService` | предположение по образцу |
-| `grpc` | `GrpcService` | предположение по образцу |
-| `graphql` | `GraphQlService` | предположение по образцу |
-| `websocket` | `WebSocketService` | предположение по образцу |
-| `openshift` | `OpenShiftService` | предположение по образцу |
-| `ragas` | `RagasService` | из документации |
-| остальные | `<Название технологии>Service` | собери сам по образцу |
+| Label | Anchor | Source of the name |
+|-------|--------|--------------------|
+| `rest` | `RestService` | from the documentation |
+| `db` | `DatabaseService` | from the documentation |
+| `kafka` | `KafkaService` | from the documentation |
+| `sbermock` | `SberMockService` | assumption from the pattern |
+| `grpc` | `GrpcService` | assumption from the pattern |
+| `graphql` | `GraphQlService` | assumption from the pattern |
+| `websocket` | `WebSocketService` | assumption from the pattern |
+| `openshift` | `OpenShiftService` | assumption from the pattern |
+| `ragas` | `RagasService` | from the documentation |
+| other labels | `<Название технологии>Service` | make it yourself from the pattern |
 
-Якорь - слово ДЛЯ ЗАПРОСА, а не для кода. «Предположение» может не совпасть с настоящим
-именем: тогда якорный запрос вернёт мало или не то - это нормально, второй якорный запрос
-(название раздела) покажет настоящее имя сервиса. В код идёт только имя из ответа
-документации.
+The anchor is a word FOR THE QUERY, not for the code. An «Предположение» (assumption) can be different from the
+real name. Then the anchor query returns little or wrong information. This is normal: the second
+anchor query (the section name) shows the real service name.
+Put into the code only the name from the documentation answer.
 
-## Основные понятия (метка `common`)
+## Main concepts (label `common`)
 
-| Раздел документации | О чём |
-|---------------------|-------|
-| Структура проекта | слои, пакеты, модули проекта автотестов |
-| Что такое Service? | сервисы фрейма - основной строительный блок |
-| Работа с Environment | окружение, конфигурация запуска |
-| Как работает Flow и ConfigurationService | flow-интерфейсы, конфигурации |
-| Exceptions | исключения фрейма |
-| Logging | логирование |
-| Matchers and Conditions | проверки и условия |
+| Documentation section | Topic |
+|-----------------------|-------|
+| Структура проекта | layers, packages, modules of the autotest project |
+| Что такое Service? | framework services - the main building block |
+| Работа с Environment | environment, run configuration |
+| Как работает Flow и ConfigurationService | flow interfaces, configurations |
+| Exceptions | framework exceptions |
+| Logging | logging |
+| Matchers and Conditions | checks and conditions |
 
-## Сервисы фреймворка
+## Framework services
 
-| Метка | Раздел документации | Что в проекте относится сюда |
-|-------|---------------------|------------------------------|
-| `fixtures` | Сервис для работы с Fixtures | подготовка и очистка данных, before/after |
-| `timeouts` | Сервис для работы с Таймаутами | ожидания, ретраи, Awaitility, sleep |
-| `value` | ValueService | подстановка и генерация значений |
-| `rest` | Работа с Rest API | RestAssured, HTTP-клиенты |
+| Label | Documentation section | What in the project belongs here |
+|-------|-----------------------|----------------------------------|
+| `fixtures` | Сервис для работы с Fixtures | data preparation and cleanup, before/after |
+| `timeouts` | Сервис для работы с Таймаутами | waits, retries, Awaitility, sleep |
+| `value` | ValueService | substitution and generation of values |
+| `rest` | Работа с Rest API | RestAssured, HTTP clients |
 | `kafka` | Работа с Kafka | kafka-clients, producer/consumer |
-| `db` | Работа с Базами Данных | JDBC, sql2o, SQL-запросы |
-| `sup` | Работа с СУП-Параметрами | параметры СУП |
-| `sbermock` | Работа с SberMock | моки, заглушки |
+| `db` | Работа с Базами Данных | JDBC, sql2o, SQL queries |
+| `sup` | Работа с СУП-Параметрами | СУП parameters |
+| `sbermock` | Работа с SberMock | mocks, stubs |
 | `grpc` | Работа с gRPC | io.grpc |
-| `sessions` | Работа с Сессиями | авторизация, сессии, токены |
-| `audit` | Работа с Единым Аудитом | проверка событий аудита |
-| `openshift` | Работа с OpenShift и Kubernetes | поды, деплой, kubernetes-client |
-| `opensearch` | Работа с OpenSearch/ElasticSearch | поиск по логам и индексам |
-| `metrics` | Работа с хранилищем метрик Thanos/Victoria Metrics | метрики, мониторинг |
-| `journals` | Работа с Журналами ЕФС и ППРБ | журналы ЕФС, ППРБ |
+| `sessions` | Работа с Сессиями | authorization, sessions, tokens |
+| `audit` | Работа с Единым Аудитом | check of audit events |
+| `openshift` | Работа с OpenShift и Kubernetes | pods, deploy, kubernetes-client |
+| `opensearch` | Работа с OpenSearch/ElasticSearch | search in logs and indexes |
+| `metrics` | Работа с хранилищем метрик Thanos/Victoria Metrics | metrics, monitoring |
+| `journals` | Работа с Журналами ЕФС и ППРБ | ЕФС journals, ППРБ journals |
 | `ui-selenide` | Работа с UI Selenide | Selenide, Selenium |
 | `ui-playwright` | Работа с UI Playwright | Playwright |
 | `websocket` | Работа с WebSocket | WebSocket |
-| `appium-android` | Работа с Appium Android | мобильные тесты Android |
-| `appium-ios` | Работа с Appium iOS | мобильные тесты iOS |
+| `appium-android` | Работа с Appium Android | Android mobile tests |
+| `appium-ios` | Работа с Appium iOS | iOS mobile tests |
 | `graphql` | Работа с GraphQL | GraphQL |
-| `allure` | Работа с Allure2 | отчётность, шаги, вложения |
-| `invocation` | Работа с Invocation | обёртки вызовов, повторы |
-| `testcontainers` | Работа с TestContainers | контейнеры в тестах |
-| `dataconverter` | Работа с DataConverter | конвертация данных, JSON/XML |
-| `datasource` | Работа с DataSource | источники тестовых данных, Stash |
+| `allure` | Работа с Allure2 | reporting, steps, attachments |
+| `invocation` | Работа с Invocation | call wrappers, retries |
+| `testcontainers` | Работа с TestContainers | containers in tests |
+| `dataconverter` | Работа с DataConverter | data conversion, JSON/XML |
+| `datasource` | Работа с DataSource | sources of test data, Stash |
 | `abyss` | Работа с PVM-ABYSS | PVM-ABYSS |
 | `toggler` | Работа с Toggler | feature-toggle |
 | `launcher` | Работа с Launcher | ФП Launcher |
 | `sbercms` | Работа с SberCMS | SberCMS |
-| `scheduler` | Работа с TaskScheduler | планировщик задач |
-| `techbreak` | Работа с TechBreak | техперерывы |
-| `history` | Работа с Историей Операций | история операций |
+| `scheduler` | Работа с TaskScheduler | task scheduler |
+| `techbreak` | Работа с TechBreak | technical breaks |
+| `history` | Работа с Историей Операций | operation history |
 | `smartcare` | Работа с SmartCare | SmartCare |
-| `ragas` | Работа с Ragas - тестирование агентов | тестирование AI-агентов |
+| `ragas` | Работа с Ragas - тестирование агентов | testing of AI agents |
 
-## Тестовые фреймворки (метка `runner`)
+## Test frameworks (label `runner`)
 
-| Раздел документации |
-|---------------------|
+| Documentation section |
+|-----------------------|
 | Работа с TestNG |
 | Работа с Cucumber7 |
 | Работа с Spring |
@@ -103,12 +105,12 @@
 | Работа с Junit4 |
 | Работа с Junit5 |
 
-Раздел выбирай по тест-фреймворку проекта из паспорта.
+Select the section by the test framework of the project from the map passport.
 
-## Дополнительные материалы (метка `common`)
+## Additional materials (label `common`)
 
-| Раздел документации |
-|---------------------|
+| Documentation section |
+|-----------------------|
 | Разметка автотестов (Allure-Annotations) |
 | Пакетная разметка автотестов (Allure-Markup-Tool) |
 | Настройка выгрузки в Jira на Gradle |
@@ -119,7 +121,7 @@
 | Часто задаваемые вопросы |
 | Типичные ошибки при сборке |
 
-## Чего в списке нет
+## What is not in the list
 
-Примеры: OpenTelemetry, RabbitMQ и другие очереди кроме Kafka, файловые хранилища, почта.
-Для них действует пункт 3 сверху: спроси документацию, не нашлось - `keep`.
+Examples: OpenTelemetry, RabbitMQ and other queues except Kafka, file storages, mail.
+For them, item 3 at the top applies: ask the documentation; if nothing is found - `keep`.

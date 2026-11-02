@@ -1,91 +1,111 @@
-# Юнит технологии (`tech`): порядок подшагов
+# Technology unit (`tech`): order of substeps
 
-Часть скилла `migration-step`. Главные правила и порядок чтения - в `SKILL.md`.
-«Если упёрся» и «Таблица решений по умолчанию» - `references/stuck.md`.
+This is a part of the skill `migration-step`. The main rules and the reading order are in
+`SKILL.md`. «Если упёрся» and «Таблица решений по умолчанию» are in `references/stuck.md`.
 
-## Юнит технологии (тип `tech`) - работа по подшагам
+## Technology unit («Юнит технологии») (type `tech`) - work by substeps
 
-Юнит `tech` - вся миграция одной технологии. В его карточке: раздел «Разбор технологии» (кто
-и как к ней обращается), таблица «Подшаги» (`S-01`, `S-02`, ...) со статусами, по разделу
-на каждый подшаг (файлы, что сделать, итоговый результат, чекпоинт) и таблица «Чекпоинты
-юнита» в конце. Все подшаги делаются подряд в одном чате, пока не сошлись все чекпоинты.
-Контекст сжимается сам при заполнении - после этого перечитай SKILL.md и карточку и
-продолжай с первого несделанного подшага.
+A unit `tech` is the full migration of one technology. Its unit card has:
+- the section «Разбор технологии» (who uses the technology and how);
+- the table «Подшаги» (`S-01`, `S-02`, ...) with statuses;
+- one section for each substep (files, what to do, final result, checkpoint);
+- the table «Чекпоинты юнита» at the end.
+Do all substeps one after another in one chat, until all checkpoints agree. The context
+compresses itself when it is full. After this, read SKILL.md and the unit card again and
+continue from the first substep that is not done.
 
-**Порядок работы в чате:**
+**Order of work in the chat:**
 
-1. **Шаг 2 - один раз в начале** (и заново после сжатия контекста). Карточку читай так: всё до раздела первого подшага, таблицу
-   «Подшаги», «Чекпоинты юнита», «Таблицу подтверждений». Разделы подшагов со статусом
-   `done` не читай - береги контекст.
-2. **Возьми ПЕРВЫЙ сверху подшаг, у которого статус не `done`.** Перескакивать и выбирать
-   нельзя. Поставь ему `in-progress` в таблице «Подшаги». Прочитай его раздел.
-3. **Выполни подшаг: Шаги 3-5 (`references/work.md`) и Шаг 6 (`references/check.md`)** -
-   или, в режиме менеджера (паспорт карты), по циклу из `references/manager.md`,
-   где «файлы юнита» - файлы этого подшага, а «тип юнита» - вид подшага. ПЕРЕД правками
-   КАЖДОГО подшага вырежи и прочитай его правила (`references/work.md`, Шаг 5, п.1) - да,
-   каждый раз: в длинном чате правила забываются первыми, а у каждого вида подшага они
-   свои. Подшаг `core`, `usage` или `fix` -> ещё `references/matchers.md`, разделы «Как
-   писать проверку» и «Запрещённые приёмы». Вид `разбор` - см. ниже. Вид `review` - по
-   `references/review-subagent.md`.
-4. **Закрой подшаг:**
-   - Шаг 6 пройден целиком, включая проверяющего (п.9);
-   - выполни команду из поля «Чекпоинт» подшага и сравни вывод с ожидаемым. Не сошлось ->
-     подшаг не закрыт: «Итоговый результат» не достигнут, вернись на Шаг 5;
-   - в поле «Сделано» подшага - 1-3 строки: что сделано; вывод чекпоинта; компиляция и
-     показательный тест (итог); `MR`; строка проверяющего
-     (`проверка: ...`, Шаг 6 п.9). Отдельный раздел «Проверки» для подшага не ведётся;
-   - статус подшага в таблице - `done`;
-   - коммит файлов подшага и карточки: `git commit -m "<по конвенции проекта> M-<nnn>
-     S-<nn>"`, хэш - в колонку «Коммит».
-   В карту после подшага ничего не пиши - это делается один раз, в конце чата.
-5. **Реши, идти ли дальше** (проверяй после КАЖДОГО закрытого подшага, первая подходящая
-   строка):
+1. **Step 2 - one time at the start** (and again after context compression). Read these
+   parts of the unit card: all before the section of the first substep, the table
+   «Подшаги», «Чекпоинты юнита», «Таблицу подтверждений». Do not read the sections of
+   substeps with the status `done` - keep the context small.
+2. **Take the FIRST substep from the top whose status is not `done`.** Do not skip and do
+   not select. Give it `in-progress` in the table «Подшаги». Read its section.
+3. **Do the substep: Steps 3-5 (`references/work.md`) and Step 6 (`references/check.md`)** -
+   or, in manager mode (map passport), by the cycle from `references/manager.md`.
+   Here «файлы юнита» are the files of this substep, and «тип юнита» is the kind of the
+   substep. BEFORE the changes of EACH substep, cut out and read its rules
+   (`references/work.md`, Step 5, item 1). Yes, each time: in a long chat, you forget the
+   rules first, and each kind of substep has its own rules. Substep `core`, `usage` or
+   `fix` -> also read `references/matchers.md`, sections «Как писать проверку» and
+   «Запрещённые приёмы». Kind `разбор` - see below. Kind `review` -
+   by `references/review-subagent.md`.
+4. **Close the substep:**
+   - Step 6 is fully done, including the checker (item 9);
+   - run the command from the field «Чекпоинт» of the substep and compare the output with
+     the expected output. If they do not agree -> the substep is not closed:
+     «Итоговый результат» is not reached, go back to Step 5;
+   - in the field «Сделано» of the substep - 1-3 lines: what is done; the checkpoint
+     output; compilation and representative test (result); `MR`; the line of the checker
+     (`проверка: ...`, Step 6 item 9). Do not keep a separate section «Проверки» for a
+     substep;
+   - the status of the substep in the table - `done`;
+   - make a commit of the files of the substep and of the unit card:
+     `git commit -m "<по конвенции проекта> M-<nnn> S-<nn>"`. Write the hash into the column «Коммит».
+   Do not write anything into the migration map after a substep. Do it one time, at the end
+   of the chat.
+5. **Decide if you continue** (check after EACH closed substep, use the first matching
+   line):
 
-   | Что видишь | Что делаешь |
-   |------------|-------------|
-   | подшаг не закрыт или `blocked` | Стоп чата |
-   | все подшаги `done` | «Конец юнита» (ниже) |
-   | `scope: core`, а следующий подшаг - не `разбор`, `env` или `core` | Стоп чата: остальные подшаги ждут полной миграции |
-   | иначе | Вернись к п.2 - следующий подшаг, в этом же чате. В новый чат не уходи, «контекст кончается» - не причина: он сожмётся сам |
+   | What you see | What you do |
+   |--------------|-------------|
+   | the substep is not closed or `blocked` | Stop the chat |
+   | all substeps are `done` | «Конец юнита» (below) |
+   | `scope: core`, and the next substep is not `разбор`, `env` or `core` | Stop the chat: the other substeps wait for the full migration |
+   | else | Go back to item 2 - the next substep, in this same chat. Do not go to a new chat. «контекст кончается» is not a reason: it compresses itself |
 
-   «Подшаг не закрыт» - это только когда работать физически нельзя (не компилируется после
-   3 попыток, тест красный из-за миграции после 3 попыток). Неясность, нехватка
-   документации, нет matcher - не причина: такое место откладывается («Если упёрся»), а
-   подшаг закрывается.
+   «Подшаг не закрыт» means only that you physically cannot work: the project does not
+   compile after 3 attempts, or the test is red because of the migration after 3 attempts.
+   These are not reasons: something is not clear, the documentation is not sufficient, there
+   is no matcher. Postpone such a place («Если упёрся») and close the substep.
 
-6. **Стоп чата (юнит не закончен - только по причине из таблицы выше).** Юнит остаётся
-   `in-progress` в карточке и в таблице карты. Допиши: строку в таблицу «Чаты» карточки (дата, какие подшаги сделаны, какой
-   следующий); в раздел «8. Что уже изменилось» карты - по строке на каждую замену этого
-   чата; одну строку в журнал карты. Закоммить карту и карточку. Потом Шаг 8: в сводке -
-   сделанные подшаги, следующий подшаг, сколько подшагов осталось.
-7. **Конец юнита.** Выполни ВСЕ строки таблицы «Чекпоинты юнита», по каждой запиши в
-   колонку «Итог» вывод команды и `сошлось` / `не сошлось`.
-   - Все сошлись -> `status: done` в карточке и карте, раздел 8 карты, журнал, коммит (Шаг 7).
-   - Хоть один не сошёлся -> юнит НЕ `done`. На каждый несошедшийся чекпоинт допиши подшаг
-     (правила - ниже) и выполни его: в этом чате, если условие остановки ещё не сработало,
-     иначе - в следующем. После дописанных подшагов чекпоинты выполняются заново, все.
+6. **Stop the chat (the unit is not finished - only for a reason from the table above).**
+   The unit stays `in-progress` in the unit card and in the table of the migration map. Add:
+   - a line to the table «Чаты» of the unit card (date, which substeps are done, which
+     substep is next);
+   - to section «8. Что уже изменилось» of the migration map - one line for each
+     replacement of this chat;
+   - one line to the log of the migration map.
+   Make a commit of the migration map and the unit card. Then do Step 8: in the summary,
+   show the done substeps, the next substep and how many substeps stay.
+7. **End of the unit («Конец юнита»).** Run ALL lines of the table «Чекпоинты юнита». For
+   each line, write into the column «Итог» the command output and `сошлось` / `не сошлось`.
+   - All agree -> `status: done` in the unit card and in the migration map, section 8 of
+     the migration map, log, commit (Step 7).
+   - One or more do not agree -> the unit is NOT `done`. For each checkpoint that does not
+     agree, add a substep (the rules are below) and do it. Do it in this chat if the stop
+     condition did not occur yet. Else do it in the next chat. After the added substeps, run
+     all checkpoints again.
 
-**Подшаг `разбор` (всегда `S-01`).** Код не меняется, документация не нужна. Выполни обе
-команды поиска из раздела «Разбор технологии» и сравни вывод с таблицей потребителей:
-- файл есть в выводе, но его нет в таблице (и это не класс шагов из плана и не отложенный
-  файл) -> допиши строку в таблицу и подшаг `usage` на него;
-- файл есть в таблице, но его нет в выводе (удалён, уже переведён) -> пометь строку `уже нет`,
-  в его подшаге убери файл из списка; файлов в подшаге не осталось -> статус подшага `done`
-  с пометкой `не нужен`;
-- по 2-3 потребителям каждого способа обращения посмотри (grep по файлу, не читай целиком),
-  какие действия они делают. Действия нет в колонке «Какие действия делает» или для него нет
-  метода в подшагах `core` -> допиши действие в таблицу и метод в «Что сделать» подшага `core`.
-Запиши в «Сделано»: сколько потребителей было в карточке, сколько стало, что дописано.
+**Substep `разбор` (always `S-01`).** The code does not change. You do not need the
+documentation. Run both search commands from the section «Разбор технологии» and compare the
+output with the table of consumers:
+- the file is in the output, but not in the table (and it is not a step class from the plan
+  and not a postponed file) -> add a line to the table and a substep `usage` for it;
+- the file is in the table, but not in the output (removed, already moved) -> mark the line
+  `уже нет`. Remove the file from the list of its substep. If no files stay in the substep ->
+  the status of the substep is `done` with the mark `не нужен`;
+- for 2-3 consumers of each access method, look which actions they do (grep in the file, do
+  not read it in full). If the action is not in the column «Какие действия делает», or the
+  substeps `core` have no method for it -> add the action to the table and a method to
+  «Что сделать» of the substep `core`.
+Write into «Сделано»: how many consumers the unit card had, how many it has now, what you
+added.
 
-**Дописывание подшагов.** Дописывать подшаги в карточку можно только в трёх случаях: на
-подшаге `разбор`; по находкам подшага `review`; по несошедшемуся чекпоинту юнита. Правила:
-- вид - `usage` (перевести файл на класс шагов), `fix` (исправить находку) или `cleanup`
-  (удалить оставшееся старое);
-- строка в таблицу «Подшаги» и раздел подшага по тому же формату, что у остальных: файлы
-  (до 3), пронумерованные действия с именами классов и методов, «Итоговый результат» -
-  проверяемый факт, «Чекпоинт» - одна команда и ожидаемый вывод. Слова «доработать»,
-  «привести в порядок», «при необходимости» не пиши;
-- номер - следующий свободный `S-<nn>`; место в таблице: подшаги с `разбора` - перед первым
-  `cleanup`; остальные - в конец;
-- только файлы и находки ЭТОЙ технологии. Другая технология, перестройка слоёв проекта ->
-  не подшаг, а пункт во «Входящие» карты.
+**Adding substeps («Дописывание подшагов»).** You can add substeps to the unit card only in
+three cases: in the substep `разбор`; for findings of the substep `review`; for a checkpoint
+of the unit that does not agree. Rules:
+- the kind is `usage` (move a file to the step class), `fix` (fix a finding) or `cleanup`
+  (remove the old code that stays);
+- add a line to the table «Подшаги» and a section of the substep in the same format as the
+  other substeps:
+  - files (not more than 3);
+  - numbered actions with names of classes and methods;
+  - «Итоговый результат» - a fact that you can check;
+  - «Чекпоинт» - one command and the expected output.
+  Do not write the words «доработать», «привести в порядок», «при необходимости»;
+- the number is the next free `S-<nn>`. The place in the table: substeps from `разбора` -
+  before the first `cleanup`; other substeps - at the end;
+- only files and findings of THIS technology. A different technology or a change of the
+  project layers -> not a substep, but an item in «Входящие» of the migration map.

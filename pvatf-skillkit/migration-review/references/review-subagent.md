@@ -1,18 +1,19 @@
-# Сабагент ревью кода (для migration-review)
+# Code review subagent (for migration-review)
 
-Исходники читают сабагенты, а не ты. Один сабагент - одна группа не больше 8 файлов,
-одновременно не больше 3 сабагентов. Промпт копируй дословно.
+Subagents read the source files, not you. One subagent checks one group of max 8 files. Run max 3
+subagents at the same time. Copy the prompt word for word.
 
-В поле «Старые пакеты и классы, которых в коде быть не должно» подставь: старые пакеты из
-таблицы `G` карты (кроме технологий `keep`), классы из таблицы `L` и из списков «Чего НЕ
-будет» блоков `T`.
+In the field «Старые пакеты и классы, которых в коде быть не должно», put: the old packages from
+the table `G` of the map (except technologies `keep`), the classes from the table `L` and from the
+lists «Чего НЕ
+будет» of the blocks `T`.
 
-Что делать с ответом:
-- таблицу находок допиши в отчёт `MIGRATION-REVIEW.md` как есть, с новой сквозной нумерацией;
-- ответ не по шаблону или без номеров строк -> не используй, запусти сабагента ещё раз;
-- «Файлы, которые не удалось прочитать» -> отдай их следующему сабагенту.
+What to do with the answer:
+- add the findings table to the report `MIGRATION-REVIEW.md` as it is, with a new continuous numbering;
+- the answer is not by the template or has no line numbers -> do not use it, run the subagent again;
+- «Файлы, которые не удалось прочитать» -> give these files to the next subagent.
 
-## Промпт сабагенту ревью (копируй дословно, подставь <...>)
+## Prompt for the review subagent (copy it word for word, replace <...>)
 
 ```
 Ты проверяешь Java-код проекта автотестов после миграции на фрейм PVATF. Ты только читаешь
@@ -77,12 +78,13 @@ V26 лишний слой - метод-делегат: тело - только �
 - <путь: причина>     (нет таких - напиши: нет)
 ```
 
-## Соответствие кодов ревью и правил MR
+
+## Map of review codes to MR rules
 
 V1 - `MR-33` · V2 - `MR-4` · V3 - `MR-5`, `MR-6` · V4 - `MR-29` · V5 - `MR-34` · V6 - `MR-35` ·
 V7 - `MR-36` · V8 - `MR-13`, `MR-30` · V9 - `MR-17`, `MR-20`, `MR-21`, `MR-23` · V10 - `MR-1` ·
 V11, V12 - `MR-37` · V13 - `MR-38` · V14, V15 - `MR-39` · V16 - `MR-40`, `MR-45` · V17 - `MR-15` ·
 V18 - `MR-14`, `MR-22`, `MR-10` · V19 - `MR-41` · V20 - `MR-42` · V21 - `MR-43` · V22 - `MR-44` · V23 - `MR-46` · V24 - `MR-47` · V25 - `MR-48` · V26 - `MR-49`, `MR-30`.
 
-Тексты правил `MR` лежат в скилле `migration-step` (`.gigacode/skills/migration-step/references/code-rules.md`) - исправляет
-находки он, тебе достаточно кода правила.
+The texts of the `MR` rules are in the skill `migration-step` (`.gigacode/skills/migration-step/references/code-rules.md`).
+That skill fixes the findings. You only need the rule code.

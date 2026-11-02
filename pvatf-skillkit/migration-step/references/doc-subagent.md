@@ -1,101 +1,108 @@
-# Сабагент документации (для migration-step)
+# Documentation subagent (for migration-step)
 
-Нужен на Шаге 3 и при ошибках компиляции на Шаге 6. Этот файл - только про сабагентов
-«документация» и «примеры»: они достают справку и код не меняют. Остальные сабагенты
-исполнителя и их полномочия - в `SKILL.md` (главное правило 12) и в их файлах: «проверяющий» -
+You need it in Step 3 and when there are compilation errors in Step 6. This file is only about the subagents
+«документация» and «примеры»: they get information and do not change code. The other subagents
+of the executor and their permissions are in `SKILL.md` (main rule 12) and in their files: «проверяющий» -
 `references/check.md`, «ревью» - `references/review-subagent.md`, «исполнитель подшага» -
-`references/manager.md`. Все они обязательны там, где скилл их называет.
+`references/manager.md`. All of them are mandatory where the skill names them.
 
-## Как устроена документация (важно понять)
+## How the documentation works (you must understand this)
 
-Документация фрейма лежит в **векторной базе**. Инструмент `get_pv_at_doc` принимает
-текстовый запрос и возвращает куски документации, похожие на этот запрос. В самой базе
-оглавления нет; список разделов документации лежит в `references/frame-topics.md`.
-Поэтому:
-- один и тот же вопрос, заданный разными словами, возвращает РАЗНЫЕ куски;
-- одна формулировка может ничего не дать, хотя ответ в документации есть;
-- вопрос надо задавать несколькими формулировками и собирать ответ из всех кусков.
+The framework documentation is in a **vector database**. The tool `get_pv_at_doc` takes
+a text query and returns documentation parts that are similar to this query. The database itself
+has no table of contents. The list of documentation sections is in `references/frame-topics.md`.
+Thus:
+- the same question in different words returns DIFFERENT parts;
+- one wording can give nothing, although the documentation has the answer;
+- you must ask a question with a number of wordings and make the answer from all parts.
 
-Этим занимается сабагент. Твоё дело - дать ему конкретные вопросы и записать ответ.
+The subagent does this work. Your task is to give it specific questions and to write down the answer.
 
-## Обязательное требование
+## Mandatory requirement
 
-Любое обращение к документации фрейма (инструмент `get_pv_at_doc`) выполняется **ТОЛЬКО
-через сабагента**. Сам, в своём контексте, ты этот инструмент НЕ вызываешь - это **нарушение
-протокола**. Причина: на каждый вопрос нужно несколько запросов, ответы большие, и если
-читать их самому, контекст закончится раньше, чем работа. Сабагент делает запросы у себя и
-возвращает тебе только короткий ответ по шаблону.
+Each access to the framework documentation (the tool `get_pv_at_doc`) goes **ONLY
+through a subagent**. Do NOT call this tool yourself, in your own context: this is a **violation
+of the protocol**. The reason: each question needs a number of queries, and the answers are large. If
+you read them yourself, the context ends before the work ends. The subagent makes the queries in its own context and
+returns to you only a short answer by the template.
 
-Это правило часто пытаются пропустить («быстрее сам», «один вопрос») - не пропускай.
+Agents often try to skip this rule («быстрее сам», «один вопрос»). Do not skip it.
 
-Единственное исключение: инструмент запуска сабагентов (Task/Agent) физически отсутствует в
-твоём окружении, ИЛИ сабагент ответил, что инструмент документации ему недоступен. Только
-тогда вызывай `get_pv_at_doc` сам - по инструкции из `.gigacode/agents/pvatf-docs.md` (несколько
-формулировок на вопрос), сразу выписывай нужное в конспект и явно напиши в журнале
-карты/карточки «сабагенты недоступны, документация прочитана напрямую». Больше исключений нет.
+The only exception: the tool that starts subagents (Task/Agent) is physically absent in
+your environment, OR the subagent answered that the documentation tool is not available to it. Only
+then call `get_pv_at_doc` yourself:
+- follow the instruction from `.gigacode/agents/pvatf-docs.md` (a number of
+  wordings for each question);
+- immediately write the necessary data to the doc notes;
+- write clearly in the log of the map/card «сабагенты недоступны, документация прочитана напрямую».
 
-## Сначала конспект, потом сабагент
+There are no other exceptions.
 
-Всё, что сабагент уже достал, лежит в конспекте:
-`.gigacode/data/migration/doc-notes/<технология>.md` (общее про фрейм - `doc-notes/common.md`).
-Одна запись конспекта = один вопрос и ответ на него, ID вида `D-<tech>-<n>` (`D-rest-3`).
+## Doc notes first, then the subagent («Сначала конспект, потом сабагент»)
 
-Порядок всегда один. **Сабагента документации без шага 1 не запускай никогда** - иначе он
-заново изучает то, что уже изучено:
-1. По КАЖДОМУ вопросу поищи в конспекте скриптом - двумя наборами слов: словами вопроса и
-   словами документации (имя класса или сервиса фрейма, раздел, ключевые слова из второй
-   строки конспекта). Латиницей ищется надёжнее:
+All the data that the subagent already got is in the doc notes:
+`.gigacode/data/migration/doc-notes/<технология>.md` (general data about the framework - `doc-notes/common.md`).
+One record of the doc notes = one question and its answer, with an ID of the form `D-<tech>-<n>` (`D-rest-3`).
+
+The order is always the same. **Never start the documentation subagent without step 1**. If you do,
+it studies again what is already studied:
+1. For EACH question, search the doc notes with the script. Use two sets of words:
+   - the words of the question;
+   - the words of the documentation (the name of a framework class or service, the section, the keywords
+     from the second line of the doc notes).
+
+   Latin words give more reliable results:
    ```
    java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Notes.java find <tech> <слова>
    java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Notes.java show <D-id>
    ```
-   (`Notes.java list <tech>` - оглавление всего конспекта, одна строка на запись.)
-   Нашлась запись со статусом `найден`, и она про то же -> бери её, сабагента НЕ запускай.
-2. Ничего не нашлось, запись `найден частично` или `НЕТ В ДОКЕ` -> запусти сабагента с этим
-   вопросом. В задание, в строку «Уже есть в конспекте», вставь вывод `Notes.java find`: что
-   уже известно и какие формулировки ничего не дали, - чтобы сабагент спросил ИНАЧЕ и не
-   повторял найденное.
-3. Ответ сабагента СРАЗУ запиши в конспект новой записью (шаблон записи - ниже), вместе со
-   всеми формулировками запросов. Потом работай по записи.
-4. Запись со статусом `НЕТ В ДОКЕ`, у которой меньше 8 формулировок, - не приговор: запусти
-   сабагента ещё раз, передав уже испробованные формулировки. 8 и больше формулировок и всё
-   ещё `НЕТ В ДОКЕ` -> документация этого не знает. Не подбирай ответ сам и не лезь в jar.
-   Иди по лестнице источников (раздел 2 этого файла): проект-пример, исходники фрейма,
-   потом место откладывается (вопрос человеку исполнитель не задаёт).
-   (Технологии, про которые документация молчит целиком, в юниты не попадают: карта ставит
-   им решение `keep`, и они остаются на старой реализации.)
+   (`Notes.java list <tech>` - the table of contents of all the doc notes, one line for each record.)
+   If you found a record with the status `найден` about the same thing -> use it, do NOT start the subagent.
+2. If you found nothing, or the record is `найден частично` or `НЕТ В ДОКЕ` -> start the subagent with this
+   question. In the task, in the line «Уже есть в конспекте», put the output of `Notes.java find`: what
+   is already known and which wordings gave nothing. Then the subagent asks DIFFERENTLY and does not
+   repeat what is already found.
+3. IMMEDIATELY write the answer of the subagent to the doc notes as a new record (the record template is below), with
+   all the query wordings. Then work by the record.
+4. A record with the status `НЕТ В ДОКЕ` that has less than 8 wordings is not a final result: start
+   the subagent again and give it the wordings that were already tried. If there are 8 or more wordings and the status is
+   still `НЕТ В ДОКЕ` -> the documentation does not know this. Do not find an answer yourself and do not go into jar files.
+   Go down the ladder of sources (section 2 of this file): example project, framework sources,
+   then the place is postponed (the executor does not ask a question to the human).
+   (Technologies about which the documentation has no data at all do not go into units: the map gives
+   them the decision `keep`, and they stay on the old implementation.)
 
-## Как формулировать вопросы
+## How to write the questions
 
-- **Конкретно и про одно.** Не «как работает Kafka», а «как отправить сообщение в топик»,
+- **Specific and about one thing.** Not «как работает Kafka», but «как отправить сообщение в топик»,
   «как прочитать сообщение из топика и проверить его», «какая зависимость нужна для модуля
   Kafka», «как настроить подключение к брокеру (адрес, сертификаты)».
-- **Про действие, а не про старый класс.** Документация не знает ваших старых классов. Не
-  «чем заменить KafkaHelper», а «как <то, что делает KafkaHelper>» - например «как дождаться
+- **About the action, not about the old class.** The documentation does not know your old classes. Not
+  «чем заменить KafkaHelper», but «как <то, что делает KafkaHelper>» - for example «как дождаться
   сообщения в топике по ключу».
-- **Про настройку - отдельным вопросом:** «как сконфигурировать ...», «какие параметры ...»,
+- **Ask about the configuration in a separate question:** «как сконфигурировать ...», «какие параметры ...»,
   «в каком файле задаётся ...».
-- **Дай якорь и ключевые слова.** У каждой технологии во фрейме свой сервис (`RestService`,
-  `DatabaseService`, `KafkaService` ...). Имя сервиса - лучший первый запрос: по нему база
-  возвращает куски, в которых видно, какими словами написана документация. В задание впиши
-  «Якорь технологии» из `references/frame-topics.md`. В конспекте технологии уже есть строка
-  «Ключевые слова» -> впиши её в задание, тогда якорный запрос сабагент пропустит.
-- **Вопросы пиши словами документации, а не своими.** Когда в конспекте уже есть ключевые
-  слова (имена классов и методов), используй их в тексте вопроса: не «как прочитать
-  сообщение из очереди», а «как через `KafkaConsumerClient` прочитать запись из топика».
-- **Назови раздел документации.** Перед запуском агента открой
-  `references/frame-topics.md`, найди раздел своей технологии и впиши его название в строку
-  задания «Раздел документации» символ в символ. Раздела нет - впиши `нет в списке`.
-- Называй технологию так, как она называется в проекте, И общим словом (например: «Kafka,
+- **Give the anchor and the keywords.** Each technology in the framework has its own service (`RestService`,
+  `DatabaseService`, `KafkaService` ...). The service name is the best first query: for it, the database
+  returns parts that show which words the documentation uses. In the task, write
+  «Якорь технологии» from `references/frame-topics.md`. If the doc notes of the technology already have the line
+  «Ключевые слова» -> write it in the task. Then the subagent skips the anchor query.
+- **Write the questions with the words of the documentation, not with your own words.** The doc notes can
+  already have keywords (names of classes and methods). Then use them in the text of the question: not «как прочитать
+  сообщение из очереди», but «как через `KafkaConsumerClient` прочитать запись из топика».
+- **Give the documentation section.** Before you start the agent, open
+  `references/frame-topics.md`, find the section of your technology and write its name in the task line
+  «Раздел документации» character for character. If there is no section, write `нет в списке`.
+- Give the technology name as the project uses it, AND a general word (for example: «Kafka,
   брокер сообщений»; «PostgreSQL, база данных»; «OpenShift, контейнерная платформа»).
 
-Лимит на один запуск сабагента: не больше 5 вопросов. Больше - несколько запусков по очереди.
+Limit for one start of the subagent: max 5 questions. If there are more, do a number of starts, one after the other.
 
-## Задание агенту `pvatf-docs` (подставь <...>, больше ничего не добавляй)
+## Task for the agent `pvatf-docs` (replace <...>, do not add anything more)
 
-Как искать в документации и в каком виде отвечать, написано в самом агенте
-(`.gigacode/agents/pvatf-docs.md`). Ты передаёшь только задание. Как запускать агента по
-имени - `references/core-rules.md`, правило 7.
+How to search the documentation and how to answer is written in the agent itself
+(`.gigacode/agents/pvatf-docs.md`). You give only the task. How to start an agent by
+name - `references/core-rules.md`, rule 7.
 
 ```
 Технология: <метка и обычное название, напр. kafka - Kafka, брокер сообщений>
@@ -109,18 +116,18 @@
 Уже есть в конспекте (это не ищи заново, ищи только недостающее): <вывод Notes.java find по этим вопросам; или: нет>
 ```
 
-Ответ агента - блоки `### Вопрос <номер>: ...` с полями `Статус`, `Что использовать`, `Как
+The answer of the agent: blocks `### Вопрос <номер>: ...` with the fields `Статус`, `Что использовать`, `Как
 подключить`, `Как настроить`, `Пример из документации`, `Условия и ограничения`, `Чего не
-хватило`, `Формулировки запросов`, и в конце блок `### Ключевые слова документации`.
+хватило`, `Формулировки запросов`, and at the end the block `### Ключевые слова документации`.
 
-## Шаблон записи конспекта
+## Template of a doc notes record
 
-Файл `.gigacode/data/migration/doc-notes/<технология>.md`. Первая строка файла:
-`# Конспект документации PVATF: <технология>`. Вторая строка:
-`Ключевые слова: <слова через запятую>` - это словарь документации по технологии (имена
-классов, методов, настроек, заголовки). Бери его из блока «Ключевые слова документации» в
-ответе сабагента; после каждого запуска дописывай новые слова в эту же строку. Записи только дописываются в конец; номер
-`<n>` - следующий по порядку в этом файле.
+The file is `.gigacode/data/migration/doc-notes/<технология>.md`. The first line of the file:
+`# Конспект документации PVATF: <технология>`. The second line:
+`Ключевые слова: <слова через запятую>`. This is the documentation dictionary for the technology (names
+of classes, methods, settings, headings). Take it from the block «Ключевые слова документации» in the
+answer of the subagent. After each start, add the new words to this same line. Only add records to the end. The number
+`<n>` is the next number in order in this file.
 
 ```markdown
 ### D-<tech>-<n> · <вопрос>
@@ -135,41 +142,42 @@
 - Записано: <ГГГГ-ММ-ДД> · <этап карты или юнит M-nnn>
 ```
 
-## Что делать с ответом
+## What to do with the answer
 
-- `найден` -> запиши запись в конспект, используй. ID записи - это и есть док-основание.
-- `найден частично` -> запиши; на то, чего не хватило, задай сабагенту отдельный, более
-  узкий вопрос.
-- `НЕТ В ДОКЕ` -> запиши (с формулировками!) и действуй по п.4 раздела «Сначала конспект».
-- `MCP НЕДОСТУПЕН` -> СТОП, сообщи пользователю.
-- Ответ не по шаблону или без списка формулировок -> не используй, запусти сабагента ещё
-  раз с тем же заданием.
+- `найден` -> write the record to the doc notes and use it. The record ID is the documentation basis.
+- `найден частично` -> write it. For the missing data, ask the subagent a separate, more
+  narrow question.
+- `НЕТ В ДОКЕ` -> write it (with the wordings!) and act by item 4 of the section «Сначала конспект»
+  (the section "Doc notes first, then the subagent").
+- `MCP НЕДОСТУПЕН` -> STOP, tell the human.
+- If the answer is not by the template or has no list of wordings -> do not use it. Start the subagent again
+  with the same task.
 
-# 2. Когда документации не хватило (лестница источников)
+# 2. When the documentation is not sufficient (ladder of sources)
 
-Документация из MCP - первый и главный источник. Но она бывает неполной: процесс описан не
-до конца, непонятно, как что-то вызвать или донастроить. Тогда НЕ выдумывай и НЕ бросай, а
-иди по лестнице сверху вниз:
+The documentation from MCP is the first and the main source. But it can be incomplete: a process is not described
+to the end, or it is not clear how to call or configure something. Then do NOT invent and do NOT stop the work.
+Go down the ladder from the top:
 
-| Ступень | Что делаешь | Нужен человек |
+| Level | What you do | Is the human necessary |
 |---------|-------------|---------------|
-| 1 | Сабагент документации, как обычно (до 8 формулировок на вопрос - правила выше) | нет |
-| 2 | В паспорте заполнена строка «Исходники фрейма» -> СНАЧАЛА документация внутри исходников: `find <исходники> -path "*docs*" -name "*.md"`, затем `grep -rln "<ключевые слова>" <исходники>/docs` и прочитай найденные куски сам (это та же документация, только файлами). Не нашлось - запусти сабагента примеров на этот путь: тесты и примеры модуля технологии, потом классы `.java` | нет |
-| 3 | В паспорте карты заполнена строка «Проект-пример» -> запусти сабагента примеров на этот путь (задание ниже) | нет |
-| 3а | Человек в чате дал путь к файлу или папке документации -> читай её сам (`grep`, потом нужные куски) и запиши найденное записью конспекта с источником `файл <путь>`. Путь к папке `docs` исходников впиши в паспорт рядом с «Исходники фрейма» | нет |
-| 4 | Ответа всё ещё нет -> исполнитель (`migration-step`) НЕ спрашивает: откладывает место (`references/stuck.md`, «Если упёрся», способ 2) и работает дальше. Текст вопроса ниже - только для этапа карты (`migration-map`), когда вопросы ещё задаются | нет |
+| 1 | The documentation subagent, as usual (up to 8 wordings for each question - the rules above) | no |
+| 2 | If the line «Исходники фрейма» in the passport is filled -> FIRST, use the documentation inside the sources: `find <исходники> -path "*docs*" -name "*.md"`, then `grep -rln "<ключевые слова>" <исходники>/docs`, and read the found parts yourself (this is the same documentation, but in files). If you found nothing, start the examples subagent on this path: the tests and examples of the technology module, then the classes `.java` | no |
+| 3 | If the line «Проект-пример» in the map passport is filled -> start the examples subagent on this path (the task is below) | no |
+| 3a | If the human gave in the chat a path to a documentation file or folder -> read it yourself (`grep`, then the necessary parts). Write the found data as a doc notes record with the source `файл <путь>`. Write the path to the folder `docs` of the sources in the passport, near «Исходники фрейма» | no |
+| 4 | If there is still no answer -> the executor (`migration-step`) does NOT ask. It postpones the place (`references/stuck.md`, «Если упёрся», method 2) and continues the work. The question text below is only for the map stage (`migration-map`), when questions are still asked | no |
 
-Ступени 2 и 3 пропускай, если соответствующая строка паспорта пустая (`-`).
+Skip levels 2 and 3 if the related line of the passport is empty (`-`).
 
-**Пути - из паспорта карты.** Исходники фрейма и проект-пример находит `migration-map` на
-Этапе 1. Сам по диску их не ищи; `~/.m2`, `.gradle`, распаковка и декомпиляция `.jar` -
-запрещены. Строка паспорта «Исходники фрейма» пустая, а карта построена до этого правила ->
-один раз выполни п.6 Этапа 1 скилла `migration-map` (поиск git-клонов и `git pull`) и
-впиши путь в паспорт.
+**The paths come from the map passport.** `migration-map` finds the framework sources and the example project in
+Stage 1. Do not search for them on the disk yourself. PROHIBITED: `~/.m2`, `.gradle`, unpacking and decompiling of `.jar`.
+If the passport line «Исходники фрейма» is empty, and the map was made before this rule ->
+do item 6 of Stage 1 of the skill `migration-map` one time (search for git clones and `git pull`).
+Then write the path in the passport.
 
-## Текст вопроса человеку (ступень 4, копируй, подставь <...>)
+## Text of the question to the human (level 4, copy it, replace <...>)
 
-Пиши вежливо, на «вы», без упрёков.
+Write politely, use the formal «вы», do not blame.
 
 ```
 В документации фрейма не удалось найти: <что именно непонятно, 1-2 строки> (технология <метка>).
@@ -180,23 +188,23 @@
 2) дам полный путь к драфт-проекту Platform V (проект-пример) - там можно посмотреть, как это сделано.
 ```
 
-Запиши этот вопрос в раздел 6 карты (эти два варианта - в поле «Варианты ответа»). Что
-делать с ответом:
-- `1` и объяснение -> запиши объяснение человека записью конспекта со статусом `найден` и
-  источником `человек`; работай по ней;
-- `2` и путь -> впиши путь в паспорт карты (строка «Проект-пример») - он пригодится и в
-  следующих чатах; запусти сабагента примеров. В примере ответа не нашлось -> задай вопрос
-  ещё раз, уже только с вариантом 1;
-- человек сам написал «не мигрировать это» / «оставить как есть» -> отметь это место в карте
-  как «остаётся как есть», в юниты не включай;
-- человек дал путь к исходникам фрейма -> впиши в строку паспорта «Исходники фрейма» и
-  запусти сабагента примеров на него.
+Write this question in section 6 of the map (these two options go in the field «Варианты ответа»). What
+to do with the answer:
+- `1` and an explanation -> write the explanation of the human as a doc notes record with the status `найден` and
+  the source `человек`. Work by this record;
+- `2` and a path -> write the path in the map passport (line «Проект-пример»): the next chats also
+  use it. Start the examples subagent. If the example has no answer -> ask the question
+  again, with only option 1;
+- the human wrote «не мигрировать это» / «оставить как есть» -> mark this place in the map
+  as «остаётся как есть». Do not include it in units;
+- the human gave a path to the framework sources -> write it in the passport line «Исходники фрейма» and
+  start the examples subagent on it.
 
-## Задание агенту `pvatf-examples` (подставь <...>, больше ничего не добавляй)
+## Task for the agent `pvatf-examples` (replace <...>, do not add anything more)
 
-Как искать и в каком виде отвечать, написано в самом агенте
-(`.gigacode/agents/pvatf-examples.md`). Как запускать агента по имени -
-`references/core-rules.md`, правило 7.
+How to search and how to answer is written in the agent itself
+(`.gigacode/agents/pvatf-examples.md`). How to start an agent by name -
+`references/core-rules.md`, rule 7.
 
 ```
 Путь: <полный путь из паспорта карты>
@@ -207,11 +215,11 @@
 2. <вопрос>
 ```
 
-Ответ агента - блоки `### Вопрос <номер>: ...` с полями `Статус` (найден | найден частично |
+The answer of the agent: blocks `### Вопрос <номер>: ...` with the fields `Статус` (найден | найден частично |
 НЕТ В ПРИМЕРЕ), `Что использовать`, `Как подключить`, `Как настроить`, `Пример`, `Откуда`,
 `Чего не хватило`, `Какие слова искал`.
 
-Ответ сабагента примеров записывай в конспект той же записью `D-<tech>-<n>`, что и ответы
-документации, с дополнительной строкой `- Источник: проект-пример <путь к файлу>:<строки>`
-(или `исходники фрейма ...`). Такая запись - полноценное док-основание. Если документация и
-пример расходятся - права документация, расхождение запиши в ту же запись.
+Write the answer of the examples subagent to the doc notes as the same kind of record `D-<tech>-<n>` as the answers
+of the documentation, with an additional line `- Источник: проект-пример <путь к файлу>:<строки>`
+(or `исходники фрейма ...`). Such a record is a full documentation basis. If the documentation and
+the example do not agree, the documentation is correct. Write the difference in the same record.

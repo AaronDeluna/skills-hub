@@ -1,56 +1,72 @@
-# Общие правила миграции на PVATF
+# Common rules of the migration to PVATF
 
-Действуют во всех скиллах миграции: `orchestrator`, `migration-map`, `migration-step`,
-`migration-review`. Прочитай этот файл целиком в начале работы скилла. В SKILL.md каждого
-скилла - только то, что касается его одного; при расхождении прав этот файл.
+These rules apply in all migration skills: `orchestrator`, `migration-map`, `migration-step`,
+`migration-review`. Read this file in full when the skill starts its work. The SKILL.md of
+each skill contains only the rules for that one skill. If they do not agree, this file is correct.
 
-Этот файл одинаковый во всех скиллах. Источник - `shared/core-rules.md` кита; копии в
-`references/` обновляет `scripts/SyncShared.java`. Правь только источник.
+This file is the same in all skills. The source is `shared/core-rules.md` of the kit.
+`scripts/SyncShared.java` updates the copies in `references/`. Change only the source.
 
-1. **О фрейме знаешь только то, что есть в документации.** Источники по порядку:
-   документация MCP (`get_pv_at_doc`, сервер `...autotest-generation-remote`) -> исходники
-   фрейма -> проект-пример (пути в паспорте карты) -> человек. Документацию и исходники
-   читает сабагент по готовому промпту скилла; сам `get_pv_at_doc` не вызываешь. Версии
-   фрейма - `get_pvat_release_notes`, его вызываешь сам. **Перед каждым сабагентом
-   документации - поиск по конспекту `scripts/Notes.java find`:** что уже изучено, заново не
-   изучается. ЗАПРЕЩЕНО: открывать и
-   распаковывать `.jar`, лазить в `~/.m2`, `.gradle`, кэши IDE, запускать `javap`, `jar`,
-   `unzip`, искать в интернете, писать «по памяти» и «по аналогии».
-2. **Не нашёл - не выдумывай.** Пока строится карта - решение по таблице «Документация
-   молчит» или вопрос человеку. Во время юнитов - решение по таблице решений исполнителя
-   или строка `решить человеку` во «Входящие» карты, и работа идёт дальше.
-3. **Память - это файлы, а не чат.** Всё состояние - в `.gigacode/data/migration/`. Любой
-   результат сразу пиши в файл, потом следующий шаг: чат может оборваться. Сомневаешься,
-   где ты, - карта и карточка юнита главнее того, что помнишь.
-4. **Делаешь только своё.** Меняешь только файлы своей задачи (карточки юнита или
-   подшага). Увидел другое, что надо поправить, - строка во «Входящие» карты, не правка.
-5. **Меняется КАК, а не ЧТО.** Тесты проверяют то же, что раньше: те же шаги, данные,
-   проверки. Тесты не удаляются и не отключаются, проверки не ослабляются.
-6. **Цель - чистый проект на фрейме.** Старые обёртки, свои ассерты, DTO ответа, базовые
-   классы с клиентами на фрейм не переезжают и удаляются. Код раскладывается по слоям
-   архитектурного плана: тест -> шаги предметной области -> базовый слой технологии ->
-   фрейм. Технологию, о которой документация молчит целиком, не мигрируют (`keep`).
-7. **Сабагентов запускает тот скилл, который сейчас работает,** только по готовым
-   промптам или заданиям из своих `references/`. Сабагент отвечает по шаблону; ответ не по
-   шаблону не используется. Что сабагенту можно делать (только читать или ещё и менять
-   файлы), написано в промпте или в агенте; сверх этого ему ничего не поручают.
-   **Где скилл говорит «через сабагента» - это ОБЯЗАТЕЛЬНО.** Делать эту работу самому
-   нельзя, даже если кажется быстрее или проще: документация MCP, инвентаризация модулей,
-   разбор технологии и карточки, проверяющий после подшага, ревью кода, исполнитель
-   подшага в режиме менеджера. Сам - только если вызов сабагента вернул ошибку: покажи её
-   в чате и запиши в журнал карты `сабагент не запустился: <ошибка>`.
-   **Агенты кита** `pvatf-docs`, `pvatf-examples`, `pvatf-checker`, `pvatf-executor`,
-   `pvatf-marker` лежат в
-   `.gigacode/agents/` (их ставит `NextAction.java`). Их инструкция уже внутри агента: ты
-   передаёшь только задание по шаблону скилла. Запуск - по имени: в инструменте запуска
-   сабагентов выбери агента с этим именем. Режим `fork` не используешь никогда: он тащит
-   весь твой контекст и не возвращает ответ. Агента с таким именем инструмент не знает ->
-   обычный сабагент, первая строка задания: «Прочитай файл .gigacode/agents/<имя>.md -
-   текст после второй строки --- это твоя инструкция, выполняй её.», дальше то же задание.
-8. **Вопросы человеку - только на этапе карты.** Пока в разделе 6 карты есть вопрос с
-   `ответ: -`, юниты не выполняются. Карта утверждена - исполнитель вопросов не задаёт.
-9. **Git.** Ветка миграции создаётся перед первым юнитом; коммит после каждого подшага и
-   юнита - сам, не спрашивая. `git push`, PR и слияние - только по прямой просьбе человека.
-10. **Язык.** Пиши на русском, короткий дефис `-`. ID (`M-001`, `S-03`, `D-rest-2`, `MR-41`)
-    и статусы (`todo`, `in-progress`, `done`, `blocked`) - латиницей. С человеком - на «вы»,
-    коротко: что сделано, что нужно от него, что дальше.
+1. **You know about the framework only what the documentation contains.** Use the sources in
+   this order: MCP documentation (`get_pv_at_doc`, server `...autotest-generation-remote`) ->
+   framework sources -> example project (paths in the map passport) -> the human.
+   A subagent reads the documentation and the sources with the ready prompt of the skill.
+   Do not call `get_pv_at_doc` yourself. For framework versions, call
+   `get_pvat_release_notes` yourself. **Before each documentation subagent, search the doc
+   notes with `scripts/Notes.java find`:** do not study again a topic that you already studied.
+   PROHIBITED:
+   - to open or unpack `.jar` files;
+   - to look into `~/.m2`, `.gradle`, IDE caches;
+   - to run `javap`, `jar`, `unzip`;
+   - to search the internet;
+   - to write «по памяти» (from memory) and «по аналогии» (by analogy).
+2. **If you did not find it, do not invent it.** While you make the map, use the decision
+   from the table «Документация молчит» or ask a question to the human. During units, use the
+   decision from the decision table of the executor. Or add the line `решить человеку` to
+   «Входящие» of the map, and continue the work.
+3. **Memory is files, not the chat.** All state is in `.gigacode/data/migration/`. Write each
+   result to a file immediately, then do the next step: the chat can stop. If you are not sure
+   where you are, the map and the unit card are more important than what you remember.
+4. **Do only your own task.** Change only the files of your task (the unit card or the
+   substep). If you see a different thing to fix, add a line to «Входящие» of the map. Do
+   not fix it.
+5. **Change HOW, not WHAT.** The tests check the same things as before: the same steps, data
+   and checks. Do not remove or disable tests. Do not make checks weaker.
+6. **The goal is a clean project on the framework.** Do not move old wrappers, own asserts,
+   response DTOs and base classes with clients to the framework: remove them. Put the code
+   into the layers of the architecture plan: test -> domain steps -> base layer of the
+   technology -> framework. If the documentation has no data about a technology at all,
+   do not migrate it (`keep`).
+7. **Only the skill that works now starts subagents.** It uses only the ready prompts or
+   task packages from its own `references/`. A subagent answers with the template. Do not
+   use an answer that is not in the template format. The prompt or the agent tells what the
+   subagent can do: only read, or also change files. Do not give it more work than that.
+   **When the skill says «через сабагента» (through a subagent), this is MANDATORY.** Do not
+   do this work yourself, also if it seems faster or easier. This work is:
+   - MCP documentation;
+   - inventory of modules;
+   - analysis of a technology and of the card;
+   - the checker after a substep;
+   - code review;
+   - the executor of a substep in manager mode.
+   Do it yourself only if the subagent call returned an error. Show the error in the chat.
+   Write `сабагент не запустился: <ошибка>` in the log of the map.
+   **The agents of the kit** `pvatf-docs`, `pvatf-examples`, `pvatf-checker`, `pvatf-executor`,
+   `pvatf-marker` are in
+   `.gigacode/agents/` (`NextAction.java` installs them). Their instructions are already in
+   the agent: you give only the task package with the template of the skill. Start an agent
+   by name: in the subagent start tool, select the agent with this name. Never use the mode
+   `fork`: it takes all your context and does not return an answer. If the tool does not know
+   an agent with this name, use a usual subagent. The first line of the task package is:
+   «Прочитай файл .gigacode/agents/<имя>.md -
+   текст после второй строки --- это твоя инструкция, выполняй её.» Then give the same task.
+8. **Questions to the human only at the map stage.** While section 6 of the map has a
+   question with `ответ: -`, do not do units. When the map is approved, the executor does
+   not ask questions.
+9. **Git.** Make the migration branch before the first unit. Make a commit after each
+   substep and each unit yourself, and do not ask. Do `git push`, PR and merge only if the
+   human asks for it directly.
+10. **Language.** Write in Russian, use the short hyphen `-`. Write IDs (`M-001`, `S-03`,
+    `D-rest-2`, `MR-41`) and statuses (`todo`, `in-progress`, `done`, `blocked`) in Latin
+    letters. Speak to the human with «вы», be short: what is done, what you need from the
+    human, what is next.

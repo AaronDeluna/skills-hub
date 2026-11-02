@@ -1,42 +1,48 @@
-# Запись результата и сводка: Шаги 7-8
+# Record of the result and summary: Steps 7-8
 
-Часть скилла `migration-step`. Главные правила и порядок чтения - в `SKILL.md`.
-«Если упёрся» и «Таблица решений по умолчанию» - `references/stuck.md`.
+This is a part of the skill `migration-step`. The main rules and the reading order are in
+`SKILL.md`. «Если упёрся» and «Таблица решений по умолчанию» are in `references/stuck.md`.
 
-## Шаг 7 - Запиши результат и закоммить
+## Step 7 - Write the result and make the commit
 
-**Юнит `tech`:** подшаг закрывается и коммитится по разделу «Юнит технологии» (`references/tech-flow.md`, п.4), запись
-в карту в конце чата - по его п.6, закрытие юнита - по п.7. Пункты ниже для него
-выполняются один раз - когда сошлись все чекпоинты юнита.
+**Unit `tech`:** close a substep and make its commit by the section «Юнит технологии»
+(`references/tech-flow.md`, item 4). Write into the migration map at the end of the chat by
+its item 6. Close the unit by its item 7. For such a unit, do the items below one time -
+when all checkpoints of the unit agree.
 
-1. **Запиши, что изменилось.** Допиши в конец раздела «8. Что уже изменилось» карты по
-   одной строке на каждую замену этого юнита: юнит, технология, что было, что стало, как
-   теперь вызывать (короткий образец или путь к файлу-образцу). Пиши так, чтобы человек,
-   не видевший этот чат, понял, как теперь принято. Без этой записи юнит не закрывается.
-2. Все критерии готовности `[x]` -> в карточке `status: done`; в таблице раздела 4 карты -
-   `done`. Не все -> оставь `in-progress` и заполни «Где остановился» точно: какой шаг
-   карточки сделан последним, что осталось, какая ошибка.
-3. Закоммить ТОЛЬКО файлы юнита (не `git add .`). Не спрашивай разрешения - ты в ветке
-   миграции (проверь: `git branch --show-current` совпадает с веткой из паспорта; не
-   совпадает -> не коммить, СТОП, сообщи пользователю):
+1. **Write what changed.** At the end of the section «8. Что уже изменилось» of the
+   migration map, add one line for each replacement of this unit. The line has: unit,
+   technology, what it was, what it is now, how to call it now (a short pattern or the path
+   to a pattern file). Write it so that a person who did not see this chat understands the
+   new way. Without this record, the unit does not close.
+2. All readiness criteria are `[x]` -> `status: done` in the unit card, and `done` in the
+   table of section 4 of the migration map. If not all -> keep `in-progress` and fill
+   «Где остановился» exactly: which step of the unit card is the last done step, what
+   stays, which error.
+3. Make a commit of ONLY the files of the unit (not `git add .`). Do not ask for permission -
+   you are in the migration branch. Check it: `git branch --show-current` must be equal to
+   the branch from the map passport. If it is not equal -> do not make the commit, СТОП,
+   tell the human.
    ```
    git add <файлы юнита>
    git commit -m "<сообщение по конвенции проекта, с ID юнита M-nnn>"
    ```
-   Хэш коммита впиши в карточку. Коммить и незаконченный юнит - если проект компилируется.
-   Не компилируется -> не коммить, оставь в рабочем дереве, опиши в «Где остановился».
-4. Допиши одну строку в конец раздела «7. Журнал сессий» карты, обнови `updated` в шапке.
+   Write the commit hash into the unit card. Also make a commit of a unit that is not
+   finished, if the project compiles. If it does not compile -> do not make the commit. Keep
+   the changes in the working tree and describe them in «Где остановился».
+4. Add one line at the end of the section «7. Журнал сессий» of the migration map. Update
+   `updated` in the header.
 
-## Шаг 8 - СТОП и сводка
+## Step 8 - СТОП and summary
 
-Не бери следующий юнит (в пачке - не бери юниты сверх переданного списка). Покажи
-пользователю (для пачки - по каждому юниту):
-- юнит `M-<nnn>`, название, итоговый статус (`done` / `in-progress` / `blocked`);
-- изменённые файлы;
-- проверки: компиляция, **показательный тест** (какой, команда, итог - честно), остатки
-  старого, `MR`;
-- какое legacy удалено (классы, зависимости, конфиги);
-- что добавил во «Входящие», отдельно - все строки `решить человеку` (их человек
-  посмотрит, когда вернётся);
-- прогресс: `done` X из N;
-- что дальше: **«Откройте новый чат и напишите: `/orchestrator Продолжи миграцию`»**.
+Do not take the next unit (in a batch - do not take units that are not in the given list).
+Show to the human (for a batch - for each unit):
+- unit `M-<nnn>`, name, final status (`done` / `in-progress` / `blocked`);
+- the changed files;
+- checks: compilation, **representative test** (which test, command, result - honestly),
+  remains of old code, `MR`;
+- which legacy is removed (classes, dependencies, configs);
+- what you added to «Входящие». Separately, show all lines `решить человеку` (the human
+  looks at them when the human comes back);
+- progress: `done` X of N;
+- what next: **«Откройте новый чат и напишите: `/orchestrator Продолжи миграцию`»**.

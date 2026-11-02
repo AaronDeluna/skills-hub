@@ -1,18 +1,23 @@
-# Этап 3 - Матрица «как сейчас -> как в PVATF» (раздел 2 карты)
+# Stage 3 - Matrix «как сейчас -> как в PVATF» (section 2 of the migration map)
 
-Часть скилла `migration-map`. Общие правила - `references/core-rules.md`, правила карты и порядок этапов - `SKILL.md`.
+This file is a part of the skill `migration-map`. The general rules are in `references/core-rules.md`. The rules of the migration map and the order of stages are in `SKILL.md`.
 
-Это сердце карты. Для каждого шаблона использования, найденного в инвентаризации (старый
-фрейм, самописные обёртки, способ писать тесты/шаги/страницы/API-вызовы/конфиги/отчёты):
+This is the core of the migration map. Do the steps below for each usage pattern that the
+inventory found. A usage pattern is the old framework, custom wrappers, or the way to write
+tests, steps, pages, API calls, configs or reports:
 
-1. Иди по списку технологий из паспорта, по ОДНОЙ технологии за раз. На каждую технологию
-   два запуска сабагента документации (`references/subagents.md`, раздел 1), по очереди.
-   В промпт Запуска А впиши «Якорь технологии» из `references/frame-topics.md`: сабагент
-   начнёт с запроса по имени сервиса (`RestService`, `DatabaseService`, `KafkaService` ...) и
-   вернёт словарь ключевых слов документации. Словарь запиши второй строкой конспекта
-   («Ключевые слова: ...»). Вопросы Запуска Б формулируй уже ЭТИМИ словами (имена классов и
-   методов из словаря) и передай словарь в промпт. Запуски:
-   - **Запуск А - как устроен модуль.** Вопросы РОВНО эти (подставь технологию):
+1. Go through the list of technologies from the map passport, ONE technology at a time. For
+   each technology, do two runs of the documentation subagent (`references/subagents.md`,
+   section 1), one after the other.
+   - In the prompt of Run A, write the «Якорь технологии» from `references/frame-topics.md`.
+     The subagent starts with a query by the service name (`RestService`, `DatabaseService`,
+     `KafkaService` ...) and returns a dictionary of documentation keywords.
+   - Write the dictionary as the second line of the doc notes («Ключевые слова: ...»).
+   - Write the questions of Run B with THESE words (the class and method names from the
+     dictionary). Give the dictionary in the prompt.
+
+   The runs:
+   - **Run A - how the module works.** Use EXACTLY these questions (put in the technology):
      1. Какой модуль фрейма отвечает за <технология> и что он умеет?
      2. Какие зависимости и плагины нужно подключить для <технология>?
      3. Как настроить и сконфигурировать <технология>: файлы конфигурации, параметры,
@@ -20,100 +25,138 @@
      4. Как выполнить основные действия с <технология> (<действия, которые делает проект:
         напр. отправить запрос и разобрать ответ>): классы, методы, пример?
      5. Как выглядит тест или шаг с <технология> на фрейме - пример?
-   - **Запуск Б - чем заменить то, что есть в проекте.** По одному вопросу на каждый шаблон
-     использования этой технологии из инвентаризации. Вопрос - про ДЕЙСТВИЕ, а не про имя
-     старого класса: «как <что делает старый код>». Больше 5 вопросов - несколько запусков.
-   Каждый ответ СРАЗУ записывай записью `D-<tech>-<n>` в
-   `.gigacode/data/migration/doc-notes/<технология>.md`. Статус `найден частично` или `НЕТ В
-   ДОКЕ` - действуй по правилам «Сначала конспект, потом сабагент» (переспроси иначе).
-   - **Первые вопросы Запуска Б - всегда про проверки.** Прочитай `references/matchers.md`
-     и задай вопросы по нему: (1) «Какой объект возвращает <операция технологии> и как у
-     него вызвать проверку через .should()?»; (2) по одному вопросу на каждый ВИД проверки,
-     который реально есть в проекте по этой технологии (код ответа, поле JSON, количество
-     строк, значение ячейки, сообщение в топике...), с названием класса matchers из
-     таблицы ключевых слов. Ответы нужны, чтобы заменить старые ассерты и DTO ответа
-     (правило карты 5).
-   - **Документация молчит про технологию целиком** (на вопрос 1 Запуска А окончательное
-     `НЕТ В ДОКЕ` - 8 формулировок, см. `references/subagents.md`) -> это `keep` (правило карты 4):
-     в таблице «Технологии проекта» поставь решение `keep` и причину, в строку «Остаётся как
-     есть» раздела 2 допиши технологию. Запуск Б не делай, строк `G` и `L` по ней не пиши,
-     вопрос человеку НЕ заводи. Переходи к следующей технологии.
-   - **Документация молчит про ЧАСТЬ технологии** (про `db` есть, а про Oracle нет) -> эту
-     часть выдели отдельной строкой в таблице «Технологии проекта» (метка `db-oracle`,
-     решение `keep`), остальное мигрируется.
-2. Запиши строку `G-<n>` в раздел 2 карты: технология (метка из паспорта, одна и та же для
-   всего, что относится к одной технологии) -> что сейчас -> где и сколько (модули, число файлов) -> чем заменить в
-   PVATF (**точные** имена из документации) -> док-основание `D-<tech>-<n>` -> пример
-   файла-образца в проекте.
-3. Документация не отвечает, чем заменить, или описывает процесс не до конца (непонятно,
-   как вызвать или донастроить) -> СНАЧАЛА таблица «Документация молчит» (ниже, после
-   таблицы про DTO): подходит строка - решение из неё, вопроса нет. Не подходит -> иди по
-   лестнице источников из `references/subagents.md`,
-   раздел 4: исходники фрейма, затем проект-пример (пути - в паспорте), затем вопрос
-   человеку с вариантами в раздел 6 карты. Пока ответа нет - в колонке замены `НЕТ В ДОКЕ`.
-   Не подбирай замену сам.
-4. То, что уже сделано на PVATF по документации, пометь `уже PVATF` - это мигрировать не надо.
-5. **Legacy под удаление.** Для каждой технологии выпиши в таблицу «Legacy под удаление»
-   (раздел 2 карты) строки `L-<n>`: всё старое, что после перевода этой технологии на PVATF
-   должно исчезнуть из проекта ЦЕЛИКОМ - самописные классы, обёртки (в том числе обвязки
-   вокруг RestAssured, JDBC, Kafka-клиента), базовые классы, утилиты, хелперы, свои классы
-   ассертов и assertions, свои сравниватели и парсеры JSON, свои фильтры, перехватчики и
-   утилиты для логирования запросов и ответов (фрейм логирует обращения сам, `MR-43`),
-   всё старое логирование проекта (см. ниже), свой код чтения настроек и сами старые
-   файлы настроек подключений (см. ниже),
-   старые пакеты, старые зависимости и плагины в сборке, старые конфиги и ресурсы. По технологиям с решением
-   `keep` строк `L` не бывает.
-   **Настройки подключений - читает фрейм.** У фрейма свои файлы настроек, он сам их
-   читает и настраивает сервисы (`MR-47`). Поэтому по каждой технологии: (а) в
-   `CONNECTIONS.md`, в разделе технологии, заполни таблицу «Перенос в фрейм»: какие файлы
-   и ключи нужны фрейму (из ответа на вопрос 3 Запуска А) и какое значение каждому ключу
-   берётся из таблицы «Сейчас в проекте». Ключу фрейма нет значения в таблице:
-   Значения переносятся в properties фрейма как данные - туда, куда и как велит конспект.
-   Как проект подставлял их раньше (профили, `-D`, фильтрация, выбор файла в коде), не
-   повторяй: это нужно было только, чтобы найти значения. Несколько стендов -> во фрейме это
-   разные ключи в его properties (ключ со стендом, по конспекту): значения каждого стенда -
-   своими ключами, выбор стенда - так, как описано в документации.
-   1) повтори поиск шага 1а (пункты 4-6) словами этого ключа и посмотри историю:
+   - **Run B - what replaces the things that are in the project.** Ask one question for each
+     usage pattern of this technology from the inventory. The question is about the ACTION,
+     not about the name of the old class: «как <что делает старый код>». If there are more
+     than 5 questions, do more than one run.
+   IMMEDIATELY write each answer as a record `D-<tech>-<n>` into
+   `.gigacode/data/migration/doc-notes/<технология>.md`. If the status is `найден частично` or `НЕТ В
+   ДОКЕ`, work by the rules «Сначала конспект, потом сабагент» (ask again in a different way).
+   - **The first questions of Run B are always about checks.** Read `references/matchers.md`
+     and ask questions by it:
+     (1) «Какой объект возвращает <операция технологии> и как у
+     него вызвать проверку через .should()?»;
+     (2) one question for each TYPE of check that the project really has for this technology
+     (response code, JSON field, number of rows, cell value, message in a topic...). Use the
+     name of the matchers class from the keyword table.
+
+     You need the answers to replace the old asserts and the response DTOs (rule 5 of the
+     migration map).
+   - **The documentation does not describe the technology at all** (question 1 of Run A has
+     the final answer `НЕТ В ДОКЕ` - 8 wordings, see `references/subagents.md`) -> this is
+     `keep` (rule 4 of the migration map):
+     - in the table «Технологии проекта», set the decision `keep` and the cause;
+     - add the technology to the row «Остаётся как
+     есть» of section 2;
+     - do not do Run B. Do not write `G` and `L` rows for it;
+     - do NOT make a question to the human.
+
+     Go to the next technology.
+   - **The documentation does not describe a PART of the technology** (it describes `db`, but
+     not Oracle) -> write this part as a separate row in the table «Технологии проекта» (the
+     label `db-oracle`, the decision `keep`). The other parts are migrated.
+2. Write a row `G-<n>` into section 2 of the migration map:
+   technology -> current state -> where and how many -> replacement in PVATF -> documentation
+   basis -> sample file. Details:
+   - technology: the label from the map passport. Use the same label for all items of one
+     technology;
+   - where and how many: the modules, the number of files;
+   - replacement in PVATF: the **exact** names from the documentation;
+   - documentation basis: `D-<tech>-<n>`;
+   - sample file: an example file in the project.
+3. Sometimes the documentation does not tell the replacement. Sometimes it does not describe
+   the process to the end (it is not clear how to call or how to configure). Then FIRST use
+   the table «Документация молчит» (below, after the DTO table). If a row fits - use its decision, there is no
+   question. If no row fits -> go by the ladder of sources from `references/subagents.md`,
+   section 4: the framework sources, then the sample project (the paths are in the map
+   passport), then a question to the human with options in section 6 of the migration map.
+   While there is no answer, write `НЕТ В ДОКЕ` in the replacement column.
+   Do not choose a replacement yourself.
+4. Mark the items that are already made on PVATF by the documentation as `уже PVATF`. Do not
+   migrate them.
+5. **Legacy to remove.** For each technology, write rows `L-<n>` into the table «Legacy под
+   удаление» (section 2 of the migration map). These rows are all the old items that must
+   disappear from the project COMPLETELY after the move of this technology to PVATF:
+   - custom classes, wrappers (also the wrappers around RestAssured, JDBC, the Kafka client);
+   - base classes, utilities, helpers;
+   - custom assert classes and assertions, custom JSON comparators and parsers;
+   - custom filters, interceptors and utilities for the logging of requests and responses (the
+     framework logs the calls itself, `MR-43`);
+   - all the old logging of the project (see below);
+   - custom code that reads the settings, and the old connection settings files themselves
+     (see below);
+   - old packages, old dependencies and plugins in the build, old configs and resources.
+
+   Technologies with the decision `keep` have no `L` rows.
+
+   **The framework reads the connection settings.** The framework has its own settings files.
+   It reads them and configures the services itself (`MR-47`). Thus, for each technology:
+
+   (а) In `CONNECTIONS.md`, in the section of the technology, fill in the table «Перенос в
+   фрейм». Write which files and keys the framework needs (from the answer to question 3 of
+   Run A). For each key, write which value comes from the table «Сейчас в проекте».
+
+   Move the values into the framework properties as data - to the place and in the way that
+   the doc notes tell. Do not repeat how the project put them in before (profiles, `-D`,
+   filtering, file selection in the code). That was necessary only to find the values. If
+   there are more than one stand -> in the framework, these are different keys in its
+   properties (a key with the stand, by the doc notes). Write the values of each stand with
+   their own keys. Select the stand as the documentation describes.
+
+   If a framework key has no value in the table:
+   1) search again as in step 1а (items 4-6) with the words of this key, and look at the history:
       `git log --all -p -S "<слово>" -- '*.properties' '*.yml' '*.yaml' | head -60`;
-   2) нашёл - допиши в обе таблицы;
-   3) не нашёл, а ключ необязательный или у него есть значение по умолчанию (по
-      конспекту) - в «Чего фрейму не хватает»: `<ключ> - необязательный / по умолчанию <...>, D-...`;
-   4) не нашёл, ключ обязательный, а проект делает то, для чего он нужен, - значит,
-      значение приходит снаружи: найди как (шаг 1а, пункт 3) и запиши `снаружи: <имя>`;
-   5) проект этого не делает - ключ не нужен (фильтр вопросов, проверка 3).
-   Вопрос человеку - только если после пунктов 1-5 обязательного значения нет, а проект
-   этим явно пользуется; и он проходит «Фильтр вопросов». (б) В `L` заведи строки на
-   старый код чтения настроек и сборки подключений и на старые файлы настроек. Найди их:
+   2) if you found it - add it to both tables;
+   3) if you did not find it, and the key is optional or has a default value (by the doc
+      notes) - write into «Чего фрейму не хватает»: `<ключ> - необязательный / по умолчанию <...>, D-...`;
+   4) if you did not find it, the key is mandatory, and the project does the thing that needs
+      this key - then the value comes from the outside. Find how (step 1а, item 3) and write
+      `снаружи: <имя>`;
+   5) if the project does not do this thing - the key is not necessary (question filter,
+      check 3).
+   Ask the human a question only if items 1-5 did not give a mandatory value, and the project
+   clearly uses it. The question must also pass the «Фильтр вопросов».
+
+   (б) In `L`, make rows for the old code that reads the settings and makes the connections,
+   and for the old settings files. Find them:
    ```
    grep -rlE "ConfigFactory\.create|new Properties\(\)|ResourceBundle\.getBundle|System\.(getProperty|getenv)\(|@Value\(" --include=*.java --include=*.kt <src>
    find <src> -name "*Config*.java" -o -name "*Propert*.java" -o -name "*Settings*.java" | head -40
    ```
-   Перенос значений в файлы настроек фрейма - в подшаге `env` технологии (фаза 2); удаление
-   старого кода чтения и старых файлов - в её `cleanup`.
-   **Свои конфигурационные классы** (`DbConfig`, `KafkaConfig`, `ApiConfig`, класс с
-   хостами) после миграции не нужны - их работу делает фрейм. Каждый такой класс - строка
-   `L`: обслуживает одну технологию -> удаляется в её `cleanup`; общий на несколько
-   технологий -> в `cleanup` каждой технологии шаг «убрать из <Класс> поля и методы
-   <технология>», а строка `L` на сам класс - в юните последней из них. Классы
-   конфигурации фрейма (`*EnvironmentConfiguration`, `*ServiceConfiguration`) в `L` не
-   попадают.
-   **Логирование - всегда в `L`, технология `common`.** На фрейме логирование - это один
-   файл `simplelogger.properties` в ресурсах тестов (простой логгер SLF4J), остальное не
-   нужно. Найди и заведи строки `L` на всё старое:
+   The move of the values into the framework settings files is in the substep `env` of the
+   technology (phase 2). The removal of the old reading code and the old files is in its `cleanup`.
+
+   **Custom configuration classes** (`DbConfig`, `KafkaConfig`, `ApiConfig`, a class with
+   hosts) are not necessary after the migration - the framework does their work. Each such
+   class is an `L` row:
+   - if it serves one technology -> remove it in the `cleanup` of this technology;
+   - if it is common for more than one technology -> in the `cleanup` of each technology, add
+     the step «убрать из <Класс> поля и методы
+     <технология>». Put the `L` row for the class itself into the unit of the last of these
+     technologies.
+
+   The framework configuration classes (`*EnvironmentConfiguration`, `*ServiceConfiguration`)
+   do not go into `L`.
+
+   **Logging - always in `L`, technology `common`.** In the framework, the logging is one
+   file `simplelogger.properties` in the test resources (the simple logger of SLF4J). Nothing
+   more is necessary. Find all the old logging items and make `L` rows for them:
    ```
    find . \( -name "logback*.xml" -o -name "log4j*.xml" -o -name "log4j*.properties" -o -name "logging.properties" \) -not -path "*/target/*" -not -path "*/build/*"
    grep -rnE "logback|log4j|slf4j-(log4j12|reload4j|jdk14)|jul-to-slf4j|jcl-over-slf4j" --include=pom.xml --include=*.gradle --include=*.gradle.kts --include=*.toml .
    grep -rlE "import (org\.apache\.logging\.log4j|org\.apache\.log4j|java\.util\.logging|ch\.qos\.logback)" --include=*.java --include=*.kt <src>
    ```
-   Конфигурации и зависимости логгеров - строки `L` вида «конфиг» и «зависимость»; свои
-   аппендеры, фильтры, форматтеры - вида «класс». Файлы из третьей команды (код пользуется
-   не SLF4J, а другим логгером) впиши в подшаги `usage` их технологий с шагом «убрать ручное
-   логирование запросов и ответов; оставшиеся сообщения перевести на `org.slf4j.Logger`».
-   **Файл `simplelogger.properties` обязателен.** Проверь, есть ли он:
+   - Logger configurations and dependencies - `L` rows of the type «конфиг» and «зависимость».
+   - Custom appenders, filters, formatters - rows of the type «класс».
+   - The files from the third command (the code uses a different logger, not SLF4J) - write
+     them into the `usage` substeps of their technologies with the step «убрать ручное
+     логирование запросов и ответов; оставшиеся сообщения перевести на `org.slf4j.Logger`».
+
+   **The file `simplelogger.properties` is mandatory.** Check if it exists:
    `find . -name simplelogger.properties -not -path "*/target/*" -not -path "*/build/*"`.
-   Нет -> его создаёт подшаг `env` технологии `common` в фазе 2: в карточку впиши шаг
-   «создать `<каталог ресурсов тестов>/simplelogger.properties`» и содержимое файла
-   ДОСЛОВНО, шесть строк:
+   If it does not exist -> the substep `env` of the technology `common` in phase 2 makes it.
+   Write into the unit card the step «создать `<каталог ресурсов тестов>/simplelogger.properties`»
+   and the file content WORD FOR WORD, six lines:
    ```
    org.slf4j.simpleLogger.defaultLogLevel=INFO
    org.slf4j.simpleLogger.showShortLogName=true
@@ -123,10 +166,12 @@
 
    #org.slf4j.simpleLogger.log.ru.sber.at=INFO
    ```
-   (в конспекте `D-common-6` или в проекте-примере файл выглядит иначе - бери оттуда).
-   **Зависимости логгера в сборке обязательны** - без них файл никто не читает. В тот же
-   шаг карточки впиши: в `pom.xml` (в `<dependencies>`, а при общем `<dependencyManagement>` -
-   и туда) добавить ДОСЛОВНО
+   (If the file in the doc notes `D-common-6` or in the sample project is different - use that
+   file.)
+
+   **The logger dependencies in the build are mandatory** - without them, nothing reads the
+   file. In the same step of the unit card, write: in `pom.xml` (in `<dependencies>`, and if
+   there is a common `<dependencyManagement>` - also there), add WORD FOR WORD
    ```xml
    <!-- Logger -->
    <dependency>
@@ -140,143 +185,166 @@
        <version>${log.version}</version>
    </dependency>
    ```
-   и свойство `<log.version>2.0.16</log.version>` в `<properties>` (в проекте-примере или
-   конспекте версия другая - бери оттуда). Gradle - те же две зависимости
-   `org.slf4j:slf4j-simple` и `org.slf4j:slf4j-api` с одной переменной версии. Уже есть -
-   не дублируй, проверь только, что версия у обеих одна.
-   В проекте несколько модулей с тестами -> файл нужен в ресурсах тестов каждого. Файл уже
-   есть -> в карточке шаг «проверить, что в нём задан `defaultLogLevel`», содержимое не
-   перезаписывай; старые конфигурации и зависимости логгеров удаляются в фазе 4
-   (финальная зачистка), когда код ими уже не пользуется.
-   **Сборку проверь во ВСЕХ местах, где она хранит зависимости,** и на каждое найденное
-   место заведи свою строку `L`:
-   - Maven: `<dependency>` и `<plugin>` в `pom.xml` каждого модуля; `<dependencyManagement>`
-     и `<pluginManagement>` в родительском `pom.xml`; свойства версий в `<properties>`
-     (`<restassured.version>` и т.п.); `<exclusions>`, написанные ради старой библиотеки;
-     профили `<profile>`, которые её подключают;
-   - Gradle: блоки `dependencies` и `plugins` в `build.gradle(.kts)` каждого модуля;
-     `gradle/libs.versions.toml` (строки в `[versions]`, `[libraries]`, `[bundles]`,
-     `[plugins]`); `gradle.properties` (версии); `buildSrc/` и convention-плагины;
-     `ext { ... }` с версиями; `settings.gradle(.kts)`;
-   - конфиги и ресурсы старой технологии в `src/*/resources` (properties, yml, шаблоны).
-   Команда, чтобы найти все места: `grep -rn "<artifactId или имя библиотеки>" --include=pom.xml
+   and the property `<log.version>2.0.16</log.version>` in `<properties>` (if the sample project
+   or the doc notes have a different version - use that version). For Gradle - the same two
+   dependencies `org.slf4j:slf4j-simple` and `org.slf4j:slf4j-api` with one version variable.
+   If they already exist - do not duplicate them. Only check that both have the same version.
+
+   If the project has more than one module with tests -> the file is necessary in the test
+   resources of each module. If the file already exists -> write into the unit card the step
+   «проверить, что в нём задан `defaultLogLevel`». Do not overwrite the content. The old
+   logger configurations and dependencies are removed in phase 4 (final cleanup), when the
+   code does not use them.
+
+   **Check the build in ALL places where it keeps dependencies.** Make a separate `L` row for
+   each place that you find:
+   - Maven: `<dependency>` and `<plugin>` in `pom.xml` of each module; `<dependencyManagement>`
+     and `<pluginManagement>` in the parent `pom.xml`; version properties in `<properties>`
+     (`<restassured.version>` and others); `<exclusions>` written for the old library;
+     profiles `<profile>` that add it;
+   - Gradle: the blocks `dependencies` and `plugins` in `build.gradle(.kts)` of each module;
+     `gradle/libs.versions.toml` (the lines in `[versions]`, `[libraries]`, `[bundles]`,
+     `[plugins]`); `gradle.properties` (versions); `buildSrc/` and convention plugins;
+     `ext { ... }` with versions; `settings.gradle(.kts)`;
+   - configs and resources of the old technology in `src/*/resources` (properties, yml, templates).
+   The command to find all places: `grep -rn "<artifactId или имя библиотеки>" --include=pom.xml
    --include=*.gradle --include=*.kts --include=*.toml --include=gradle.properties .`
-   Принцип: у нас есть фрейм и его реализация, всё накрученное поверх старой технологии не
-   нужно. Ничего не оставляется «на всякий случай» и «для совместимости».
+   Principle: we have the framework and its implementation. Nothing that was added on top of
+   the old technology is necessary. Do not keep anything «на всякий случай» or «для совместимости».
 
-6. **Целевая картина технологии.** Для каждой технологии `migrate` запиши в раздел 2 карты
-   блок `T-<tech>` (шаблон - в `references/map-template.md`): как код этой технологии должен
-   выглядеть ПОСЛЕ миграции. Источник - только конспект `doc-notes/<технология>.md` (пример
-   теста из Запуска А, вопрос 5; настройка - вопрос 3; проверки - запись про matchers).
-   Не хватает - доспроси сабагента: «как выглядит полный тест <технология> на фрейме от
-   настройки до проверки». В блоке четыре списка:
-   - **Что будет:** какие классы/файлы останутся или появятся в проекте и зачем (по
-     документации: конфигурация фрейма, настройка сервиса, тест). В блоке `T-common` здесь
-     обязательно есть **базовый тест-класс**: класс только с аннотациями подключения фрейма
-     (расширение фрейма и конфигурация окружения - имена из `D-common-4`), от которого
-     наследуются тест-классы. Аннотации фрейма в каждом тесте не повторяются. В проекте
-     уже есть базовый тест-класс -> он остаётся под своим именем, а клиенты, хелперы и
-     методы из него идут в `L` или в шаги;
-   - **Что вызывается и кем:** (а) ТЕСТ вызывает шаги и проверяет результат через
-     `.should(...)` - перечисли matchers с ID записей конспекта; (б) ШАГИ вызывают фрейм -
-     перечисли точные имена механизмов фрейма для действий с ID записей. Действия, которые
-     нужны нескольким тестам или требуют подготовки, - всегда в шагах. Разовое короткое
-     обращение к фрейму в теле одного теста допустимо, вспомогательные методы в
-     тест-классе - нет;
-   - **Слой шагов:** где лежит логика действий (отправка запросов, запросы в БД, чтение
-     Kafka): пакет и классы шагов по предметным областям, и как документация велит их
-     оформлять (раздел «Как работает Flow и ConfigurationService» - спроси сабагента, если
-     в конспекте этого нет). Для каждого класса шагов - какие действия в нём будут. Классов
-     шагов в проекте нет -> они создаются: внеси их в «Что будет». **Стиль шагов в
-     паспорте `flow`:** слой шагов - это классы-флоу (запись `D-common-7`). Для каждого
-     класса-флоу выпиши: какой сценарий или предметную область он ведёт, какие готовые
-     интерфейсы технологий фрейма он подключает (запись `D-common-8`) и что берёт из них
-     готовым, какие в нём свои методы-действия и методы-проверки, что он хранит между
-     шагами. Тест в «Что вызывается
-     и кем» - цепочка шагов FlowRunner, каждый шаг вызывает один метод флоу;
-   - **Как проект пользуется технологией сейчас:** 1-3 строки - что вызывает, куда и каким
-     способом (например: «вызывает заглушённые REST-эндпоинты Сбермок по адресу из
-     `rest.properties`, ключ `sbermock.host`; заглушки включает API управления»). После
-     миграции проект пользуется технологией ТАК ЖЕ, меняется только механизм на фреймовый.
-     Не планируй то, чего фрейм не умеет: каждое действие из «Что вызывается и кем» должно
-     быть в конспекте;
-   - **Данные подключения:** ссылка на раздел технологии в `CONNECTIONS.md` и одна строка:
-     сколько файлов и ключей фрейма, все ли значения есть («`CONNECTIONS.md`, `## kafka`: 2
-     файла фрейма, 9 ключей, значения есть у всех»). Исполнитель берёт значения оттуда и
-     никогда не спрашивает у человека;
-   - **Данные проекта, которые переезжают как данные:** адреса и пути эндпоинтов, тела
-     запросов и DTO, которыми эти тела собираются, SQL-запросы, имена топиков, тестовые
-     данные - они нужны тестам и сохраняются, но лежат там, где велит документация, а не
-     внутри старых классов. **DTO ОТВЕТА сюда не входят:** во фрейме ответ проверяется
-     через `.should(...)` у валидируемого объекта, превращать его в свой объект не нужно;
-   - **Чего НЕ будет:** перечисли поимённо старые классы-прослойки этой технологии из
-     инвентаризации (свои клиенты, базовые классы, обёртки, хелперы, ассерты) и DTO
-     ответа, которые нужны только для того, чтобы сравнивать поля ассертами, - они не
-     переносятся, а удаляются (их же внеси строками `L`). Как найти DTO ответа:
+6. **Target state of the technology.** For each technology with `migrate`, write a block
+   `T-<tech>` into section 2 of the migration map (the template is in
+   `references/map-template.md`). The block shows how the code of this technology must look
+   AFTER the migration. The only source is the doc notes `doc-notes/<технология>.md`:
+   - the test example from Run A, question 5;
+   - the configuration - question 3;
+   - the checks - the record about matchers.
+
+   If this is not sufficient, ask the subagent again: «как выглядит полный тест <технология> на фрейме от
+   настройки до проверки». The block has these lists:
+   - **«Что будет»:** which classes and files stay or appear in the project, and why (by the
+     documentation: the framework configuration, the service configuration, the test).
+     - In the block `T-common`, this list must have a **base test class**. It is a class only
+       with the annotations that connect the framework (the framework extension and the
+       environment configuration - the names from `D-common-4`). The test classes extend it.
+       The framework annotations are not repeated in each test.
+     - If the project already has a base test class -> it stays with its name. The clients,
+       helpers and methods from it go into `L` or into the steps;
+   - **«Что вызывается и кем»:**
+     (а) the TEST calls the steps and checks the result through `.should(...)` - list the
+     matchers with the IDs of the doc notes records;
+     (б) the STEPS call the framework - list the exact names of the framework mechanisms for
+     the actions with the IDs of the records.
+
+     Actions that more than one test needs, or that need a preparation, are always in the
+     steps. A single short call to the framework in the body of one test is allowed. Helper
+     methods in the test class are not allowed;
+   - **«Слой шагов»:** where the logic of the actions is (sending requests, DB queries, Kafka
+     reading). Write the package and the step classes by subject areas. Write how the
+     documentation tells to write them (the section «Как работает Flow и ConfigurationService».
+     If the doc notes do not have it, ask the subagent). For each step class, write which
+     actions it will have. If the project has no step classes -> they are made: add them to
+     «Что будет».
+     **If the step style in the map passport is `flow`:** the step layer is the flow classes
+     (the record `D-common-7`). For each flow class, write:
+     - which scenario or subject area it serves;
+     - which ready interfaces of the framework technologies it uses (the record `D-common-8`)
+       and what it takes from them ready;
+     - which own action methods and check methods it has;
+     - what it keeps between the steps.
+
+     The test in «Что вызывается
+     и кем» is a chain of FlowRunner steps. Each step calls one method of the flow;
+   - **«Как проект пользуется технологией сейчас»:** 1-3 lines - what it calls, where and how
+     (for example: «вызывает заглушённые REST-эндпоинты Сбермок по адресу из
+     `rest.properties`, ключ `sbermock.host`; заглушки включает API управления»). After the
+     migration, the project uses the technology IN THE SAME WAY. Only the mechanism changes to
+     the framework mechanism. Do not plan what the framework cannot do: each action from «Что
+     вызывается и кем» must be in the doc notes;
+   - **«Данные подключения»:** a reference to the section of the technology in `CONNECTIONS.md`
+     and one line: how many files and keys of the framework, and do all of them have values
+     («`CONNECTIONS.md`, `## kafka`: 2
+     файла фрейма, 9 ключей, значения есть у всех»). The executor takes the values from there
+     and never asks the human;
+   - **«Данные проекта, которые переезжают как данные»:** endpoint addresses and paths, request
+     bodies and the DTOs that make these bodies, SQL queries, topic names, test data. The tests
+     need them, and they stay. But they are where the documentation tells, not in the old
+     classes. **RESPONSE DTOs are not in this list:** in the framework, you check the response
+     through `.should(...)` on the validatable object. Do not convert it into a custom object;
+   - **«Чего НЕ будет»:** list by name the old layer classes of this technology from the
+     inventory (custom clients, base classes, wrappers, helpers, asserts). Also list the
+     response DTOs that are necessary only to compare fields with asserts. They do not move -
+     they are removed (also add them as `L` rows). How to find response DTOs:
      `grep -rnE "\.as\([A-Z][A-Za-z0-9_]*\.class\)|readValue\(|fromJson\(" --include=*.java <src>` -
-     классы из этих вызовов. Что делать с DTO, моделями, Jackson и JAXB - только по
-     таблице ниже, человека об этом не спрашивай.
+     the classes from these calls. For DTOs, models, Jackson and JAXB, use only the table
+     below. Do not ask the human about them.
 
-   **DTO, Jackson, JAXB - таблица решений.**
+   **Decision table «DTO, Jackson, JAXB».**
 
-   | Что в проекте | Решение (всегда такое, не вопрос) |
+   | In the project | Decision (always this, not a question) |
    |---------------|-----------------------------------|
-   | DTO или модель ответа: ответ разбирают в объект (`.as(X.class)`, `readValue`, `fromJson`, `unmarshal`, `JacksonHelper.parse...`), чтобы потом проверять поля | Удаляется. Ответ запроса уже лежит в валидируемом объекте фрейма - от него вызывается `.should(...)` с matchers по пути к полю. Десериализация для проверок не нужна |
-   | Одно значение из ответа нужно дальше по сценарию (id для следующего запроса, токен) | Достаётся одним вызовом у валидируемого объекта, способом из конспекта. DTO для этого не нужен |
-   | DTO или модель, из которой собирают ТЕЛО запроса или сообщения (в том числе XML-модели JAXB) | Остаётся как данные проекта вместе с аннотациями Jackson и JAXB. Тело передаётся в запрос фрейма так, как показывает конспект |
-   | Одна и та же модель и для тела запроса, и для разбора ответа | Остаётся как модель тела запроса; разбор ответа в неё убирается, проверки - `.should(...)` |
-   | Своя обёртка над Jackson или JAXB (`JacksonHelper`, `XmlUtils`, `JsonUtils`) | Методы разбора ответа удаляются вместе с их вызовами. Методы, которые собирают тела запросов или читают файлы с тестовыми данными, остаются, пока ими пользуются. Класс опустел - удаляется |
-   | В документации нет десериализации JSON/XML в объект, нет получения тела ответа строкой, не упомянуты Jackson или JAXB | Это не пробел документации: во фрейме это не нужно, ответ проверяется через `.should(...)`. Вопрос не задаётся |
-   | Matcher для нужного поля не нашёлся | Стандартный ассерт (`MR-29`) над значением, которое достали у валидируемого объекта (не через DTO), и строка во «Входящие» |
+   | A response DTO or model: the response is parsed into an object (`.as(X.class)`, `readValue`, `fromJson`, `unmarshal`, `JacksonHelper.parse...`) to check its fields later | Remove it. The response of the request is already in the validatable object of the framework. Call `.should(...)` on it with matchers by the path to the field. Deserialization for checks is not necessary |
+   | One value from the response is necessary later in the scenario (an id for the next request, a token) | Get it with one call on the validatable object, by the way from the doc notes. A DTO is not necessary for this |
+   | A DTO or model that makes the BODY of a request or message (also JAXB XML models) | It stays as project data, with the Jackson and JAXB annotations. Give the body to the framework request as the doc notes show |
+   | The same model for the request body and for the response parsing | It stays as the request body model. Remove the response parsing into it. The checks use `.should(...)` |
+   | A custom wrapper over Jackson or JAXB (`JacksonHelper`, `XmlUtils`, `JsonUtils`) | Remove the response parsing methods together with their calls. The methods that make request bodies or read test data files stay while something uses them. If the class becomes empty - remove it |
+   | The documentation has no JSON/XML deserialization into an object, no way to get the response body as a string, and does not mention Jackson or JAXB | This is not a gap in the documentation: the framework does not need it. You check the response through `.should(...)`. Do not ask a question |
+   | There is no matcher for the necessary field | A standard assert (`MR-29`) on the value that you got from the validatable object (not through a DTO), and a row in «Входящие» |
 
-   **Документация молчит - таблица решений.** Молчание документации почти никогда не
-   вопрос: фрейм не обязан описывать каждую библиотеку проекта. Сначала найди строку здесь;
-   подходит - пиши решение в карту (строки `G`, `L`, блок `T`) и иди дальше, в раздел 6
-   ничего не пиши.
+   **Decision table «Документация молчит».** If the documentation does not describe something,
+   this is almost never a question. The framework does not have to describe each library of
+   the project. First, find a row here. If a row fits - write the decision into the migration
+   map (rows `G`, `L`, block `T`) and go on. Do not write anything into section 6.
 
-   | Что в проекте, а документация про это молчит | Решение (всегда такое, не вопрос) |
+   | In the project, and the documentation does not describe it | Decision (always this, not a question) |
    |----------------------------------------------|-----------------------------------|
-   | Библиотека общего назначения, не обёртка над технологией фрейма: Lombok, Apache Commons, Guava, Awaitility, генераторы тестовых данных и т.п. | Остаётся как есть, со своими зависимостями, плагинами и настройками сборки (`annotationProcessorPaths` и т.п.). Новый код может ей пользоваться. Переписывать на «чистую Java» нельзя |
-   | Генератор мапперов (MapStruct и т.п.), который обслуживает только DTO ответа | Уходит вместе с этими DTO (таблица про DTO): строки `L` на мапперы, зависимости и плагины |
-   | Драйвер или клиент конкретной СУБД, брокера, протокола, про который документация молчит (Oracle `ojdbc`, а в доке только PostgreSQL) | Эта часть - `keep` (правило карты 4): драйвер, его зависимость и код остаются как есть |
-   | Свои аннотации и метки отчёта: Allure-аннотации проекта или внешнего jar (`@Team`, `@Regress`, `@AllureId`, `@Link`, `@LabelAnnotation`) | Остаются как есть, тесты не переразмечаются. Если после подключения фрейма метки пропадут из отчёта - это найдёт ревью, вопрос заранее не задаётся |
-   | Чтение файлов с тестовыми данными (JSON, XML, CSV) из ресурсов, а штатного способа в доке нет или раздел «в разработке» | Остаётся своё чтение файлов; хелпер сокращается до чтения файлов (без разбора ответов). Строка во «Входящие»: «вернуться, когда в доке появится штатный способ» |
-   | Строки результата БД собирают в DTO (`RowMapper`, `BeanListHandler`, свой маппер `ResultSet`), чтобы проверять поля | Как DTO ответа: маппинг удаляется, проверки - matchers БД по имени колонки из конспекта; одно значение дальше по сценарию - одним вызовом из конспекта |
-   | Технология, модуль или инфраструктура, которой тесты реально не пользуются (0 вызывающих, 0 тестов: Selenium-обвязка без UI-тестов) | Мёртвый код: строки `L`, удаляется со своими зависимостями и конфигами. Модуль фрейма под неё не подключается, выбирать между модулями не нужно |
-   | Уровень логирования и настройки логгера | Всегда `simplelogger.properties` (шаг про логирование выше); Log4j, Logback, их конфиги и обёртки логгеров - строки `L` |
-   | Несколько стендов (ИФТ, DEV...) | Во фрейме стенды - разные ключи в его properties (наборы значений под префиксом-именем стенда, по конспекту). Значения каждого стенда - из `CONNECTIONS.md` своими ключами. Старое переключение стенда (профили, `-D`, выбор файла в коде, `@BeforeAll`, статические поля) - строки `L` |
-   | Имена ключей стандартной библиотеки (`ssl.keystore.location`, `ssl.truststore.password`, `security.protocol`, `sasl.*`, `bootstrap.servers`) не перечислены в доке фрейма | Это стандартные имена клиента (Kafka, JDBC): пишутся как есть, с префиксом из конспекта. Значения - из `CONNECTIONS.md` |
-   | Фрейму нужно то, чего в проекте нет и из проекта не достать (токен service account вместо логина и пароля) | Не вопрос карты: ключ заводится со значением `снаружи: <ИМЯ_ПЕРЕМЕННОЙ>` (имя - по ключу), в «Входящие» - `решить человеку: получить <что>`; если в доке сказано у кого - укажи. Миграция не останавливается |
-   | Пример в документации покрывает случай не целиком | Делай по примеру; недостающее (значения, имена, данные) - так, как проект делает сейчас |
+   | A general-purpose library, not a wrapper over a framework technology: Lombok, Apache Commons, Guava, Awaitility, test data generators and others | It stays as it is, with its dependencies, plugins and build settings (`annotationProcessorPaths` and others). New code can use it. Do not rewrite it in «чистую Java» |
+   | A mapper generator (MapStruct and others) that serves only response DTOs | It goes away together with these DTOs (the DTO table): `L` rows for the mappers, the dependencies and the plugins |
+   | A driver or client of a specific DBMS, broker or protocol that the documentation does not describe (Oracle `ojdbc`, but the documentation has only PostgreSQL) | This part is `keep` (rule 4 of the migration map): the driver, its dependency and the code stay as they are |
+   | Custom annotations and report labels: Allure annotations of the project or of an external jar (`@Team`, `@Regress`, `@AllureId`, `@Link`, `@LabelAnnotation`) | They stay as they are. Do not change the markup of the tests. If the labels disappear from the report after the framework is added - the review finds it. Do not ask a question before |
+   | Reading of test data files (JSON, XML, CSV) from resources, and the documentation has no standard way or the section is «в разработке» | The custom file reading stays. Make the helper smaller: only file reading (no response parsing). Add a row in «Входящие»: «вернуться, когда в доке появится штатный способ» |
+   | DB result rows are collected into a DTO (`RowMapper`, `BeanListHandler`, a custom `ResultSet` mapper) to check fields | The same as a response DTO: remove the mapping. The checks are DB matchers by the column name from the doc notes. One value for later in the scenario - one call from the doc notes |
+   | A technology, module or infrastructure that the tests really do not use (0 callers, 0 tests: a Selenium wrapper without UI tests) | Dead code: `L` rows. Remove it with its dependencies and configs. Do not add a framework module for it. Do not choose between modules |
+   | Logging level and logger settings | Always `simplelogger.properties` (the logging step above). Log4j, Logback, their configs and logger wrappers - `L` rows |
+   | More than one stand (IFT, DEV...) | In the framework, stands are different keys in its properties (value sets under a prefix with the stand name, by the doc notes). The values of each stand come from `CONNECTIONS.md` with their own keys. The old stand selection (profiles, `-D`, file selection in the code, `@BeforeAll`, static fields) - `L` rows |
+   | The key names of a standard library (`ssl.keystore.location`, `ssl.truststore.password`, `security.protocol`, `sasl.*`, `bootstrap.servers`) are not in the framework documentation | These are standard client names (Kafka, JDBC): write them as they are, with the prefix from the doc notes. The values come from `CONNECTIONS.md` |
+   | The framework needs something that the project does not have and that you cannot get from the project (a service account token instead of a login and password) | This is not a question of the migration map. Make the key with the value `снаружи: <ИМЯ_ПЕРЕМЕННОЙ>` (the name comes from the key). In «Входящие», write `решить человеку: получить <что>`. If the documentation tells who has it - write it. The migration does not stop |
+   | The example in the documentation does not cover the case completely | Do as the example shows. For the missing parts (values, names, data), do as the project does now |
 
-   Строки не нашлось -> лестница источников (пункт 3 выше), затем «Фильтр вопросов».
+   If no row fits -> use the ladder of sources (item 3 above), then the «Фильтр вопросов».
 
-   Про проверки спрашивай документацию так, как описано в `references/matchers.md` (там -
-   как устроены проверки во фрейме и какими словами ставить вопрос); имена matchers в блок
-   `T` идут из ответа документации, с ID записи конспекта. В блоке `T-common` обязательно запиши: классы конфигурации
-   фрейма (`ApiEnvironmentConfiguration` и остальные) лежат в пакете `config` - в том,
-   который уже есть в проекте (`src/main/java` или `src/test/java`), а если его нет - в
-   новом `<базовый пакет>.config`; укажи точный путь.
-   **Ворота целевой картины.** В списках «Что будет», «Что вызывается и кем» и «Слой
-   шагов» должны
-   стоять ТОЧНЫЕ имена из конспекта (класс, метод, matcher) с ID записи. Строки вида
-   «использовать сервис фрейма», «проверять через matchers» без имён - это не картина.
-   Имён нет, потому что источников не хватило -> лестница источников
-   (`references/subagents.md`, раздел 4), вплоть до вопроса человеку. Технология с
-   неполной картиной в юниты не разбивается.
-   Правило различения: в старом классе есть ДАННЫЕ (что вызываем, что отправляем, что
-   ожидаем) и есть МЕХАНИКА (как вызвать, как разобрать, как сравнить). Данные сохраняются,
-   механика заменяется фреймом целиком.
+   Ask the documentation about checks as `references/matchers.md` describes (it tells how the
+   checks work in the framework and which words to use in the question). The matcher names
+   for the block `T` come from the documentation answer, with the ID of the doc notes record.
 
-**Отмечай технологии и не делай всё за один чат.** Закончил технологию (конспект записан,
-строки `G`, `L` и блок `T` по ней внесены) -> допиши её метку в строку «Этап 3 сделан для технологий»
-в разделе 0 карты. Сделал в этом чате 4 технологии, а в паспорте есть ещё -> остановись и
-скажи: «Откройте новый чат и напишите: `/orchestrator Продолжи миграцию`». В новом чате продолжай с первой
-технологии, которой нет в этой строке.
+   In the block `T-common`, you must write this: the framework configuration classes
+   (`ApiEnvironmentConfiguration` and the others) are in the package `config`. Use the package
+   that the project already has (`src/main/java` or `src/test/java`). If it does not exist, use
+   the new package `<базовый пакет>.config`. Write the exact path.
 
-Проверь полноту: каждая технология из паспорта есть в строке «Этап 3 сделан для
-технологий» и у каждой стоит решение `migrate` или `keep`; каждый пакет из топа импортов в `inventory/*.md`, который не JDK и не PVATF,
-должен быть либо в строке `G-<n>`, либо в списке «остаётся как есть» (с причиной).
+   **Gate of the target state.** The lists «Что будет», «Что вызывается и кем» and «Слой
+   шагов» must have the EXACT names from the doc notes (class, method, matcher) with the ID of
+   the record. Lines such as «использовать сервис фрейма», «проверять через matchers» without
+   names are not a target state. If there are no names because the sources were not
+   sufficient -> use the ladder of sources (`references/subagents.md`, section 4), up to a
+   question to the human. Do not split a technology with an incomplete target state into units.
 
-Отметь Этап 3 `[x]`, `map_stage: 4`.
+   Rule to tell the difference: an old class has DATA (what we call, what we send, what we
+   expect) and MECHANICS (how to call, how to parse, how to compare). Keep the data. The
+   framework replaces all of the mechanics.
+
+**Mark the technologies and do not do everything in one chat.** A technology is finished
+when the doc notes are written and the rows `G`, `L` and the block `T` for it are added. Then
+add its label to the row «Этап 3 сделан для технологий» in section 0 of the migration map. If you did
+4 technologies in this chat, and the map passport has more -> stop and say: «Откройте новый
+чат и напишите: `/orchestrator Продолжи миграцию`». In the new chat, continue from the first
+technology that is not in this row.
+
+Check completeness:
+- each technology from the map passport is in the row «Этап 3 сделан для
+  технологий», and each has the decision `migrate` or `keep`;
+- each package from the top imports in `inventory/*.md` that is not JDK and not PVATF must be
+  in a row `G-<n>` or in the list «остаётся как есть» (with the cause).
+
+Mark Stage 3 `[x]`, `map_stage: 4`.
 

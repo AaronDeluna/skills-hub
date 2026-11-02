@@ -1,31 +1,31 @@
-# Правила подшага - какие номера MR нужны какому подшагу
+# Substep rules - which MR numbers each substep needs
 
-Общий файл кита: источник - `shared/substep-rules.md`, копии в скиллах раскладывает
-`scripts/SyncShared.java`. Правишь таблицу - правь только источник.
+This is a common file of the kit. The source is `shared/substep-rules.md`.
+`scripts/SyncShared.java` puts the copies into the skills. To change the table, change only the source.
 
-По этой таблице:
-- `migration-map` заполняет поле «Правила подшага» в карточке `tech` и «Правила юнита» в
-  карточках остальных типов; `scripts/Card.java` проверяет, что состав поля совпадает с ней;
-- `migration-step` берёт номера отсюда, если поле в карточке пустое (карта старая):
+Use of this table:
+- `migration-map` fills the field «Правила подшага» in the `tech` card and the field «Правила юнита» in
+  the cards of the other types. `scripts/Card.java` checks that the field contains the same rules as the table;
+- `migration-step` takes the numbers from this table if the field in the card is empty (old map):
   `scripts/Unit.java rules`.
 
-| Вид подшага / тип юнита | Правила |
+| Substep kind / unit type | Rules |
 |-------------------------|---------|
 | `env` | `MR-12`, `MR-16`, `MR-31`, `MR-36`, `MR-47` |
-| `core`, режим `new` | `MR-12`, `MR-13`, `MR-24`, `MR-30`, `MR-32`, `MR-41`, `MR-43`, `MR-49`, `MR-50` |
-| `core`, режим `in-place` | то же, что `core` `new`, плюс `MR-7`, `MR-28` |
+| `core`, mode `new` | `MR-12`, `MR-13`, `MR-24`, `MR-30`, `MR-32`, `MR-41`, `MR-43`, `MR-49`, `MR-50` |
+| `core`, mode `in-place` | «то же, что `core` `new`» (all the rules of the row above), plus `MR-7`, `MR-28` |
 | `usage` | `MR-9`, `MR-10`, `MR-11`, `MR-12`, `MR-29`, `MR-41`, `MR-42`, `MR-46`, `MR-48`, `MR-50` |
 | `cleanup` | `MR-23`, `MR-26`, `MR-27`, `MR-31`, `MR-39` |
 | `arch` | `MR-3`, `MR-25`, `MR-26`, `MR-37`, `MR-38`, `MR-39`, `MR-49`, `MR-50` |
 | `markup` | `MR-51` |
-| `fix` | `MR-9`, `MR-11` и правила, на которые ссылаются находки |
-| `review` | все - чек-лист сабагента ревью (поле в карточке - `-`) |
+| `fix` | `MR-9`, `MR-11` and the rules that the findings refer to |
+| `review` | all - the checklist of the review subagent (the field in the card is `-`) |
 
-**Добавки:**
-- стиль шагов `flow` (строка паспорта «Стиль шагов») -> к `core` и `usage` добавь `MR-44`;
-- подшаг создаёт тест-класс или базовый тест-класс -> добавь `MR-46`, если его нет;
-- правила из блока «добавлено человеком» (`MR-H<n>`) можно добавлять к любому подшагу.
+**Additions:**
+- step style `flow` (passport line «Стиль шагов») -> add `MR-44` to `core` and `usage`;
+- the substep makes a test class or a base test class -> add `MR-46` if it is not there;
+- you can add the rules from the block «добавлено человеком» (`MR-H<n>`) to any substep.
 
-Других номеров в поле не пиши. Механические правила (`var`, импорты, сеттеры, имена,
+Do not write other numbers in the field. Mechanical rules (`var`, imports, setters, names,
 `TODO`: `MR-4`, `MR-5`, `MR-6`, `MR-14`, `MR-15`, `MR-17`, `MR-21`, `MR-22`, `MR-33`,
-`MR-34`, `MR-35`, `MR-45`) сюда не входят - их ловит самопроверка `Unit.java check`.
+`MR-34`, `MR-35`, `MR-45`) are not in this table: the self-check `Unit.java check` finds them.

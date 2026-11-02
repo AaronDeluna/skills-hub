@@ -1,99 +1,128 @@
 ---
 name: migration-map
-description: 'Строит подробную карту миграции проекта автотестов на фрейм PVATF ДО начала любых изменений кода: обзор фрейма и конспект его документации из MCP по каждой технологии проекта (REST, Kafka, БД и т.д.), инвентаризация проекта (что и где используется), матрица "как сейчас -> как должно быть в PVATF", проблемы архитектуры, разбивка всей работы на маленькие юниты с порядком и зависимостями. Результат - файлы в .gigacode/data/migration/, на которые агент опирается в каждом следующем чате. Код проекта не меняет. Используй, когда просят составить карту/план миграции, проанализировать проект перед миграцией на PVATF, обновить карту миграции; обычно вызывается из orchestrator.'
+description: 'Makes a detailed migration map of a test-automation project to the framework PVATF BEFORE any change to the code. The map has: an overview of the framework; doc notes from the MCP documentation for each technology of the project (REST, Kafka, DB and others); an inventory of the project (what is used and where); a matrix "current state -> target state in PVATF"; architecture problems; a split of all the work into small units with order and dependencies. The result is files in .gigacode/data/migration/. The agent uses them in each next chat. Does not change the project code. Use when the human asks to make a migration map or plan, to analyze the project before the migration to PVATF, or to update the migration map. Usually orchestrator calls it.'
 ---
 
-# Карта миграции на PVATF (migration-map)
+**Language.** These instructions are in English. Write everything for the human in Russian:
+messages, questions, reports, the map, unit cards, notes and commit messages. Copy every
+template exactly as it is shown, with its Russian headings and field names.
 
-Ты готовишь **карту** - файлы, по которым потом, в других чатах, проект мигрируют
-маленькими кусками. Исполнитель юнитов не увидит этот чат и не будет заново изучать
-проект: по карте должно быть можно работать, ничего не додумывая. **Ты ничего не мигрируешь
-и код проекта не меняешь** - только читаешь проект и пишешь файлы карты.
+# Migration map to PVATF (migration-map)
 
-Мигрируемый проект - ОТДЕЛЬНЫЙ проект автотестов (AQA): он снаружи проверяет сервис через
-REST, Kafka, базы данных, OpenShift и другие технологии. Фрейм PVATF - набор модулей для
-таких автотестов. Что они умеют - известно ТОЛЬКО из документации фрейма.
+You make the **migration map**. The migration map is a set of files. Other chats use these
+files to migrate the project in small parts. The unit executor does not see this chat. The
+unit executor does not examine the project again. The migration map must let the executor work
+without guesses. **You do not migrate anything. You do not change the project code.** You
+only read the project and write the files of the migration map.
 
-Сначала прочитай `references/core-rules.md` - общие правила миграции.
+The project to migrate is a SEPARATE test-automation project (AQA). It tests a service from
+the outside through REST, Kafka, databases, OpenShift and other technologies. The framework
+(PVATF) is a set of modules for such autotests. ONLY the framework documentation tells what
+these modules can do.
 
-## Скилл разбит на этапы - читай только текущий
+First, read `references/core-rules.md`. It contains the general migration rules.
 
-Весь скилл сразу не читай: чем меньше текста в голове, тем меньше забывается.
+## The skill has stages - read only the current stage
 
-| Когда | Что прочитать |
+Do not read all of the skill at once. Less text in memory means fewer forgotten rules.
+
+| When | What to read |
 |-------|---------------|
-| Начало чата | этот SKILL.md, затем «Старт» ниже |
-| Этап 1 - обзор фрейма, версии, исходники фрейма | `references/stage-1.md` |
-| Этап 2 - паспорт, Spring, подключения, инвентаризация | `references/stage-2.md` |
-| Этап 3 - документация по технологиям и матрица «как сейчас -> как в PVATF» | `references/stage-3.md` |
-| Этап 4 - проблемы архитектуры и архитектурный план | `references/stage-4.md` |
-| Этап 5 - юниты и карточки | `references/stage-5.md` |
-| Этап 5 - карточка юнита `tech` (разбор, составитель, проверка) | `references/card-subagents.md` |
-| Этап 6 - показать карту человеку, обновление карты | `references/stage-6.md` |
-| Хочешь задать вопрос человеку | `references/questions-filter.md` - сначала фильтр |
-| Нужен сабагент | `references/subagents.md`, его раздел |
+| Start of the chat | this SKILL.md, then «Старт» below |
+| Stage 1 - framework overview, versions, framework sources | `references/stage-1.md` |
+| Stage 2 - map passport, Spring, connections, inventory | `references/stage-2.md` |
+| Stage 3 - documentation for each technology and the matrix «как сейчас -> как в PVATF» | `references/stage-3.md` |
+| Stage 4 - architecture problems and the architecture plan | `references/stage-4.md` |
+| Stage 5 - units and unit cards | `references/stage-5.md` |
+| Stage 5 - unit card of a `tech` unit (analysis, composer, check) | `references/card-subagents.md` |
+| Stage 6 - show the migration map to the human, update of the migration map | `references/stage-6.md` |
+| You want to ask the human a question | `references/questions-filter.md` - use the filter first |
+| You need a subagent | `references/subagents.md`, its section |
 
-**Скрипты этого скилла лежат в `.gigacode/skills/migration-map/scripts/`.** Команды ниже - готовые:
-копируй и запускай как есть, из корня мигрируемого проекта (там, где `.gigacode/`); нужна
-Java 11+. Скрипта по этому пути нет (скиллы установлены в другое место) -> найди его один
-раз: `find . ~/.gigacode -path "*migration-map/scripts/*.java" 2>/dev/null | head -3` - и подставляй
-найденный каталог. Скрипт упал с ошибкой -> покажи ошибку в чате и сделай то же самое
-командами вручную по описанию в этом скилле; молча пропускать скрипт нельзя.
+**The scripts of this skill are in `.gigacode/skills/migration-map/scripts/`.** The commands
+below are ready to use. Copy them and run them as they are, from the root of the project to
+migrate (the directory with `.gigacode/`). You need Java 11+.
 
-Закончил этап -> **сразу** отметь его `[x]` в разделе 0 карты и обнови `map_stage` в шапке
--> только потом открывай следующий файл. Результаты пиши в файлы по ходу этапа.
+If the script is not at this path (the skills are installed in a different place), find it one
+time: `find . ~/.gigacode -path "*migration-map/scripts/*.java" 2>/dev/null | head -3`. Then
+use the directory that you found.
 
-## Правила карты
+If the script stops with an error, show the error in the chat. Then do the same work with
+manual commands, as this skill describes. Do not skip a script silently.
 
-1. **Код проекта не трогай.** Никаких правок, коммитов, веток. Пишешь только в
+When you finish a stage, **immediately** mark it `[x]` in section 0 of the migration map and
+update `map_stage` in the header. Only after that, open the next file. Write the results into
+the files while you do the stage.
+
+## Rules of the migration map
+
+1. **Do not touch the project code.** Do not make changes, commits or branches. Write only into
    `.gigacode/data/migration/`.
-2. **Не читай проект целиком.** Считай и ищи командами (`find`, `grep`, `wc`), файлы
-   целиком открывай только как образцы - не больше 3 на один шаблон использования
-   (`references/inventory-guide.md`). Исключение - файлы настроек и подключений на Этапе 2.
-3. **У каждой замены в карте есть док-основание** - запись конспекта `D-<tech>-<n>`. Нет
-   основания -> `НЕТ В ДОКЕ` и таблица «Документация молчит» (Этап 3); вопрос человеку -
-   только если в ней нет строки и вопрос прошёл фильтр.
-4. **Нет технологии в документации - она не мигрируется (`keep`).** Технология или её
-   часть (конкретная СУБД, брокер), о которой документация молчит, остаётся на старой
-   реализации. Юнит `tech` на неё не создаётся, её код в legacy не записывается; допустимы
-   только `arch`-юниты.
-5. **Старые обвязки и проверки не переезжают.** Обёртки вокруг библиотек, свои ассерты,
-   сравниватели и парсеры JSON, DTO ответа ради сравнения полей - legacy под удаление.
-   Вместо них - механизмы фрейма: запрос возвращает валидируемый объект, проверки у него
-   через `.should(...)` с matchers.
-6. **Технологии - по одной и до конца, от простой к сложной.** Порядок ставится на Этапе 2.
-7. **Сначала целевая картина.** Для каждой технологии на Этапе 3 записывается блок `T` -
-   как код выглядит в конце, по документации, а не по старым классам. Все юниты ведут к нему.
-8. **Сабагенты карты** - только те, что описаны в `references/subagents.md`: документация,
-   технологии проекта, инвентаризация модулей, примеры, разбор технологии, составитель
-   карточки, проверяющий карточки. Документация и примеры - агенты `pvatf-docs` и
-   `pvatf-examples`: вызываешь по имени и передаёшь только задание
-   (`references/core-rules.md`, правило 7). Все, кроме составителя, только читают и отвечают по
-   шаблону. Составитель пишет ровно один файл - свою карточку юнита. Код проекта не
-   меняет никто.
+2. **Do not read all of the project.** Count and search with commands (`find`, `grep`, `wc`).
+   Open a full file only as a sample - not more than 3 for one usage pattern
+   (`references/inventory-guide.md`). Exception: the settings and connection files at Stage 2.
+3. **Each replacement in the migration map has a documentation basis** - a doc notes record
+   `D-<tech>-<n>`. If there is no basis, write `НЕТ В ДОКЕ`.
+   Then use the table «Документация молчит» (Stage 3). Ask the human a question only if this table has no row for it and the
+   question passed the filter.
+4. **If the documentation has no technology, that technology is not migrated (`keep`).**
+   Some technologies or their parts (a specific DBMS, a broker) are not in the documentation.
+   They stay on the old implementation. Do not make a `tech` unit for it. Do not write its code
+   into legacy. Only `arch` units are allowed for it.
+5. **Old wrappers and checks do not move.** These are legacy to remove:
+   - wrappers around libraries;
+   - custom asserts;
+   - custom JSON comparators and parsers;
+   - response DTOs made only to compare fields.
 
-## Старт - создай карту или найди, где продолжить
+   Use the framework mechanisms instead: the request returns a validatable object, and you do
+   the checks on it through `.should(...)` with matchers.
+6. **Migrate technologies one at a time and to the end, from the simple to the complex.** Stage
+   2 sets the order.
+7. **The target state comes first.** At Stage 3, write a block `T` for each technology. The
+   block shows how the code looks at the end, from the documentation, not from the old classes.
+   All units lead to this block.
+8. **Subagents of the migration map** - use only the subagents that `references/subagents.md`
+   describes:
+   - documentation;
+   - technologies of the project;
+   - inventory of modules;
+   - examples;
+   - analysis of a technology;
+   - unit card composer;
+   - unit card checker.
+
+   Documentation and examples are the agents `pvatf-docs` and `pvatf-examples`. Call them by
+   name and give them only the task (`references/core-rules.md`, rule 7). All subagents except
+   the composer only read and answer by the template. The composer writes exactly one file - its
+   unit card. Nobody changes the project code.
+
+## Start («Старт») - make the migration map or find where to continue
 
 ```
 mkdir -p .gigacode/data/migration/units .gigacode/data/migration/inventory .gigacode/data/migration/doc-notes
 ls .gigacode/data/migration/
 ```
 
-- `MIGRATION-MAP.md` нет -> создай его СТРОГО по шаблону из `references/map-template.md`,
-  `map_status: building`, `map_stage: 1`. Поле `scope`: просят перевести только ядро / не
-  трогать тесты -> `core`, иначе `full`. Дальше - `references/stage-1.md`.
-- `MIGRATION-MAP.md` есть -> прочитай шапку и раздел 0. Открой файл этапа из `map_stage`.
-  Сделанные этапы не переделывай.
-- Просят обновить карту (проект изменился, ответы человека меняют карту) -> `references/stage-6.md`, «Обновление карты».
+- No `MIGRATION-MAP.md` -> make it EXACTLY by the template from `references/map-template.md`,
+  with `map_status: building`, `map_stage: 1`. The field `scope`: if the human asks to migrate
+  only the core or not to touch the tests -> `core`, else `full`. Then go to
+  `references/stage-1.md`.
+- `MIGRATION-MAP.md` exists -> read the header and section 0. Open the stage file from
+  `map_stage`. Do not do the completed stages again.
+- The human asks to update the migration map (the project changed, the answers of the human
+  change the migration map) -> `references/stage-6.md`, «Обновление карты».
 
-## Итоговая сводка
+## Final summary
 
-- какие этапы сделаны в этом чате, какой `map_stage` и `map_status` сейчас;
-- пути к файлам: `MIGRATION-MAP.md`, конспекты `doc-notes/*.md`, сколько карточек юнитов;
-- открытые вопросы к человеку;
-- что дальше: «Откройте новый чат и напишите: `/orchestrator Продолжи миграцию`».
+- which stages you did in this chat, the current `map_stage` and `map_status`;
+- the paths to the files: `MIGRATION-MAP.md`, the doc notes `doc-notes/*.md`, the number of
+  unit cards;
+- the open questions to the human;
+- what is next: «Откройте новый чат и напишите: `/orchestrator Продолжи миграцию`».
 
-## Если потерял нить
+## If you lost the thread
 
-Открой `MIGRATION-MAP.md`: шапку и раздел 0 - там видно, какой этап сделан. Открой файл
-этого этапа и продолжи с первого невыполненного пункта. Сделанное не переделывай.
+Open `MIGRATION-MAP.md`: the header and section 0. They show which stage is done. Open the
+file of this stage and continue from the first item that is not done. Do not do completed work
+again.

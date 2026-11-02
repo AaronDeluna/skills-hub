@@ -1,13 +1,14 @@
-# Шаблон карточки юнита технологии (тип `tech`)
+# Template of a technology unit card (type `tech`)
 
-Путь: `.gigacode/data/migration/units/M-<nnn>.md`. Один юнит `tech` - вся миграция ОДНОЙ
-технологии: от разбора до ревью. Работа внутри разбита на подшаги `S-<nn>`. Исполнитель
-делает их по порядку, все подряд в одном чате (контекст по ходу сжимается сам). Если
-чат всё же оборвался - юнит остаётся `in-progress`, следующий чат открывает карточку и
-берёт первый несделанный подшаг.
+Path: `.gigacode/data/migration/units/M-<nnn>.md`. One `tech` unit is the full migration of ONE
+technology: from the analysis to the review. The work in the unit has substeps `S-<nn>`.
+The executor does the substeps in their order, all of them one after another in one chat.
+The chat context becomes shorter automatically during the work.
+If the chat stops before the end, the unit stays `in-progress`. The next chat opens the card
+and takes the first substep that is not done.
 
-Карточку читает исполнитель в ДРУГОМ чате. Он не видел твой анализ. Пиши так, чтобы по
-карточке можно было работать, ничего не додумывая.
+The executor reads the card in a DIFFERENT chat. The executor did not see your analysis.
+Write the card so that the executor can do the work from the card and does not need to guess.
 
 ```markdown
 ---
@@ -145,90 +146,95 @@ covers: [<G-n>, <L-n>, ...]
 -
 ```
 
-## Какие подшаги и в каком порядке
+## Which substeps and in which order
 
-Порядок видов фиксирован. Вид задаёт границы подшага - те же, что описаны в SKILL.md
-исполнителя для `env`-, `core`-, `usage`-, `cleanup`-, `review`-юнита.
+The order of the substep kinds is fixed. The kind sets the limits of the substep.
+These limits are the same as the limits in the executor SKILL.md for the `env`, `core`,
+`usage`, `cleanup` and `review` units.
 
-| № | Вид | Что делает | Сколько подшагов | Лимит одного подшага |
-|---|-----|------------|------------------|----------------------|
-| 1 | `разбор` | перепроверяет список потребителей по текущему коду, код не меняет | один, всегда `S-01` | - |
-| 2 | `env` | конфигурация технологии, перенос значений в файлы настроек фрейма | 1-2 | 6 файлов |
-| 3 | `core` | создаёт классы шагов технологии (режим `new`) или меняет внутренности ядра (`in-place`) | по одному на класс шагов или на группу действий | 6 файлов, 1000 строк |
-| 4 | `usage` | переводит потребителей на классы шагов, их проверки - на matchers | сколько нужно: каждый потребитель ровно в одном подшаге; снизу вверх по уровням, тесты последними | 3 файла, 600 строк |
-| 5 | `cleanup` | удаляет legacy технологии: код -> сборка -> конфиги | 1-3 | 15 удаляемых файлов |
-| 6 | `review` | ревью кода технологии сабагентами, исправление простых находок | один на каждые 15 файлов | 15 файлов |
+| № | Kind | What it does | Number of substeps | Limit of one substep |
+|---|------|--------------|--------------------|----------------------|
+| 1 | `разбор` | does a check of the consumer list against the current code; does not change the code | one, always `S-01` | - |
+| 2 | `env` | configuration of the technology; moves the values into the settings files of the framework | 1-2 | 6 files |
+| 3 | `core` | makes the step classes of the technology (mode `new`) or changes the internals of the core (`in-place`) | one for each step class or for each group of actions | 6 files, 1000 lines |
+| 4 | `usage` | moves the consumers to the step classes and their checks to matchers | as many as necessary: each consumer is in exactly one substep; from the bottom level to the top level, the tests are last | 3 files, 600 lines |
+| 5 | `cleanup` | removes the legacy of the technology: code -> build -> configs | 1-3 | 15 files to remove |
+| 6 | `review` | review of the technology code by subagents; fixes the simple findings | one for each 15 files | 15 files |
 
-После `review` исполнитель сам дописывает подшаги вида `fix` или `usage` на находки ревью
-и на несошедшиеся чекпоинты юнита. Ты их не планируешь.
+After `review`, the executor adds substeps of the kind `fix` or `usage` for the review findings
+and for the unit checkpoints that failed. You do not plan these substeps.
 
-Технология `common`: подшаги `env` (конфигурация фрейма, `simplelogger.properties`) и `core`
-(базовый тест-класс); подшагов `usage`, `cleanup` и `review` обычно нет - её классы входят в
-`review` первой технологии после неё. Чекпоинты, которых у неё нет, из таблицы убери.
+Technology `common`: it has the substeps `env` (configuration of the framework,
+`simplelogger.properties`) and `core` (the base test class).
+Usually it has no `usage`, `cleanup` and `review` substeps. Its classes go into the `review`
+of the first technology after it.
+Remove from the table the checkpoints that this technology does not have.
 
-## Как писать подшаг (жёстко)
+## How to write a substep (strict)
 
-Подшаг должен читаться без карты и без этого чата. Проверь каждый:
+The executor must understand the substep without the map and without this chat. Do a check of each substep:
 
-1. **Название - что станет, с именами.** Не «мигрировать тесты заказов», а «`OrderTests`,
+1. **The name tells the result, with names.** Not «мигрировать тесты заказов», but «`OrderTests`,
    `OrderCancelTests`: запросы через `OrderSteps`, проверки на matchers».
-2. **«Что сделать» - пронумерованные действия, в каждом есть имя.** Имя файла, класса,
-   метода, записи конспекта. «Заменить в `OrderTests` вызовы `RestHelper.post(...)` на
-   `OrderSteps.createOrder(...)` - по `G-4`, `D-rest-3`». Запрещены слова без содержания:
+2. **«Что сделать» has numbered actions, and each action has a name.** The name of a file,
+   class, method or doc-notes record. «Заменить в `OrderTests` вызовы `RestHelper.post(...)` на
+   `OrderSteps.createOrder(...)` - по `G-4`, `D-rest-3`». Do not use words without content:
    «мигрировать», «адаптировать», «привести в порядок», «при необходимости», «и так далее»,
    «соответствующие», «доработать».
-3. **«Итоговый результат» - факт, который можно проверить глазами или командой.** «В
+3. **«Итоговый результат» is a fact that you can check with your eyes or with a command.** «В
    `OrderTests` нет импортов `io.restassured`; все запросы идут через `OrderSteps`; проверки
-   - `.should(...)`». Не «тесты переведены на фрейм».
-4. **«Чекпоинт» - одна команда и ожидаемый вывод.** Обычно grep, который должен стать
-   пустым, или счётчик, который должен быть больше нуля. Чекпоинт проверяет именно
-   «Итоговый результат» этого подшага.
-5. **Подшаг `core`: названы методы.** «Создать `OrderSteps` с методами `createOrder`,
-   `getOrder`, `cancelOrder`; каждый возвращает валидируемый объект». Список методов -
-   действия из колонки «Какие действия делает» таблицы потребителей. Метода, который никому
-   из потребителей не нужен, в списке нет.
-6. **Подшаг `usage`: шаг подключения явный.** «Заменить в `<файл>` обращения `<какие>` на
+   - `.should(...)`». Not «тесты переведены на фрейм».
+4. **«Чекпоинт» is one command and the expected output.** Usually it is a grep that must give
+   an empty output, or a counter that must be more than zero. The checkpoint checks exactly the
+   «Итоговый результат» of this substep.
+5. **Substep `core`: the methods have names.** «Создать `OrderSteps` с методами `createOrder`,
+   `getOrder`, `cancelOrder`; каждый возвращает валидируемый объект». The list of methods is the
+   list of actions from the column «Какие действия делает» of the consumer table.
+   Do not put into the list a method that no consumer needs.
+6. **Substep `usage`: the connection step is explicit.** «Заменить в `<файл>` обращения `<какие>` на
    вызовы `<КлассШагов>.<метод>`; свой код запроса из файла убрать; проверки `<какие>`
-   заменить на matchers по `D-<tech>-<n>`». Чекпоинт - grep старых и прямых обращений в
-   файлах подшага пуст.
-7. **Каждый потребитель из таблицы «Разбор технологии» стоит ровно в одном подшаге
-   `usage`,** и в колонке «Подшаг» записан его номер.
-8. **Каждый созданный класс подключается в этой же карточке:** после подшага `core`, который
-   создаёт класс, есть хотя бы один подшаг `usage`, который переводит на него файлы. Некому
-   подключать - класс не создаётся.
-9. **Чекпоинты юнита - с точными командами,** составленными по командам поиска из «Разбор
-   технологии» и по строкам `L` юнита. Исполнитель команды не придумывает.
-10. Код-решение «по памяти» в карточку не пиши. Имена PVATF - только из конспекта.
-11. **«Итоговый результат» - по каждому файлу подшага отдельной строкой**, с именем
-    класса и тем, что в нём стало:
+   заменить на matchers по `D-<tech>-<n>`». The checkpoint: a grep for the old calls and the
+   direct calls in the substep files gives an empty output.
+7. **Each consumer from the table «Разбор технологии» is in exactly one `usage`
+   substep,** and the column «Подшаг» has the number of this substep.
+8. **The same card connects each class that the card makes.** After the `core` substep that
+   makes a class, there is at least one `usage` substep that moves files to this class.
+   If no file needs the class, do not make the class.
+9. **The unit checkpoints have exact commands.** Make them from the search commands in «Разбор
+   технологии» and from the `L` rows of the unit. The executor does not make up commands.
+10. Do not write a code solution «по памяти» (from memory) in the card. Take the PVATF names only from the doc notes.
+11. **Write «Итоговый результат» as one separate line for each file of the substep**, with the
+    class name and with the result in this class:
     - `OrderSteps.java`: запросы через `RestSteps.post(...)`, каждый метод возвращает
       валидируемый объект;
     - `OrderTests.java`: проверки ответа - только `.should(...)` / `.shouldSoft(...)`
       matchers фрейма; `assertEquals`, `JsonNode`, свои обёртки над matcher - нет;
     - `OrderDto.java`: удалён.
-    Не пиши код правила вместо факта («V19 устранено», «по MR-41»): исполнитель не
-    проверит то, чего не видит.
-12. **У подшагов `usage` и `fix` есть «Критерии по файлам»** - строка на каждый файл с
-    действием `изменить`. «Было» - числа из разбора технологии
-    (`inventory/analysis-<tech>.md`), а не на глаз: исполнитель видит объём и не может
-    отчитаться «перевёл», переведя 3 проверки из 12. «Должно стать» - с именами классов
-    шагов и записью конспекта на КАЖДЫЙ вид проверок файла. «Проверка» - команда и
-    ожидаемый вывод.
-13. **У подшагов `usage` и `fix` в «Чекпоинте» всегда есть команда `MR-48`** по файлам
-    подшага (свои matchers, списки matchers, `JsonNode`, ассерты) с ожидаемым выводом
+    Do not write a rule code instead of a fact («V19 устранено», «по MR-41»). The executor
+    cannot check a thing that the executor does not see.
+12. **The substeps `usage` and `fix` have «Критерии по файлам»**: one row for each file with
+    the action `изменить`. «Было» contains the numbers from the technology analysis
+    (`inventory/analysis-<tech>.md`), not a guess. Then the executor sees the volume of work.
+    The executor cannot report «перевёл» after moving 3 checks of 12.
+    «Должно стать» contains the names of the step classes and a doc-notes record for EACH kind
+    of check in the file. «Проверка» contains a command and the expected output.
+13. **In «Чекпоинте» (the checkpoint) of the substeps `usage` and `fix`, always write the `MR-48` command** for the
+    substep files (own matchers, lists of matchers, `JsonNode`, asserts). The expected output is
     «пусто».
-14. **Подшаг `env`: каждый ключ - со значением.** «Что сделать»: «создать / дополнить
+14. **Substep `env`: each key has a value.** «Что сделать»: «создать / дополнить
     `<файл фрейма>` ключами из таблицы «Данные подключения»; сертификаты `<файлы>`
-    подключить так, как велит `D-<tech>-<n>`». «Итоговый результат» - список
-    `ключ = значение` по каждому файлу фрейма. Чекпоинт - grep пустых значений и заглушек
-    в файлах фрейма пуст: `grep -nE "=\s*$|TODO|changeme|<[^>]+>" <файлы фрейма>`.
-15. **Лимит подшага - жёсткий.** Не помещается - дели на два подшага. Пометки
-    «превышение лимита сознательно» не бывает.
-16. **«Правила подшага» - номера правил кода, которые исполнитель прочитает перед
-    правками.** Он читает ТОЛЬКО их (не все правила), и по ним же подшаг проверяет
-    сабагент «проверяющий». Бери строку по виду подшага из таблицы ниже, добавки - по
-    условиям под таблицей. У подшагов `разбор` и `review` поле - `-`.
+    подключить так, как велит `D-<tech>-<n>`». «Итоговый результат» is a list of
+    `ключ = значение` for each framework file. The checkpoint: a grep for empty values and
+    placeholders in the framework files gives an empty output:
+    `grep -nE "=\s*$|TODO|changeme|<[^>]+>" <файлы фрейма>`.
+15. **The substep limit is strict.** If the work is larger than the limit, divide it into two
+    substeps. A note «превышение лимита сознательно» is not allowed.
+16. **«Правила подшага» has the numbers of the code rules that the executor reads before the
+    changes.** The executor reads ONLY these rules (not all rules). The subagent «проверяющий»
+    (the checker) uses the same rules to check the substep. Take the row for the substep kind
+    from the table (the next paragraph tells where it is). Add the additional rules from the conditions under that
+    table. For the substeps `разбор` and `review`, the field value is `-`.
 
-    Таблица и добавки - в `references/substep-rules.md` (одна на весь кит). Состав поля
-    проверяет `scripts/Card.java` по этой же таблице: не хватает обязательного номера или
-    есть лишний - находка.
+    The table and the additional rules are in `references/substep-rules.md` (one file for all
+    of the kit). The script `scripts/Card.java` checks the field with the same table.
+    If a mandatory number is missing or an extra number is present, this is a finding.

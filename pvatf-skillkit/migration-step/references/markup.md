@@ -1,27 +1,27 @@
-# Юнит разметки (`markup`)
+# Markup unit (`markup`)
 
-Часть скилла `migration-step`. Открывай, когда тип юнита в карточке - `markup`.
+This file is part of the skill `migration-step`. Open it when the unit type in the unit card is `markup`.
 
-Юнит ставит аннотации allure-annotations на уже мигрированные тесты. Правила и значения -
-`references/markup-rules.md` и строка «Разметка» паспорта карты. Документация фрейма здесь
-не нужна: сабагента документации не запускаешь, «Таблица подтверждений» - `-`. Вопросов
-нет: значения собраны на Этапе 2 карты. Значения нет (`-`) - аннотацию не ставят.
+The unit adds allure-annotations to the tests that are already migrated. The rules and the values are in
+`references/markup-rules.md` and in the line «Разметка» of the map passport. You do not need the framework documentation
+here: do not start the documentation subagent, «Таблица подтверждений» is `-`. There are no questions:
+the values were collected at Stage 2 of the map. If there is no value (`-`), do not add the annotation.
 
-**Где искать - только в проекте** (раздел 0 правил разметки). Не выходи за корень проекта
-(`find /`, `find ~`, другие проекты), не ходи в проект и исходники фреймворка, проект-пример,
-`~/.m2`, `~/.gradle`, .jar и интернет. Исключение - jar самой allure-annotations версии
-2.x, и только для аннотации не из таблицы импортов (раздел 0 правил). Не нашёл пакет, версию или
-значение в проекте -> дальше не ищи: делай по правилу для этого случая.
+**Where to search - only in the project** (section 0 of the markup rules). Do not go outside the project root
+(`find /`, `find ~`, other projects). Do not go into the framework project and sources, the example project,
+`~/.m2`, `~/.gradle`, .jar and the internet. Exception: the jar of allure-annotations itself, version
+2.x, and only for an annotation that is not in the import table (section 0 of the rules). If you did not find a package, a version or
+a value in the project -> do not search more: do what the rule for this case tells.
 
-1. Прочитай `references/markup-rules.md` и строку «Разметка» паспорта:
+1. Read `references/markup-rules.md` and the line «Разметка» of the passport:
    `grep -n "^- Разметка" .gigacode/data/migration/MIGRATION-MAP.md`.
-   В строке остались угловые скобки (значение не собрано) -> это незакрытый вопрос карты:
-   СТОП, как в Шаге 1 (`references/start.md`).
-2. `Unit.java rules M-<nnn>` - правило `MR-51`.
-3. База: `git rev-parse HEAD` - запомни хэш до правок.
-4. Кто ставит аннотации:
-   - режим `менеджер` - агент `pvatf-marker` (вызов по имени, `references/core-rules.md`,
-     правило 7) с заданием:
+   If the line still has angle brackets (the value is not collected) -> this is an open question of the map:
+   stop (СТОП), as in Step 1 (`references/start.md`).
+2. `Unit.java rules M-<nnn>` - rule `MR-51`.
+3. Base: `git rev-parse HEAD` - remember the hash before the changes.
+4. Who adds the annotations:
+   - mode `менеджер` - the agent `pvatf-marker` (call by name, `references/core-rules.md`,
+     rule 7) with this task:
      ```
      Проект: <абсолютный путь>
      Юнит: M-<nnn> · markup · <название>
@@ -31,43 +31,43 @@
      Компиляция: <команда из паспорта>
      Коммит: <сообщение по конвенции проекта, с ID юнита M-<nnn>>
      ```
-     Агент сам коммитит свои файлы. Перед правками агент делает три проверки (раздел 2б
-     правил): нет незакоммиченных изменений, версия библиотеки 2.x или её подъём в
-     значениях, проект компилируется. Вернул «не сделан» по одной из них -> разметку сам не
-     делай и агента не повторяй: это остановка (`references/stuck.md`, «Если упёрся»,
-     способ 3), в «Где остановился» - причина из отчёта агента и что сделать человеку:
-     закоммитить изменения / поднять версию до 2.x / исправить сборку или дерево зависимостей.
-     Дальше - как с исполнителем подшага
-     (`references/manager.md`, пп. 4-8): проверка отчёта, `Unit.java check`, проверяющий,
-     повторы. В повторе тоже `pvatf-marker`. Файлы юнита для проверяющего - из
-     `git diff --name-only <база>` (без `.gigacode/`), в задание проверяющему добавь строку
-     `База: <база>`;
-   - режим `сам` - сначала три проверки раздела 2б `references/markup-rules.md` (не
-     пройдена -> остановка, как выше), потом пункты «Что сделать» сам, по разделам 2-3,
-     потом проверки из `references/check.md` (тестов не запускаешь).
-5. Проверка разметки - команды из раздела 5 `references/markup-rules.md`, по тест-классам
-   юнита: «Файлы юнита» и наследники базовых классов из них. Тест-класс без аннотации из
-   набора агента, у которой в строке «Разметка» есть значение (не `-`; раздел 1 правил; ни
-   своей, ни через базовый класс) -> повтор исполнителя с этим списком. Тест-классы других
-   юнитов разметки сюда не входят. Вывод команд - в «Журнал выполнения» карточки.
-   Каждый ключ тест-кейса, который «Что сделать» велит взять из `@DisplayName`, теперь в
-   `@TmsLink` этого тест-метода, а `@DisplayName` не изменился.
-   Потом сам повтори перепроверку из раздела 6 `references/markup-rules.md` (не верь отчёту
-   агента на слово): вывод команды «Ключи тест-кейсов без `@TmsLink`» пустой или каждая его
-   строка есть в отчёте с невыполненным условием раздела 2а. Команду запускай по всем
-   каталогам тестов проекта, не только по «Файлам юнита». Нашлась строка без причины ->
-   повтор агента с этим списком.
-   Отчёт агента - блок `=== ОТЧЁТ PVATF-MARKER ===` ... `=== КОНЕЦ ОТЧЁТА ===`. Блока нет
-   или в нём нет строки -> повтор агента: «Верни отчёт по шаблону». Одинаковые ключи сверь
-   сам: команда «Одинаковые ключи тест-кейсов» (раздел 5 правил) по всем каталогам тестов.
-   Каждый ключ из её вывода - во «Входящие» карты, даже если агент его не назвал:
+     The agent makes the commit of its files itself. Before the changes, the agent does three checks (section 2b
+     of the rules): no uncommitted changes, library version 2.x or its upgrade in the
+     values, the project compiles. If it returned «не сделан» because of one of them -> do not add the markup yourself
+     and do not start the agent again. This is a stop (`references/stuck.md`, «Если упёрся»,
+     way 3). In «Где остановился», write the reason from the agent report and what the human must do:
+     commit the changes / upgrade the version to 2.x / fix the build or the dependency tree.
+     After this, do the same as with the substep executor
+     (`references/manager.md`, items 4-8): report check, `Unit.java check`, checker,
+     retries. In a retry, also use `pvatf-marker`. The unit files for the checker come from
+     `git diff --name-only <база>` (without `.gigacode/`). Add the line
+     `База: <база>` to the task of the checker;
+   - mode `сам` - first the three checks of section 2b of `references/markup-rules.md` (if one is not
+     passed -> stop, as above), then do the items «Что сделать» yourself, by sections 2-3,
+     then the checks from `references/check.md` (do not run the tests).
+5. Markup check - the commands from section 5 of `references/markup-rules.md`, on the test classes of the
+   unit: «Файлы юнита» and the subclasses of the base classes from them. If a test class does not have an annotation of
+   the agent set that has a value in the line «Разметка» (not `-`; section 1 of the rules; not
+   its own and not through a base class) -> retry the executor with this list. The test classes of other
+   markup units are not part of this check. Write the command output in «Журнал выполнения» of the unit card.
+   Each test-case key that «Что сделать» tells to take from `@DisplayName` must now be in
+   `@TmsLink` of this test method, and `@DisplayName` must not change.
+   Then do the final re-check from section 6 of `references/markup-rules.md` yourself (do not trust the agent
+   report without a check): the output of the command «Ключи тест-кейсов без `@TmsLink`» must be empty, or each of its
+   lines must be in the report with a false condition of section 2a. Run the command on all
+   test directories of the project, not only on «Файлам юнита». If you found a line without a reason ->
+   retry the agent with this list.
+   The agent report is the block `=== ОТЧЁТ PVATF-MARKER ===` ... `=== КОНЕЦ ОТЧЁТА ===`. If there is no block
+   or a line is missing in it -> retry the agent: «Верни отчёт по шаблону». Compare the same keys
+   yourself: run the command «Одинаковые ключи тест-кейсов» (section 5 of the rules) on all test directories.
+   Write each key from its output in «Входящие» of the map, also if the agent did not name it:
    `решить человеку: <ключ> - одинаковый в <Класс.метод>, <Класс.метод>, новый @TmsLink
-   не поставлен`. Строки «Ключи не взяты по другим причинам» - туда же, с причиной словами.
-   Файлы `добавлен по перепроверке` (только `@TmsLink` и его импорт) - не нарушение границ
-   юнита: допиши их в «Файлы юнита» с этой пометкой.
-6. Проверяющий (`pvatf-checker`, `references/check.md`, п.9) смотрит ещё одно: изменения
-   только в аннотациях, их импортах и зависимости; `@DisplayName` не тронут; логика тестов
-   не тронута.
-7. Дальше - `references/close.md`, как у любого юнита. Файлы юнита агент уже закоммитил:
-   в Шаге 7 коммить то, что осталось (карточку, карту, свои исправления), хэш в карточку -
+   не поставлен`. Write the lines «Ключи не взяты по другим причинам» there too, with the reason in words.
+   The files `добавлен по перепроверке` (only `@TmsLink` and its import) are not a violation of the unit
+   limits: add them to «Файлы юнита» with this mark.
+6. The checker (`pvatf-checker`, `references/check.md`, item 9) also checks one more thing: the changes are
+   only in the annotations, their imports and the dependency; `@DisplayName` did not change; the test logic
+   did not change.
+7. Then use `references/close.md`, as for all units. The agent already made the commit of the unit files:
+   in Step 7, commit the remaining files (the unit card, the map, your fixes). Write the hash in the unit card from
    `git log --format=%h <база>..HEAD`.

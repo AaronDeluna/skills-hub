@@ -1,132 +1,149 @@
-# Работа над подшагом (юнитом): Шаги 3-5
+# Work on the substep (unit): Steps 3-5
 
-Часть скилла `migration-step`. Главные правила и порядок чтения - в `SKILL.md`.
-«Если упёрся» и «Таблица решений по умолчанию» - `references/stuck.md`.
+This is a part of the skill `migration-step`. The main rules and the reading order are in
+`SKILL.md`. «Если упёрся» and «Таблица решений по умолчанию» are in `references/stuck.md`.
 
-**Режим менеджера (по умолчанию): из этого файла ты берёшь только Шаг 3 (документация - до
-запуска исполнителя, `references/manager.md`, п.2).** Шаги 4 и 5 (читать файлы проекта,
-править код) в этом режиме делает агент-исполнитель `pvatf-executor`, не ты.
+**Manager mode (default): from this file, take only Step 3 (documentation - before you start
+the executor, `references/manager.md`, item 2).** In this mode, the executor agent
+`pvatf-executor` does Steps 4 and 5 (read the project files, change the code), not you.
 
-## Шаг 3 - Возьми документацию (сначала конспект, потом сабагент)
+## Step 3 - Get the documentation (first the doc notes, then the subagent)
 
-**Юнит типа `review` и подшаг `review` юнита технологии:** Шаги 3, 4 и 5 для него не выполняются. Вместо них прочитай
-`references/review-subagent.md` и действуй по разделу «Порядок работы в юните `review`»
-(текст правила `MR` для находки найди по номеру: `grep -n "MR-<n> ·" .gigacode/skills/migration-step/references/code-rules.md` и прочитай только его). Потом - Шаг 6 (`references/check.md`, п.1, 2, 6, 8, 10) и
-Шаг 7 (`references/close.md`).
+**Unit of type `review` and substep `review` of a technology unit:** do not do Steps 3, 4
+and 5 for it. Instead, read `references/review-subagent.md` and work by the section
+«Порядок работы в юните `review`». To get the text of an `MR` rule for a finding, find it
+by its number: `grep -n "MR-<n> ·" .gigacode/skills/migration-step/references/code-rules.md`.
+Read only this rule. Then do Step 6 (`references/check.md`, items 1, 2, 6, 8, 10) and
+Step 7 (`references/close.md`).
 
-1. Прочитай `references/doc-subagent.md` целиком - там правила, задание агенту и шаблон записи.
-2. Записи конспекта подшага уже лежат в `.gigacode/data/migration/tmp/docs-now.md` - их
-   кладёт `Unit.java rules` (Шаг 5, п.1; запусти его сейчас, если ещё не запускал). Прочитай
-   файл целиком. Весь файл конспекта не читай.
-3. Пройди по шагам «Что сделать» карточки. Для каждого шага спроси себя: «каждое имя из
+1. Read `references/doc-subagent.md` in full. It has the rules, the task for the agent and
+   the record template.
+2. The doc notes records of the substep are already in
+   `.gigacode/data/migration/tmp/docs-now.md`. `Unit.java rules` writes them (Step 5,
+   item 1). If you did not run it yet, run it now. Read the file in full. Do not read the
+   full doc notes file.
+3. Go through the steps «Что сделать» of the unit card. For each step, ask yourself: «каждое имя из
    PVATF, которое мне тут нужно написать (класс, аннотация, метод, зависимость, параметр
    конфигурации), есть в прочитанных записях?»
-   - Да -> занеси в «Таблицу подтверждений» карточки: точное имя и ID записи.
-   - Нет -> сначала `Notes.java find <tech> <слова>` (двумя наборами слов, см.
-     `references/doc-subagent.md`, «Сначала конспект»): в конспекте часто уже есть ответ,
-     записанный при построении карты или в прошлых подшагах. Нашёл -> в «Таблицу
-     подтверждений» с его ID. Не нашёл -> это вопрос для сабагента. Выпиши такие вопросы
-     списком вместе с выводом `Notes.java find` по каждому.
-4. Вопросы есть -> запусти агента `pvatf-docs` (задание по шаблону, не больше 5 вопросов за
-   запуск). Сам `get_pv_at_doc` НЕ вызывай. Вопросы формулируй про действие («как
-   <сделать то-то> в <технология>»), а не про имя старого класса.
-5. Ответы СРАЗУ допиши новыми записями в конспект технологии, их ID - в «Док-основание» и в
-   «Таблицу подтверждений» карточки.
-6. Ответ `найден частично` или `НЕТ В ДОКЕ` -> переспроси по правилам из
-   `references/doc-subagent.md` (другие формулировки). Окончательное `НЕТ В ДОКЕ` на вопрос,
-   без которого шаг не сделать, -> «Если упёрся».
-7. Сабагент ответил `MCP НЕДОСТУПЕН` -> **СТОП**. Без документации юнит не выполняется.
-   Статус оставь `in-progress`, в «Где остановился» запиши причину.
+   - Yes -> write it into «Таблицу подтверждений» of the unit card: the exact name and the
+     record ID.
+   - No -> first run `Notes.java find <tech> <слова>` (with two sets of words, see
+     `references/doc-subagent.md`, «Сначала конспект»). The doc notes often already have
+     the answer from the time when the migration map was made, or from previous substeps.
+     If you found it -> write it into «Таблицу подтверждений» with its ID. If you did not
+     find it -> this is a question for the subagent. Write a list of such questions, with the output of `Notes.java find` for
+     each question.
+4. If there are questions -> start the agent `pvatf-docs` (the task by the template, not
+   more than 5 questions for one run). Do NOT call `get_pv_at_doc` yourself. Ask about an
+   action («как <сделать то-то> в <технология>»), not about the name of an old class.
+5. IMMEDIATELY add the answers as new records into the doc notes of the technology. Write
+   their IDs into «Док-основание» and into «Таблицу подтверждений» of the unit card.
+6. Answer `найден частично` or `НЕТ В ДОКЕ` -> ask again by the rules from
+   `references/doc-subagent.md` (other wording). A final `НЕТ В ДОКЕ` for a question
+   without which you cannot do the step -> «Если упёрся».
+7. The subagent answered `MCP НЕДОСТУПЕН` -> **СТОП**. Without the documentation, you
+   cannot do the unit. Keep the status `in-progress`. Write the cause into «Где остановился».
 
-## Шаг 4 - Прочитай файлы юнита (только их)
+## Step 4 - Read the files of the unit (only them)
 
-1. Прочитай файлы из таблицы «Файлы юнита». Другие файлы проекта не открывай. Исключение: 1-2
-   файла, на которые прямо ссылается карточка как на образец.
-2. Посчитай и запиши в карточку «число тестов до»:
+1. Read the files from the table «Файлы юнита». Do not open other project files. Exception:
+   1-2 files that the unit card directly names as a pattern.
+2. Count «число тестов до» and write it into the unit card:
    ```
    grep -cE "^\s*@Test\b" <файлы юнита>
    ```
-3. **Показательный тест - прогон ДО изменений.** Только если в карточке есть тест (у `env`
-   и `core`-`new` его нет - пропусти пункт). Запускай с ограничением по времени - 10 минут:
-   `timeout 600 <команда из карточки>` (команды `timeout` нет - запусти как есть и прерви
-   сам, если идёт дольше 10 минут). Не уложился -> больше его не запускай: это не
-   быстрый тест, см. «Если упёрся».
-   Запусти команду из раздела «Показательный
-   тест» карточки и запиши итог в «Проверки» (`зелёный` / `красный: <ошибка в 1 строку>` /
-   `не запускается: <причина>`). Это точка отсчёта. Красный или не запускается ещё до твоих
-   правок - не чини, просто запиши: после миграции сравнишь с этим результатом.
-   В карточке вместо теста стоит `-` с причиной - пропусти этот пункт.
-4. Составь для себя соответствие: какое место в файлах -> какой шаг карточки -> какая строка
-   «Таблицы подтверждений». Если для какого-то места нет строки в таблице - вернись на Шаг 3;
-   не нашлось в документации - «Если упёрся».
+3. **Representative test - run BEFORE the changes.** Do this only if the unit card has a
+   test (`env` and `core`-`new` do not have it - skip this item). Run it with a time
+   limit of 10 minutes: `timeout 600 <команда из карточки>`. If there is no command
+   `timeout`, run the command as it is, and stop it yourself if it runs more than 10
+   minutes. If it did not finish in time -> do not run it again: this is not a fast test,
+   see «Если упёрся».
+   Run the command from the section «Показательный тест» of the unit card. Write the result
+   into «Проверки» (`зелёный` / `красный: <ошибка в 1 строку>` / `не запускается: <причина>`). This is the reference point. If it is red or does not
+   start before your changes, do not fix it. Only write it down: after the migration, you
+   compare with this result.
+   If the unit card has `-` with a cause instead of a test, skip this item.
+4. Make a map for yourself: which place in the files -> which step of the unit card ->
+   which line of «Таблицы подтверждений». If a place has no line in the table, go back to
+   Step 3. If the documentation does not have it, go to «Если упёрся».
 
-## Шаг 5 - Мигрируй
+## Step 5 - Migrate
 
-1. **Правила этого подшага (юнита) - только их.** Скрипт сам берёт номера из поля
-   «Правила подшага» карточки (в обычном юните - «Правила юнита»; поле пустое - по виду
-   подшага) и кладёт их текст в файл:
+1. **The rules of this substep (unit) - only them.** The script takes the numbers from the
+   field «Правила подшага» of the unit card (in a usual unit - «Правила юнита»; if the field
+   is empty - by the kind of substep). It writes their text into a file:
    ```
    java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java rules M-<nnn> S-<nn>
    ```
-   Прочитай `.gigacode/data/migration/tmp/rules-now.md` целиком. Скрипт написал «НЕ
-   НАЙДЕНЫ» - номер в карточке с ошибкой, поправь карточку и запусти снова. Весь
-   `references/code-rules.md` не читай. Файл `rules-now.md` нужен ещё проверяющему (Шаг 6,
-   п.9), его не удаляй и не коммить. В обычном юните (не `tech`) номер подшага не пиши.
-2. Выполняй шаги «Что сделать» из карточки по порядку. После каждого шага карточки - одна
-   строка в «Что сделано».
-   **Куда класть код (архитектурный план).** Перед тем как создать файл или добавить метод:
-   - файл с действием `создать` из карточки есть в разделе 3 плана -> создавай; пиши в него
-     только то, что подходит под его «За что отвечает»;
-   - нужен метод (новое действие, общий кусок логики) -> найди в разделах 3 и 5 плана класс
-     с подходящей ответственностью и добавь метод туда. Такой же метод уже есть - вызови
-     его, второй не пиши;
-   - подходящего класса в плане нет -> можно создать ОДИН новый класс за юнит (в юните
-     технологии - за подшаг): одна
-     ответственность одним предложением, говорящее имя (не `Utils`/`Helper`/`Common`), есть
-     кто его вызывает. Сразу допиши строку в раздел 5 плана «Добавлено по ходу миграции» и
-     в «Что сделано» карточки. Нужен второй такой класс -> план неполный: создай
-     и его, тоже допиши в раздел 5 плана, и добавь строку во «Входящие» `решить человеку:
-     план неполный, добавлены классы <...>`;
-   - код не подходит под ответственность класса, в который его хочется дописать, -> не
-     дописывай «заодно»: действуй по предыдущим пунктам.
-3. **Проверки - на matchers фрейма.** Прочитай `references/matchers.md` - там объяснено, как
-   устроены проверки во фрейме, и какими словами спрашивать документацию про нужный matcher.
-   Выпиши все РАЗНЫЕ виды проверок из файлов юнита, по каждому виду, которого ещё нет в
-   конспекте, задай вопрос сабагенту документации (Шаг 3). В `usage`-юните каждую старую проверку (`Assertions`,
-   `assertEquals`, `assertThat`, свой assert-класс, свою обёртку над ответом, ручной разбор
-   JSON ради сравнения) заменяй на matcher/condition фрейма. Проверяется
-   то же самое, что и раньше (`MR-9`, `MR-11`), меняется только способ. **Не меняй ассерт механически:** если проверяемое значение достали руками из ответа,
-   строки БД или сообщения (геттер DTO, `jsonPath().get`, свой check-метод), пройди
-   цепочку назад и перепиши её целиком - метод возвращает валидируемый объект, проверка
-   через `.should(...)`, лишние DTO и check-методы удаляются (`MR-41`, «разбери всю
-   цепочку»). Нужного matcher нет в
-   конспекте -> вопрос сабагенту документации (Шаг 3); в документации его нет -> см. «Если
-   упёрся».
-4. Пиши только то, что подтверждено таблицей. Старый код заменяй, а не оставляй
-   закомментированным. Старые комментарии, которые описывали прежнюю реализацию, удаляй
-   вместе с ней.
-5. **Удали legacy юнита.** Пройди раздел карточки «Legacy под удаление в этом юните». Перед
-   удалением каждого класса/пакета проверь, что ссылок на него не осталось:
+   Read `.gigacode/data/migration/tmp/rules-now.md` in full. If the script wrote «НЕ
+   НАЙДЕНЫ», a number in the unit card is wrong. Fix the unit card and run again. Do not
+   read all of `references/code-rules.md`. The checker also needs the file `rules-now.md`
+   (Step 6, item 9). Do not remove it and do not make a commit of it. In a usual unit
+   (not `tech`), do not write the substep number.
+2. Do the steps «Что сделать» from the unit card in order. After each step of the unit
+   card, write one line in «Что сделано».
+   **Where to put the code (architecture plan).** Before you make a file or add a method:
+   - the file with the action `создать` from the unit card is in section 3 of the plan ->
+     make it. Write into it only what agrees with its «За что отвечает»;
+   - you need a method (a new action, a common part of logic) -> in sections 3 and 5 of the
+     plan, find a class with a matching responsibility and add the method there. If the
+     same method already exists, call it. Do not write a second one;
+   - the plan has no matching class -> you can make ONE new class for a unit (in a
+     technology unit - for a substep). Conditions:
+     - one responsibility, in one sentence;
+     - a name that tells what it does (not `Utils`/`Helper`/`Common`);
+     - it has callers.
+     Immediately add a line to section 5 of the plan «Добавлено по ходу миграции» and to
+     «Что сделано» of the unit card. If you need a second such class -> the plan is not
+     complete. Make the second class too, and add it to section 5 of the plan. Add a line in
+     «Входящие»: `решить человеку: план неполный, добавлены классы <...>`;
+   - the code does not agree with the responsibility of the class where you want to add it
+     -> do not add it «заодно». Do as the previous items tell.
+3. **Checks - on the framework matchers.** Read `references/matchers.md`. It tells how the
+   checks in the framework work, and which words to use when you ask the documentation
+   about the necessary matcher.
+   Write out all DIFFERENT kinds of checks from the files of the unit. For each kind that is
+   not yet in the doc notes, ask the documentation subagent (Step 3).
+   In a `usage` unit, replace each old check with a matcher/condition of the framework. Old
+   checks are: `Assertions`, `assertEquals`, `assertThat`, an own assert class, an own wrapper around the response,
+   manual parse of JSON for comparison. The check must check the same thing as before
+   (`MR-9`, `MR-11`). Only the method changes.
+   **Do not change an assert mechanically.** Sometimes the checked value was taken manually
+   from the response, from a DB row or from a message (a DTO getter, `jsonPath().get`, an
+   own check method). Then go back through the chain and write it again completely:
+   - the method returns a validatable object;
+   - the check uses `.should(...)`;
+   - remove the extra DTOs and check methods (`MR-41`, «разбери всю цепочку»).
+   If the doc notes do not have the necessary matcher -> ask the documentation subagent
+   (Step 3). If the documentation does not have it -> see «Если упёрся».
+4. Write only what the table confirms. Replace the old code. Do not keep it as comments.
+   Remove the old comments that described the old implementation together with it.
+5. **Remove the legacy of the unit.** Go through the section «Legacy под удаление в этом юните» of the unit card.
+   Before you remove each class/package, make sure that no references to it stay:
    ```
    grep -rln "<ИмяКласса>" --include=*.java --include=*.kt --include=*.xml --include=*.properties --include=*.yml --include=*.yaml . | grep -v "/target/\|/build/"
    ```
-   - пусто (или только сам удаляемый файл) -> удаляй (`git rm <файл>`);
-   - ссылки есть в файлах этого юнита -> сначала доделай миграцию этих мест;
-   - ссылки есть в файлах ВНЕ юнита -> НЕ удаляй и не правь чужие файлы; запиши во
-     «Входящие» карты, кто ещё ссылается. В `cleanup` - см. «Если упёрся», строка про legacy.
-   Зависимость/плагин из сборки удаляй так же: сначала убедись grep-ом, что импортов её
-   пакетов в проекте нет. Удаляй её ИЗ ВСЕХ мест сборки сразу, а не только из модуля:
+   - empty (or only the file that you remove) -> remove it (`git rm <файл>`);
+   - there are references in the files of this unit -> first finish the migration of these
+     places;
+   - there are references in files OUTSIDE the unit -> do NOT remove it and do not change
+     files of other units. Write into «Входящие» of the migration map which files still
+     refer to it. In `cleanup` - see «Если упёрся», the line about legacy.
+   Remove a dependency/plugin from the build in the same way. First make sure with grep that
+   the project has no imports of its packages. Remove it FROM ALL places of the build at the
+   same time, not only from the module:
    ```
    grep -rn "<artifactId или имя библиотеки>" --include=pom.xml --include=*.gradle --include=*.kts --include=*.toml --include=gradle.properties .
    ```
-   Maven: `<dependency>`/`<plugin>` в модулях, `<dependencyManagement>`/`<pluginManagement>`
-   в родителе, свойство версии в `<properties>`, `<exclusions>` ради неё. Gradle: блоки
-   `dependencies`/`plugins`, строки в `gradle/libs.versions.toml` (`[versions]`,
-   `[libraries]`, `[bundles]`, `[plugins]`), `gradle.properties`, `buildSrc/`. Место есть в
-   выводе grep, но его нет в карточке - это тот же случай, что «лишний файл» в «Если упёрся»:
-   правка механическая, допиши файл в карточку с пометкой `добавлен по ходу`.
-6. Если после твоих правок в проекте стал никому не нужен старый класс, которого НЕТ в
-   карточке (grep показывает ноль ссылок), - удали его тоже и допиши в карточку с пометкой
-   `удалён - больше не используется`. Это единственное разрешённое расширение списка файлов.
-7. Не переформатируй строки, которые не меняешь. Не переименовывай и не переноси классы,
-   если этого нет в шагах карточки.
+   Maven: `<dependency>`/`<plugin>` in modules, `<dependencyManagement>`/`<pluginManagement>`
+   in the parent, the version property in `<properties>`, `<exclusions>` for it. Gradle:
+   blocks `dependencies`/`plugins`, lines in `gradle/libs.versions.toml` (`[versions]`,
+   `[libraries]`, `[bundles]`, `[plugins]`), `gradle.properties`, `buildSrc/`.
+   If a place is in the grep output but not in the unit card, it is the same case as
+   «лишний файл» in «Если упёрся». The change is mechanical: add the file to the unit card with the
+   mark `добавлен по ходу`.
+6. If after your changes an old class that is NOT in the unit card is not necessary any more
+   (grep shows zero references), remove it too. Add it to the unit card with the mark
+   `удалён - больше не используется`. This is the only permitted extension of the file list.
+7. Do not reformat lines that you do not change. Do not rename or move classes if the steps
+   of the unit card do not tell you to do it.

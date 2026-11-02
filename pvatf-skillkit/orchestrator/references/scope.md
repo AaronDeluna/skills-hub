@@ -1,24 +1,27 @@
-# Объём миграции (`scope`)
+# Scope of the migration (`scope`)
 
-Часть скилла `orchestrator`. Открывай, только когда SKILL.md направил сюда.
+Part of the skill `orchestrator`. Open this file only when SKILL.md sends you here.
 
-| `scope` | Что это значит | Какие юниты можно выполнять |
+| `scope` | What it means | Which units you can do |
 |---------|----------------|-----------------------------|
-| `full`  | полная миграция (по умолчанию) | все |
-| `core`  | только ядро, тесты не трогаем | юниты `env`; в юнитах `tech` - только подшаги `разбор`, `env`, `core` (это соблюдает сам `migration-step`); юниты `arch`, `cleanup`, `review` считай недоступными |
+| `full`  | full migration (default) | all |
+| `core`  | only the core, do not change the tests | units `env`; in units `tech` - only the substeps `разбор`, `env`, `core` (`migration-step` itself obeys this); units `arch`, `cleanup`, `review` are not available |
 
-Менять `scope` можно только по прямой просьбе пользователя:
-- «переведи только ядро», «тесты не трогай» -> запиши в шапку карты `scope: core`;
+Change `scope` only if the human asks for it directly:
+- «переведи только ядро», «тесты не трогай» -> write `scope: core` in the header of the map;
 - «мигрируй всё», «продолжи полную миграцию», «теперь переводи тесты» -> `scope: full`.
-Сам `scope` не меняй. Если карты ещё нет - передай просьбу про объём в `migration-map`.
-Карта уже построена как `full`, а пользователь просит «только ядро» -> карточки `core`-юнитов
-написаны под другой режим: запусти `migration-map` в режиме обновления (Этап 6) и передай
-просьбу - он перепишет карточки `core`. Переход `core` -> `full` обновления карты не требует.
+Do not change `scope` yourself. If there is no map yet, give the request about the scope to `migration-map`.
+If the map is already made as `full` and the human asks «только ядро» -> the cards of the `core` units
+are written for a different mode. Start `migration-map` in update mode (Stage 6) and give it the
+request: it writes the `core` cards again. The change `core` -> `full` does not need a map update.
 
-Порядок работ зашит в карту и не обсуждается: Java 17, если в проекте версия ниже (самый
-первый юнит) -> зависимости всех технологий -> технологии по
-одной, от простой к сложной, каждая - одним юнитом и до конца (подшаги: разбор ->
-окружение -> классы шагов -> перевод шагов и тестов -> удаление legacy -> ревью кода
-технологии сабагентами и исправление находок) -> архитектура
--> финальная зачистка. Когда все юниты `done` - финальная проверка всего проекта
-(`migration-review`).
+The order of the work is fixed in the map. Do not discuss it. The order:
+- Java 17, if the project has a lower version (the very first unit).
+- Then the dependencies of all technologies.
+- Then the technologies one by one, from simple to complex. Each technology is one unit, done to the end.
+  The substeps: analysis -> environment -> step classes -> migration of the steps and tests ->
+  removal of legacy -> code review of the technology by subagents and fix of the findings.
+- Then the architecture.
+- Then the final cleanup.
+
+When all units are `done`, do the final check of the full project (`migration-review`).

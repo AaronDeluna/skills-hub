@@ -1,32 +1,48 @@
-# Этап 6 - Покажи карту человеку и получи одобрение
+# Stage 6 - Show the migration map to the human and get the approval
 
-Часть скилла `migration-map`. Общие правила - `references/core-rules.md`, правила карты и порядок этапов - `SKILL.md`.
+This file is a part of the skill `migration-map`. The general rules are in `references/core-rules.md`. The rules of the migration map and the order of stages are in `SKILL.md`.
 
-1. Поставь в шапке `map_status: review`.
-2. Покажи пользователю сводку: паспорт (2-3 строки), таблицу технологий (порядок, что
-   мигрируем, что остаётся `keep` и почему), сколько строк в матрице `G`, сколько проблем
-   `A`, сколько юнитов по фазам, **все открытые вопросы** из раздела 6. Отдельно покажи
-   архитектурный план: дерево пакетов и новые классы с их ответственностью (разделы 2 и 3
-   `ARCHITECTURE.md`) - и скажи, что его можно поправить до утверждения.
-3. **Сначала вопросы, потом одобрение.** Обычно к этому этапу вопросов уже нет (ворота перед
-   Этапом 5). Если в разделе 6 всё же есть вопрос без ответа (`ответ: -`)
-   - карту утверждать НЕЛЬЗЯ. Попроси человека ответить на каждый. Ответ получил -> впиши
-   его в раздел 6 и сразу поправь по нему карту и карточки (строки `G`, `L`, юниты). Пока
-   остался хоть один вопрос без ответа - `map_status` остаётся `review`.
-4. Вопросов без ответа нет -> спроси одним вопросом: «Карту утверждаем? да / нет (что
+1. In the header, set `map_status: review`.
+2. Show the human a summary:
+   - the map passport (2-3 lines);
+   - the table of technologies (the order, what we migrate, what stays `keep` and why);
+   - the number of rows in the matrix `G`;
+   - the number of problems `A`;
+   - the number of units for each phase;
+   - **all open questions** from section 6.
+
+   Separately, show the architecture plan: the package tree and the new classes with their
+   responsibility (sections 2 and 3 of `ARCHITECTURE.md`). Tell the human that he can correct
+   it before the approval.
+3. **First the questions, then the approval.** Usually, at this stage there are no questions
+   (the gate before Stage 5). If section 6 still has a question without an answer (`ответ: -`),
+   you CANNOT approve the migration map. Ask the human to answer each question. When you get
+   an answer -> write it into section 6. Immediately correct the migration map and the unit
+   cards by it (rows `G`, `L`, units). While at least one question has no answer,
+   `map_status` stays `review`.
+4. If there are no questions without an answer -> ask one question: «Карту утверждаем? да / нет (что
    поправить)».
-   - «да» -> `map_status: approved`. Скажи: «Откройте новый чат и напишите: `/orchestrator Продолжи миграцию`».
-   - правки -> внеси их в карту и карточки, покажи снова.
+   - «да» -> `map_status: approved`. Say: «Откройте новый чат и напишите: `/orchestrator Продолжи миграцию`».
+   - corrections -> add them to the migration map and the unit cards, and show it again.
 
-**Обновление карты** (карта уже `approved`, но проект изменился или накопились «Входящие»):
-ничего не строй заново. Разбери раздел 5 «Входящие» - каждый пункт преврати в новый юнит (в
-конец нужной фазы, следующий свободный номер `M-<nnn>` - больше любого номера в таблице, в
-строке «В архиве» над ней и в папке `units/`) или в вопрос человеку. Пункты,
-про технологию, чей юнит `tech` ещё не `done`, становятся подшагами в конце его карточки
-(перед подшагом `review`, если он ещё не сделан). Пункты,
-пришедшие из ревью («крупно»: разделить класс, убрать прослойку), становятся `arch`-юнитами;
-после них добавь ещё один `review`-юнит на затронутые файлы. Статусы уже
-сделанных юнитов не трогай. Покажи изменения и снова получи «да».
-Если поменялся `scope` с `full` на `core`: перепиши карточки ещё не сделанных подшагов `core`
-под режим `in-place` (Этап 5, таблица режимов); сделанные не трогай.
+**Update of the migration map («Обновление карты»)** (the migration map is already `approved`,
+but the project changed or «Входящие» has new items): do not make anything again from zero.
+
+Examine section 5 «Входящие». Make each item a new unit or a question to the human. For a new
+unit:
+- put it at the end of the applicable phase;
+- use the next free number `M-<nnn>`. It must be larger than any number in the table, in the
+  row «В архиве» above it and in the directory `units/`.
+
+Some items are about a technology whose unit `tech` is not `done` yet. They become substeps
+at the end of its unit card (before the substep `review`, if it is not done yet).
+
+Some items come from the review («крупно»: split a class, remove a layer). They become `arch`
+units. After them, add one more `review` unit for the changed files.
+
+Do not change the statuses of the units that are done. Show the changes and get «да» again.
+
+If `scope` changed from `full` to `core`: rewrite the unit cards of the `core` substeps that
+are not done yet for the mode `in-place` (Stage 5, the table of modes). Do not change the
+substeps that are done.
 

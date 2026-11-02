@@ -1,8 +1,8 @@
-# Шаблон отчёта проверки миграции
+# Template of the migration check report
 
-Путь: `.gigacode/data/migration/MIGRATION-REVIEW.md`. Заполняй только `<...>`. Заголовки не
-меняй. Новый круг проверки дописывается новым разделом «Круг <n>» в конец файла, старые
-круги не стираются.
+Path: `.gigacode/data/migration/MIGRATION-REVIEW.md`. Fill in only `<...>`. Do not change the
+headings. Add each new check round as a new section «Круг <n>» at the end of the file. Do not
+delete the old rounds.
 
 ```markdown
 # Проверка миграции на PVATF · <имя проекта>

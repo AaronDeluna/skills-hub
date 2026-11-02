@@ -1,57 +1,62 @@
-# Если упёрся: таблица решений по умолчанию
+# If you are stuck: table of default decisions
 
-Часть скилла `migration-step`. Главные правила и порядок чтения - в `SKILL.md`.
-«Если упёрся» и «Таблица решений по умолчанию» - `references/stuck.md`.
+This is a part of the skill `migration-step`. The main rules and the reading order are in
+`SKILL.md`. «Если упёрся» and «Таблица решений по умолчанию» are in `references/stuck.md`.
 
-**Режим менеджера (по умолчанию):** решение из этой таблицы, которое требует правки кода
-проекта («поправь», «замени», «удали»), выполняет исполнитель - повтором с этим решением
-(`references/manager.md`, п.8). Сам ты правишь только карточку и карту.
+**Manager mode (default):** some decisions from this table need a change of the project
+code («поправь», «замени», «удали»). The executor does such a decision - as a retry with this
+decision (`references/manager.md`, item 8). You yourself change only the unit card and the
+migration map.
 
-## Если упёрся
+## If you are stuck («Если упёрся»)
 
-Ты работаешь без человека: вопросов не задаёшь (правило 2 исполнителя в SKILL.md). У тебя три способа справиться,
-по порядку:
+You work without the human: you do not ask questions (rule 2 of the executor in SKILL.md).
+You have three methods to continue. Use them in this order:
 
-1. **Реши по таблице решений по умолчанию** (ниже) - большинство развилок уже решены.
-2. **Отложи место** - если в таблице решения нет и в источниках ответа нет:
-   - это место в коде оставь как было (старый код, который компилируется) или сделай
-     ближайшее, что подтверждено документацией;
-   - допиши в раздел «5. Входящие» карты строку: `решить человеку: <файл>:<строка> - <что
+1. **Decide by the table of default decisions** (below) - it already has decisions for most
+   choices.
+2. **Postpone the place** - if the table has no decision and the sources have no answer:
+   - keep this place in the code as it was (old code that compiles), or do the nearest
+     thing that the documentation confirms;
+   - add a line to the section «5. Входящие» of the migration map: `решить человеку: <файл>:<строка> - <что
      не сделано> - <что искал: формулировки, источники> - <какое решение предлагаешь>`;
-   - в «Сделано» подшага (или «Что сделано» юнита): `отложено: <файл>:<строка> - <что>`;
-   - закрой подшаг и иди дальше. Отложенное место не делает подшаг и юнит незакрытыми.
-3. **Остановись** - только если работать физически нельзя: проект не компилируется после
-   3 попыток; показательный тест красный из-за миграции после 3 попыток; MCP с
-   документацией недоступен совсем; в git чужие незакоммиченные изменения. Тогда юнит
-   `in-progress` (или `blocked`), точное описание в «Где остановился» / «Блокер», Шаг 7
-   (п.3-4) и Шаг 8.
+   - in «Сделано» of the substep (or «Что сделано» of the unit): `отложено: <файл>:<строка> - <что>`;
+   - close the substep and continue. A postponed place does not make the substep and the
+     unit not closed.
+3. **Stop** - only if you physically cannot work:
+   - the project does not compile after 3 attempts;
+   - the representative test is red because of the migration after 3 attempts;
+   - the MCP with the documentation is fully not available;
+   - git has changes of other people without a commit.
+   Then the unit is `in-progress` (or `blocked`). Write an exact description in
+   «Где остановился» / «Блокер». Do Step 7 (items 3-4) and Step 8.
 
-**Таблица решений по умолчанию.** Нашёл свою ситуацию -> делай, как написано, и запиши
-одной строкой: «решено по умолчанию: <что> - <почему>».
+**Table of default decisions («Таблица решений по умолчанию»).** If you found your situation
+-> do as the table tells, and write one line: «решено по умолчанию: <что> - <почему>».
 
-| Ситуация | Решение |
-|----------|---------|
-| С какими адресами, хостами, логинами, паролями, токенами, clientId/clientSecret, сертификатами, топиками, группами, namespace, алиасами подключаться (Kafka, БД, OpenShift, Сбермок, REST) | С теми же, с которыми проект работал раньше. Ищи по порядку, пока не найдёшь: 1) `CONNECTIONS.md`, раздел технологии; 2) «Данные подключения» в карточке; 3) старые конфиги и код: `grep -rniE "<слово1>\|<слово2>" --include=*.properties --include=*.yml --include=*.yaml --include=*.conf --include=*.java --include=*.kt --include=pom.xml --include=Jenkinsfile* . \| grep -v "/target/\|/build/\|\.gigacode"`; 4) старый файл уже удалён - история основной ветки: `git show <основная ветка>:<путь к файлу>` или `git log --all -p -S "<слово>" \| head -60`. Нашёл - допиши в `CONNECTIONS.md`. Значение задаётся снаружи (`${VAR}`, `System.getenv`, переменная в Jenkinsfile) - в настройки фрейма пиши ту же переменную тем способом, который даёт документация. Нигде нет - ключ необязательный: не пиши его; обязательный: та же переменная окружения, что и раньше, строка `решить человеку: <ключ> - значения нет в проекте` во «Входящие». Человека не спрашивай |
-| Какие сертификаты подключать и где пароль к ним | Те же файлы, что подключает проект сейчас: `CONNECTIONS.md`, раздел «Сертификаты и хранилища ключей». Подключай так, как велит конспект технологии; путь и пароль - те же |
-| Как теперь пользоваться технологией (например, заглушки Сбермок: как вызывать заглушённые эндпоинты) | Так же, как проект пользовался ею раньше: те же вызовы, адреса, параметры - меняется только механизм на фреймовый. Обычный REST-вызов заглушки - штатным REST-клиентом фрейма через базовый слой `RestSteps`; управление заглушками - сервисом фрейма этой технологии, если проект им пользовался |
-| Карточка просит то, чего фрейм не умеет | Права документация: тот же результат так, как умеет фрейм. Поправь подшаг в карточке сам (что сделать, итоговый результат, чекпоинт), запиши почему. Технологию на старом не оставляй, `keep` не ставь |
-| Ответ раньше разбирался в DTO, DTO шёл дальше по коду, потом геттер и ассерт | Всегда переписывай цепочку (`MR-41`): метод запроса возвращает валидируемый объект фрейма, проверки - `.should(...)`, дальше по коду передаётся валидируемый объект или одно нужное значение, DTO ответа удаляется. Вызывающие файлы, которые ломаются, - добавь в этот подшаг (или следующим подшагом `usage`) |
-| DTO, модели, Jackson, JAXB, свои обёртки над ними (`JacksonHelper`); документация не описывает десериализацию или получение тела строкой | Таблица в `MR-41` (`references/code-rules.md`): DTO ответа - удалить, проверки - `.should(...)`; модели тел запросов - оставить; методы обёртки для разбора ответа - удалить, для сборки тел - оставить, пока ими пользуются. Отсутствие десериализации в документации - не пробел: фрейму она не нужна |
-| Документация молчит про библиотеку, драйвер, аннотации, чтение файлов, логирование, стенды, имена стандартных ключей | Решение из карты (таблица «Документация молчит» в разделе 2 / блоке `T`). В карте нет: библиотеки общего назначения (Lombok и т.п.), драйвер СУБД, свои аннотации Allure, своё чтение файлов с данными - остаются как есть; код без вызывающих - удаляется; логирование - `simplelogger.properties`; стандартные ключи SSL и клиента - имена как в библиотеке; значения нет в проекте - `снаружи: <ПЕРЕМЕННАЯ>` и строка во «Входящие». Человека не спрашивай |
-| Matcher для проверки не нашёлся (конспект, сабагент, папка `docs` исходников фрейма) | Стандартный ассерт JUnit (`MR-29`), без `assertAll`; строка во «Входящие». Свой matcher, обёртку, класс условия не пиши |
-| Элементы массива JSON против строк таблицы БД, а matcher массива целиком нет | Цикл по строкам; в теле - один вызов `.shouldSoft(...)` с matchers для элемента `[i]` прямо внутри (`MR-48`) |
-| Значение ячейки БД сравнивается с ожидаемым | matcher строки или таблицы (`DatabaseMatchers`, «значение ячейки равно»); не нашёлся - строка про matcher выше |
-| Документации не хватает, лестница источников (`references/doc-subagent.md`, раздел 2) ничего не дала | Отложи место (способ 2) |
-| Документация противоречит карточке | Права документация. Делай по ней, в «Сделано» запиши расхождение; меняется состав файлов или шагов - поправь подшаг в карточке сам |
-| Чтобы проект компилировался, надо поменять файлы не из подшага | Правка механическая (импорт, имя типа, вызов) - поправь, допиши файлы в подшаг с пометкой `добавлен по ходу`. Не механическая - допиши новый подшаг `usage` на эти файлы сразу следующим и сделай его |
-| Подшаг больше лимита | Дели сам: сделай часть, остальное - новым подшагом сразу следующим, в этом же чате |
-| Показательный тест был красный ещё ДО миграции и после неё красный с той же ошибкой | Не чини чужую причину. Возьми из файлов подшага другой тест, который был бы зелёным; такого нет - закрой по компиляции, строка `решить человеку: тест <...> красный и до миграции` |
-| Показательный тест идёт дольше 10 минут | Прерви, возьми другой быстрый (без ожиданий, UI, контейнеров); быстрого нет - закрой по компиляции, строка `решить человеку: нет быстрого теста для <...>` |
-| Показательный тест не запускается из-за окружения (нет стенда, сети, доступов) | Не подделывай результат. Закрой по компиляции, в «Проверки» - точная команда и ошибка, строка `решить человеку: запустить <команда>` |
-| `cleanup`: на legacy ещё ссылаются файлы вне подшага | В юните `tech` - допиши подшаг `usage` на эти файлы перед `cleanup` и сделай его. В юните фазы 4 - удали то, на что ссылок нет, остальное - `решить человеку` |
-| Какое имя дать классу или методу, в какой пакет положить | По архитектурному плану, `MR-40`, `MR-45`; в плане нет - по образцу соседних классов того же слоя |
-| Удалить ли старый класс, на который больше нет ссылок | Да (Шаг 5, п.6) |
-| На это уже отвечали | Раздел 6 карты или конспект: `grep -n "<ключевое слово>" .gigacode/data/migration/MIGRATION-MAP.md .gigacode/data/migration/doc-notes/*.md` |
-| Человек раньше дал путь к документации | Читай её сам: `grep -rn "<ключевые слова>" <путь>`, потом нужные куски |
-| Другие тесты (не показательный) падали ещё ДО твоих изменений | Не чини. Запиши в «Проверки» и строку во «Входящие» |
-| Хочется поправить «заодно» что-то рядом | Нельзя. Строка во «Входящие» - и дальше по карточке |
+| Situation | Decision |
+|-----------|----------|
+| Which addresses, hosts, logins, passwords, tokens, clientId/clientSecret, certificates, topics, groups, namespace, aliases to use for the connection (Kafka, DB, OpenShift, Сбермок, REST) | The same that the project used before. Search in this order until you find them: 1) `CONNECTIONS.md`, the section of the technology; 2) «Данные подключения» in the unit card; 3) old configs and code: `grep -rniE "<слово1>\|<слово2>" --include=*.properties --include=*.yml --include=*.yaml --include=*.conf --include=*.java --include=*.kt --include=pom.xml --include=Jenkinsfile* . \| grep -v "/target/\|/build/\|\.gigacode"`; 4) the old file is already removed - the history of the main branch: `git show <основная ветка>:<путь к файлу>` or `git log --all -p -S "<слово>" \| head -60`. If you found it, add it to `CONNECTIONS.md`. If the value comes from the outside (`${VAR}`, `System.getenv`, a variable in Jenkinsfile), write the same variable into the framework settings, in the way that the documentation gives. If it is nowhere: an optional key - do not write it; a mandatory key - the same environment variable as before, and the line `решить человеку: <ключ> - значения нет в проекте` in «Входящие». Do not ask the human |
+| Which certificates to connect and where their password is | The same files that the project connects now: `CONNECTIONS.md`, section «Сертификаты и хранилища ключей». Connect them as the doc notes of the technology tell. The path and the password stay the same |
+| How to use the technology now (for example, Сбермок stubs: how to call the stubbed endpoints) | The same way as the project used it before: the same calls, addresses, parameters. Only the mechanism changes to the framework mechanism. A usual REST call of a stub - with the standard REST client of the framework through the base layer `RestSteps`. Control of stubs - with the framework service of this technology, if the project used it |
+| The unit card asks for something that the framework cannot do | The documentation is correct: get the same result in the way that the framework can do it. Change the substep in the unit card yourself (what to do, final result, checkpoint) and write why. Do not keep the technology on the old code. Do not set `keep` |
+| Before, the response was parsed into a DTO, the DTO went further through the code, then a getter and an assert | Always write the chain again (`MR-41`): the request method returns a validatable framework object, the checks use `.should(...)`, the code passes further the validatable object or one necessary value, remove the response DTO. Add the calling files that break to this substep (or as the next substep `usage`) |
+| DTOs, models, Jackson, JAXB, own wrappers around them (`JacksonHelper`); the documentation does not describe deserialization or getting the body as a string | The table in `MR-41` (`references/code-rules.md`): response DTO - remove, checks - `.should(...)`; models of request bodies - keep; wrapper methods for parsing the response - remove; for building bodies - keep while code uses them. If the documentation has no deserialization, this is not a gap: the framework does not need it |
+| The documentation says nothing about a library, a driver, annotations, file reading, logging, stands, names of standard keys | The decision from the migration map (the table «Документация молчит» in section 2 / block `T`). If the migration map does not have it: general-purpose libraries (Lombok etc.), the DBMS driver, own Allure annotations, own reading of data files - keep as they are; code without callers - remove; logging - `simplelogger.properties`; standard SSL and client keys - names as in the library; the project has no value - `снаружи: <ПЕРЕМЕННАЯ>` and a line in «Входящие». Do not ask the human |
+| No matcher for the check was found (doc notes, subagent, folder `docs` of the framework sources) | A standard JUnit assert (`MR-29`), without `assertAll`; a line in «Входящие». Do not write an own matcher, wrapper or condition class |
+| Elements of a JSON array against rows of a DB table, and there is no matcher for the full array | A loop over the rows. In the body - one call `.shouldSoft(...)` with matchers for the element `[i]` directly inside (`MR-48`) |
+| The value of a DB cell is compared with the expected value | A matcher of a row or of a table (`DatabaseMatchers`, «значение ячейки равно»). If not found - see the line about the matcher above |
+| The documentation is not sufficient, the ladder of sources (`references/doc-subagent.md`, section 2) gave nothing | Postpone the place (method 2) |
+| The documentation does not agree with the unit card | The documentation is correct. Do it by the documentation. Write the difference in «Сделано». If the set of files or steps changes - change the substep in the unit card yourself |
+| To make the project compile, you must change files that are not in the substep | A mechanical change (import, type name, call) - make it, and add the files to the substep with the mark `добавлен по ходу`. Not mechanical - add a new substep `usage` for these files immediately after the current substep, and do it |
+| The substep is larger than the limit | Divide it yourself: do a part, and put the remaining part into a new substep immediately after the current one, in this same chat |
+| The representative test was red already BEFORE the migration, and after it, it is red with the same error | Do not fix a cause that is not yours. Take a different test from the files of the substep that is green. If there is no such test - close by compilation, line `решить человеку: тест <...> красный и до миграции` |
+| The representative test runs more than 10 minutes | Stop it. Take a different fast test (without waits, UI, containers). If there is no fast test - close by compilation, line `решить человеку: нет быстрого теста для <...>` |
+| The representative test does not start because of the environment (no stand, no network, no access) | Do not fake the result. Close by compilation. In «Проверки» - the exact command and the error, line `решить человеку: запустить <команда>` |
+| `cleanup`: files outside the substep still refer to legacy | In a unit `tech` - add a substep `usage` for these files before `cleanup`, and do it. In a unit of phase 4 - remove what has no references; the rest - `решить человеку` |
+| Which name to give to a class or a method, which package to put it in | By the architecture plan, `MR-40`, `MR-45`. If the plan does not have it - by the pattern of the nearby classes of the same layer |
+| Remove an old class that has no references now? | Yes (Step 5, item 6) |
+| Somebody already answered this | Section 6 of the migration map or the doc notes: `grep -n "<ключевое слово>" .gigacode/data/migration/MIGRATION-MAP.md .gigacode/data/migration/doc-notes/*.md` |
+| The human gave a path to the documentation before | Read it yourself: `grep -rn "<ключевые слова>" <путь>`, then the necessary parts |
+| Other tests (not the representative test) failed already BEFORE your changes | Do not fix them. Write it in «Проверки» and add a line in «Входящие» |
+| You want to fix something nearby «заодно» | Not permitted. Write a line in «Входящие» - and continue by the unit card |

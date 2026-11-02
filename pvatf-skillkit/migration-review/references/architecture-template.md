@@ -1,9 +1,9 @@
-# Шаблон архитектурного плана
+# Template of the architecture plan
 
-Путь: `.gigacode/data/migration/ARCHITECTURE.md`. Это план того, как проект будет выглядеть
-ПОСЛЕ миграции: какие пакеты, какие классы, какой класс за что отвечает. Его строит
-`migration-map` на Этапе 4, читает `migration-step` перед каждым юнитом. Заполняй только
-`<...>`. Заголовки и названия колонок не меняй.
+Path: `.gigacode/data/migration/ARCHITECTURE.md`. This is the plan of the project AFTER the
+migration: which packages, which classes, and what each class does. `migration-map` makes it
+at Stage 4. `migration-step` reads it before each unit. Fill in only
+`<...>`. Do not change the headings and the column names.
 
 ```markdown
 # Архитектурный план · <имя проекта>
@@ -49,90 +49,95 @@
 |-------|-------|------|------------|-----------------|----------------------------------------------|------|
 ```
 
-## Правила заполнения раздела 3
+## Rules to fill in section 3
 
-Пройди их по КАЖДОЙ строке, прежде чем записать класс в план.
+Apply these rules to EACH row before you write the class into the plan.
 
-1. **Одна ответственность.** Колонка «За что отвечает» - одно предложение с одним глаголом
-   действия. В предложении есть «и», «а также», «разное», «общие», «вспомогательные» ->
-   это два класса или лишний класс: раздели или убери.
-2. **Без повторов.** В плане нет двух классов с одинаковой или пересекающейся
-   ответственностью. Одно действие (запрос к одному API, запрос в одну таблицу, отправка в
-   один топик) живёт в ОДНОМ классе. Нашёл пересечение -> объедини в один класс.
-3. **У класса есть, кто его вызывает.** Колонка «Кто вызывает» не пустая. Вызывать некому ->
-   класс не нужен, не планируй его «на будущее». Для нового класса шагов в ней - те, кто
-   сейчас делает это действие сам (потребители технологии), и на каждого из них на Этапе 5
-   будет `usage`-юнит, который переведёт его на этот класс.
-4. **Имя говорит, что класс делает.** Нельзя: `Utils`, `Helper`, `Common`, `Manager`,
-   `Base...`, `Abstract...` ради общего кода, `...Wrapper` вокруг сервиса фрейма.
-   Исключение - базовый тест-класс (см. правило 8).
-5. **Один класс - одна технология.** Класс шагов работает с одной технологией и одной
-   предметной областью (API заказов; таблицы клиентов). Сценарий, которому нужны две
-   технологии, собирается в тесте из шагов двух классов, а не в классе «всё сразу».
-   Исключение - класс-флоу (стиль `flow`, см. ниже): он ведёт один сценарий и может
-   работать с несколькими технологиями этого сценария.
-6. **Не один класс на всё.** Действий технологии больше 15 или класс выйдет длиннее 500
-   строк -> дели по предметной области заранее, в плане, а не потом.
-7. **Не плоди.** Новый класс планируется, только если его ответственность не закрывает
-   фрейм (тогда класс не нужен вовсе) и не закрывает другой класс плана.
-8. **Базовый тест-класс - есть в плане всегда.** Это класс только с аннотациями
-   подключения фрейма (расширение фрейма, конфигурация окружения), от которого наследуются
-   тест-классы, чтобы не повторять аннотации в каждом тесте. Один на каждую конфигурацию
-   окружения. В проекте уже есть базовый тест-класс -> в плане он остаётся под своим
-   именем, «Откуда» - `остаётся`, в «За что отвечает» - «подключает фрейм и конфигурацию
-   <имя> для тестов»; всё остальное из него уходит в шаги или удаляется. Нет -> новый
-   `BaseTest` в корневом пакете тестов. Клиентов, методов запросов и проверок в нём нет.
-9. **Сходится с целевой картиной.** Каждый класс из «Слой шагов» и «Что будет» блоков `T`
-   карты есть в разделе 3, и наоборот: в разделе 3 нет класса технологии, которого нет в её
-   блоке `T`.
-10. **Слои без лишнего.** У каждой технологии ровно один класс базового слоя. В плане нет
-   классов-фасадов, которые передают вызовы другому классу, вложенных классов и классов
-   «всё общее» (`...Common`, `...Helper`). Если в проекте уже есть десятки методов с
-   одинаковым телом (один и тот же запрос с разными путями), в плане это один метод
-   базового слоя и тонкие шаги предметной области (`MR-49`).
+1. **One responsibility.** The column «За что отвечает» is one sentence with one action verb.
+   If the sentence has «и», «а также», «разное», «общие», «вспомогательные» ->
+   these are two classes or an unnecessary class: divide it or remove it.
+2. **No repetitions.** The plan does not have two classes with the same responsibility or with
+   overlapping responsibilities. One action (a request to one API, a query to one table, a send
+   to one topic) is in ONE class. If you found an overlap -> join the classes into one class.
+3. **The class has a caller.** The column «Кто вызывает» is not empty. If there is no caller ->
+   you do not need the class. Do not plan it «на будущее» (for the future). For a new step class, this
+   column contains the classes that do this action themselves now (the technology consumers).
+   At Stage 5, each of them gets a `usage` unit that moves it to this class.
+4. **The name tells what the class does.** Do not use: `Utils`, `Helper`, `Common`, `Manager`,
+   `Base...`, `Abstract...` for shared code, `...Wrapper` around a framework service.
+   Exception: the base test class (see rule 8).
+5. **One class - one technology.** A step class works with one technology and one subject
+   area (orders API; client tables). A scenario that needs two technologies is built in the
+   test from the steps of two classes, not in a class «всё сразу» (everything at once).
+   Exception: a flow class (style `flow`, see below). It runs one scenario and can
+   work with a number of technologies of this scenario.
+6. **Not one class for everything.** If the technology has more than 15 actions, or the class
+   becomes longer than 500 lines -> divide the class by subject area. Do it now, in the plan, not later.
+7. **Do not make too many classes.** Plan a new class only if the framework does not cover its
+   responsibility and no other class of the plan covers it. If the framework covers it, you do not
+   need the class at all.
+8. **The plan always has the base test class.** This class has only the annotations that
+   connect the framework (framework extension, environment configuration). The test classes
+   extend it, so that each test does not repeat the annotations. There is one base test class
+   for each environment configuration.
+   - If the project already has a base test class -> it stays in the plan with its name.
+     «Откуда» is `остаётся`. «За что отвечает» is «подключает фрейм и конфигурацию
+     <имя> для тестов». Everything else from it goes into the steps or is removed.
+   - If not -> a new `BaseTest` in the root test package.
+   The base test class has no clients, no request methods and no checks.
+9. **The plan agrees with the target picture.** Section 3 has each class from «Слой шагов» and
+   «Что будет» of the `T` blocks of the map. Also, section 3 has no technology class that is not in the `T`
+   block of this technology.
+10. **No unnecessary layers.** Each technology has exactly one class of the base layer.
+   The plan has no facade classes that only pass calls to another class, no nested classes,
+   and no classes «всё общее» (everything shared): `...Common`, `...Helper`. Sometimes the project already
+   has tens of methods with the same body (the same request with different paths). In this case,
+   the plan has one method of the base layer and thin subject-area steps for them (`MR-49`).
 
-## Если стиль шагов - flow (строка паспорта «Стиль шагов»)
+## If the step style is flow («Если стиль шагов - flow»; map passport line «Стиль шагов»)
 
-Тесты записываются через FlowRunner фрейма (точные имена - только из записи `D-common-7`).
-Как это устроено:
+The tests use the FlowRunner of the framework (take the exact names only from the record `D-common-7`).
+How it works:
 
-- **Тест** - цепочка именованных шагов: запустить флоу -> шаг «<название>» -> шаг
-  «<название>» -> выполнить. Каждый шаг вызывает ОДИН метод класса-флоу. Своей логики в
-  тесте нет. Названия шагов берутся из старого теста (текст `@Step`, комментарий «Шаг 1»),
-  порядок шагов не меняется.
-- **Класс-флоу** - слой шагов. Он получает клиентов фрейма (один раз, в конструкторе),
-  содержит методы-действия (отправить запрос, выбрать из БД, отправить в Kafka) и
-  методы-проверки (проверка через `.should(...)` того, что получено на предыдущем шаге), и
-  хранит между шагами то, что нужно следующим шагам (валидируемый ответ) - в поле или тем
-  способом, который показывает документация.
+- **Test** - a chain of named steps: start the flow -> step «<название>» -> step
+  «<название>» -> run. Each step calls ONE method of the flow class. The test has no own
+  logic. Take the step names from the old test (the text of `@Step`, the comment «Шаг 1»).
+  Do not change the order of the steps.
+- **Flow class** - the step layer. It gets the framework clients (one time, in the constructor).
+  It contains:
+  - action methods (send a request, select from the DB, send to Kafka);
+  - check methods (a check with `.should(...)` of the result from the previous step).
+  Between steps, it keeps the data that the next steps need (the validatable response):
+  in a field or in the way that the documentation shows.
 
-- **Флоу собирается как конструктор.** Класс-флоу реализует интерфейс флоу фрейма и
-  подключает нужные части через `implements`:
-  - готовые интерфейсы технологий фрейма (для REST, для БД и другие - список и методы в
-    записи `D-common-8`). Они уже дают готовые шаги: выполнить запрос в БД, запрос из
-    шаблона SQL и так далее. Что даёт фрейм - своим кодом не повторяется;
-  - свои подключаемые части проекта - интерфейс или класс шагов с логикой одной предметной
-    области («действия с API заказов»). Логика пишется в них один раз, и каждый флоу,
-    которому она нужна, её подключает.
-  В разделе 3 плана на каждую свою подключаемую часть - отдельная строка, а у класса-флоу в
-  колонке «За что отвечает» перечисли, что он подключает.
+- **The flow is built from parts.** The flow class implements the flow interface of the
+  framework and connects the necessary parts with `implements`:
+  - ready interfaces of the framework technologies (for REST, for the DB and other; the list
+    and the methods are in the record `D-common-8`). They already give ready steps: run a DB
+    query, a query from an SQL template, and other steps. Do not repeat with your own code
+    what the framework gives;
+  - own connectable parts of the project: an interface or a step class with the logic of one
+    subject area («действия с API заказов»). Write the logic in them one time. Each flow that
+    needs this logic connects the part.
+  In section 3 of the plan, write a separate row for each own connectable part. For the flow class,
+  list in the column «За что отвечает» the parts that it connects.
 
-В разделе 1 плана слой «шаги» запиши как «флоу», в разделе 3 для каждого класса-флоу в
-колонке «За что отвечает» пиши сценарий: «ведёт сценарий создания заказа: запрос в API,
+In section 1 of the plan, write the layer «шаги» as «флоу». In section 3, for each flow class,
+write the scenario in the column «За что отвечает»: «ведёт сценарий создания заказа: запрос в API,
 проверка записи в БД, проверка сообщения в Kafka».
 
-Как продумать, какие флоу нужны:
+How to find which flows you need:
 
-1. Выпиши сценарии тестов: какие шаги и в каком порядке идут в тест-классах (по 2-3
-   образца на пакет тестов, не читай все).
-2. **Один флоу - одна группа сценариев одной предметной области** (заказы, клиенты,
-   платежи). Тесты одного тест-класса обычно идут в один флоу.
-3. НЕ делай: один флоу на весь проект; отдельный флоу на каждый тест; два флоу с
-   одинаковыми методами; свой класс, который повторяет готовые шаги фрейма. Одинаковое
-   действие нужно двум флоу -> оно выносится в одну подключаемую часть (свой интерфейс или
-   класс шагов), и оба флоу её подключают.
-4. Во флоу больше 15 методов или он длиннее 500 строк -> дели по сценариям.
-5. Флоу, который работает с несколькими технологиями, создаётся в юните ПОСЛЕДНЕЙ из
-   них (как и тесты на несколько технологий).
-6. Тесты без шагов (один запрос - одна проверка) во флоу переводить не обязательно: для
-   них допустим обычный класс шагов. В плане так и запиши.
+1. Write down the test scenarios: which steps the test classes have and in which order
+   (2-3 examples for each test package; do not read all tests).
+2. **One flow - one group of scenarios of one subject area** (orders, clients,
+   payments). The tests of one test class usually go into one flow.
+3. Do NOT make: one flow for all of the project; a separate flow for each test; two flows with
+   the same methods; your own class that repeats the ready steps of the framework. If two flows
+   need the same action -> move it into one connectable part (your own interface or step
+   class), and both flows connect it.
+4. If a flow has more than 15 methods or is longer than 500 lines -> divide it by scenarios.
+5. Make a flow that works with a number of technologies in the unit of the LAST of these
+   technologies. The tests for a number of technologies use the same rule.
+6. You do not have to move tests without steps (one request - one check) into a flow:
+   a usual step class is allowed for them. Write this in the plan.

@@ -1,10 +1,11 @@
-# Сабагенты Этапа 5: разбор технологии, составитель карточки, проверяющий карточки
+# Stage 5 subagents: technology analysis, card writer, card checker
 
-Часть скилла `migration-map`. Открывай на Этапе 5, когда строишь карточку юнита `tech`.
+Part of the skill `migration-map`. Open this file at Stage 5, when you build the unit card of the unit `tech`.
 
-Зачем: к Этапу 5 твой контекст забит инвентаризацией, конспектом и матрицей. Карточку,
-написанную «по памяти» из такого контекста, легко написать с пропусками. Поэтому карточка
-строится из ФАЙЛОВ, а не из памяти, и каждый кусок делает сабагент с чистым контекстом:
+The reason: at Stage 5, your context is full of the inventory, the doc notes and the matrix.
+If you write a unit card «по памяти» from such a context, it is easy to miss data. Thus you
+build the unit card from FILES, not from memory. A subagent with a clean context does each
+part:
 
 ```
 5.1 разбор технологии   -> inventory/analysis-<tech>.md   (сабагент читает код, считает командами)
@@ -14,29 +15,37 @@
 5.5 исправление         -> составитель правит по находкам   (не больше 2 кругов)
 ```
 
-Технологии идут по одной, в порядке паспорта. Для каждой - весь цикл 5.1-5.5, потом
-следующая. Каждый шаг цикла, кроме скрипта, - ОБЯЗАТЕЛЬНО через своего сабагента. Только
-если вызов сабагента вернул ошибку (не «долго» и не «проще самому») -> покажи ошибку в чате, запиши в журнал карты `сабагент не запустился: <ошибка>` - делаешь этот шаг сам, по тем же промптам и шаблонам.
+Do the technologies one at a time, in the order of the map passport. For each technology, do
+the full cycle 5.1-5.5, then go to the next technology. Each step of the cycle, except the
+script, goes MANDATORILY through its own subagent. Only if the subagent call returned an error
+(not «долго» and not «проще самому») -> show the error in the chat, write
+`сабагент не запустился: <ошибка>` into the map log, and do this step yourself, with the same
+prompts and templates.
 
 ---
 
-## 5.1 Сабагент «разбор технологии»
+## 5.1 Subagent «разбор технологии»
 
-Только читает и считает командами. Его ответ - факты о коде, на которых стоит вся карточка:
-кто обращается к технологии, как, какие действия делает, сколько в нём проверок какого
-вида. Числа он получает командой и пишет команду рядом - чтобы их можно было перепроверить.
+This subagent only reads and counts with commands. Its answer is the facts about the code. All
+of the unit card stands on these facts:
+- who accesses the technology, and how;
+- which actions the code does;
+- how many checks of each type the code has.
 
-Что подставить в промпт:
-- старые пакеты и классы старого ядра технологии - из строк `G` и `L` карты;
-- обращения к сервису фрейма - имена из конспекта `doc-notes/<tech>.md` (как фрейм
-  получает клиент технологии);
-- классы шагов из архитектурного плана этой технологии (их не считать потребителями);
-- каталоги исходников - из паспорта.
+The subagent gets each number with a command and writes the command next to it. Then you can
+check the numbers again.
 
-Потребителей больше 25 -> несколько сабагентов, файлы поделены по пакетам; таблицы их
-ответов склей в один файл. Одновременно не больше 3.
+What to put into the prompt:
+- the old packages and the classes of the old core of the technology - from the lines `G` and `L` of the migration map;
+- the access to the framework service - the names from the doc notes `doc-notes/<tech>.md` (how
+  the framework gets the client of the technology);
+- the step classes from the architecture plan of this technology (do not count them as consumers);
+- the source directories - from the map passport.
 
-**Промпт (копируй дословно, подставь `<...>`):**
+If there are more than 25 consumers -> use a number of subagents and divide the files by
+packages. Join the tables of their answers into one file. Max 3 subagents at the same time.
+
+**Prompt (copy word for word, replace `<...>`):**
 ```
 Ты разбираешь, как проект автотестов пользуется одной технологией. Только читаешь и
 считаешь командами. Не меняй файлы, не запускай сборку и тесты. Каждое число получай
@@ -98,25 +107,27 @@
 - <файл или команда: причина>     (нет - напиши: нет)
 ```
 
-**Что делать с ответом.** Запиши его как есть в
-`.gigacode/data/migration/inventory/analysis-<tech>.md`. Ответ не по шаблону, без команд
-или без чисел -> не используй, запусти заново. Потребитель с другой технологией `migrate`,
-которая идёт позже по порядку, -> файл откладывается (Этап 5, «Файлы на несколько
-технологий»): в разборе оставь, в карточку составитель его не возьмёт.
+**What to do with the answer.** Write it as it is into
+`.gigacode/data/migration/inventory/analysis-<tech>.md`. If the answer is not by the template,
+or has no commands, or has no numbers -> do not use it. Start the subagent again. A consumer
+can have another technology `migrate` that comes later in the order. Then the file is
+postponed (Stage 5, «Файлы на несколько
+технологий»): keep it in the analysis, but the card
+writer does not take it into the unit card.
 
 ---
 
-## 5.2 Сабагент «составитель карточки»
+## 5.2 Subagent «составитель карточки»
 
-Пишет ОДИН файл - карточку юнита `tech` - строго по шаблону и только из переданных
-файлов. Это единственный сабагент карты, которому можно писать файл. Код проекта он не
-трогает.
+This subagent writes ONE file - the unit card of the unit `tech`. It writes strictly by the
+template and only from the given files. This is the only map subagent that can write a file.
+It does not touch the project code.
 
-Что подставить:
-- номер юнита, `depends_on`, `core_mode`, стиль шагов, `scope` - из карты;
-- пути к файлам-источникам (он читает их сам).
+What to put into the prompt:
+- the unit number, `depends_on`, `core_mode`, the step style, `scope` - from the migration map;
+- the paths to the source files (the subagent reads them itself).
 
-**Промпт (копируй дословно, подставь `<...>`):**
+**Prompt (copy word for word, replace `<...>`):**
 ```
 Ты пишешь карточку юнита миграции одной технологии на фрейм PVATF. Пишешь ОДИН файл:
 <абсолютный путь>/.gigacode/data/migration/units/M-<nnn>.md. Больше ничего не создавай и
@@ -156,30 +167,40 @@
 - Чего не хватило в источниках: <что и где; нет - "нет">
 ```
 
-Сабагент не умеет писать файлы -> добавь в конец промпта «Файл не пиши, верни текст
-карточки целиком», и сохрани ответ в файл сам, слово в слово, ничего не меняя.
+If the subagent cannot write files -> add «Файл не пиши, верни текст
+карточки целиком» to the end of the prompt. Then save the answer into the file yourself, word
+for word, with no changes.
 
 ---
 
-## 5.3 Механическая проверка - скрипт
+## 5.3 Mechanical check - the script
 
 ```
 java -Dfile.encoding=UTF-8 .gigacode/skills/migration-map/scripts/Card.java M-<nnn>
 ```
 
-Скрипт проверяет: поля каждого подшага, пустые слова, лимиты файлов, «Правила подшага»,
-команду `MR-48` в чекпоинтах `usage`, покрытие потребителей (каждый ровно в одном
-`usage`), «Критерии по файлам» в каждом `usage`, строки `L` технологии, ссылки
-`D-<tech>-n` на существующие записи конспекта, «создал - подключи», число строк файлов.
-`находок 0` -> к 5.4. Есть находки -> копишь их для 5.5.
+The script checks:
+- the fields of each substep;
+- empty words;
+- the file limits;
+- «Правила подшага»;
+- the command `MR-48` in the checkpoints of `usage`;
+- the consumer coverage (each consumer is in exactly one `usage`);
+- «Критерии по файлам» in each `usage`;
+- the lines `L` of the technology;
+- that the references `D-<tech>-n` point to existing doc notes records;
+- «создал - подключи»;
+- the number of lines of the files.
+
+If the result is `находок 0` -> go to 5.4. If there are findings -> keep them for 5.5.
 
 ---
 
-## 5.4 Сабагент «проверяющий карточки»
+## 5.4 Subagent «проверяющий карточки»
 
-Сверяет смысл: то, что скрипт не видит.
+This subagent compares the meaning: the things that the script does not see.
 
-**Промпт (копируй дословно, подставь `<...>`):**
+**Prompt (copy word for word, replace `<...>`):**
 ```
 Ты проверяешь карточку юнита миграции на фрейм PVATF. Только читаешь и находишь
 нарушения: ничего не меняй. Свои правила не придумывай, вкусовые замечания не пиши.
@@ -218,14 +239,15 @@ java -Dfile.encoding=UTF-8 .gigacode/skills/migration-map/scripts/Card.java M-<n
 
 ---
 
-## 5.5 Исправление
+## 5.5 Correction
 
-1. Собери находки скрипта (5.3) и проверяющего (5.4) в один список.
-2. Находок нет -> карточка принята, дальше - строка в разделе 4 карты (Этап 5, «Для
+1. Put the findings of the script (5.3) and of the checker (5.4) into one list.
+2. If there are no findings -> the unit card is accepted. Next - a line in section 4 of the migration map (Stage 5, «Для
    каждого юнита»).
-3. Находки есть -> запусти составителя ещё раз: тот же промпт плюс в конце «Карточка уже
-   есть. Исправь в ней ТОЛЬКО эти находки, остальное не трогай:» и список. Потом снова 5.3
-   и 5.4.
-4. Больше двух кругов исправления не бывает. После второго круга находки остались ->
-   исправь их сам (обычно это 1-2 строки), запусти 5.3 ещё раз и запиши в журнал карты:
+3. If there are findings -> start the card writer again. Use the same prompt and add at the end
+   «Карточка уже
+   есть. Исправь в ней ТОЛЬКО эти находки, остальное не трогай:» and the list. Then do 5.3
+   and 5.4 again.
+4. Max two correction rounds. If findings are still there after the second round -> correct them
+   yourself (usually 1-2 lines). Run 5.3 again and write into the map log:
    `M-<nnn>: карточка дописана вручную, находки: <коротко>`.

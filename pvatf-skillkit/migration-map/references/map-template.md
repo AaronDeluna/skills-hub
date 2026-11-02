@@ -1,13 +1,13 @@
-# Шаблоны файлов карты (пиши строго по ним)
+# Templates of the map files (write strictly by these templates)
 
-Заполняй только то, что в угловых скобках `<...>`. Заголовки, порядок разделов и названия
-колонок не меняй - по ним карту читают другие скиллы. Пустой раздел - напиши `-`.
-Машиночитаемые значения (`building`/`review`/`approved`, `todo`/`in-progress`/`done`/
-`blocked`, ID) - латиницей, не переводи.
+Fill only the text in angle brackets `<...>`. Do not change the headings, the order of sections and the
+column names: other skills read the map by them. If a section is empty, write `-`.
+Write the machine-readable values (`building`/`review`/`approved`, `todo`/`in-progress`/`done`/
+`blocked`, ID) in Latin letters. Do not translate them.
 
 ## Шаблон MIGRATION-MAP.md
 
-Путь: `.gigacode/data/migration/MIGRATION-MAP.md`
+Path: `.gigacode/data/migration/MIGRATION-MAP.md`
 
 ```markdown
 ---
@@ -163,8 +163,8 @@ updated: <ГГГГ-ММ-ДД>
 
 ## Шаблон CONNECTIONS.md
 
-Путь: `.gigacode/data/migration/CONNECTIONS.md`. Создаётся на Этапе 2 (шаг 1а), таблицы
-«Перенос в фрейм» дописываются на Этапе 3.
+Path: `.gigacode/data/migration/CONNECTIONS.md`. This file is made at Stage 2 (step 1a). The tables
+«Перенос в фрейм» are added to it at Stage 3.
 
 ```markdown
 # Реестр подключений · <имя проекта>
@@ -213,11 +213,11 @@ updated: <ГГГГ-ММ-ДД>
 Чего фрейму не хватает (ключ есть у фрейма, значения в проекте нет): <ключ - необязательный / по умолчанию <...> / не нужен: проект этого не делает / Q-n; ничего - `-`>
 ```
 
-## Конспект документации (doc-notes/)
+## Doc notes (doc-notes/)
 
-Папка: `.gigacode/data/migration/doc-notes/`, по файлу на технологию: `<метка>.md`
-(`rest.md`, `kafka.md`, `db.md` ...), общее про фрейм - `common.md`.
+Folder: `.gigacode/data/migration/doc-notes/`. There is one file per technology: `<метка>.md`
+(`rest.md`, `kafka.md`, `db.md` ...). The common information about the framework is in `common.md`.
 
-Шаблон записи `D-<tech>-<n>` и правила работы с конспектом - в `references/subagents.md`,
-раздел 1. Записи только дописываются. Ссылка на запись (`D-rest-3`) - это док-основание для
-строк карты и карточек юнитов.
+The template of the record `D-<tech>-<n>` and the rules for the doc notes are in `references/subagents.md`,
+section 1. The records are only appended. A reference to a record (`D-rest-3`) is the doc basis for
+the rows of the migration map and for the unit cards.

@@ -1,17 +1,17 @@
-# Шаблон карточки юнита (пиши строго по нему)
+# Unit card template (write strictly by this template)
 
-Путь: `.gigacode/data/migration/units/M-<nnn>.md` (номер трёхзначный: `M-001`, `M-002`...).
+Path: `.gigacode/data/migration/units/M-<nnn>.md` (the number has three digits: `M-001`, `M-002`...).
 
-**Этот шаблон - для маленьких юнитов:** `env` фазы 1, `arch`, `cleanup` фазы 4, `markup`
-фазы 5, `fix`, `review` после проверки. Юнит технологии (тип `tech`, фаза 2) пишется по другому шаблону -
+**This template is for small units:** `env` of phase 1, `arch`, `cleanup` of phase 4, `markup`
+of phase 5, `fix`, `review` after the check. Write a technology unit (type `tech`, phase 2) by another template -
 `references/tech-unit-template.md`.
 
-Карточку читает исполнитель в ДРУГОМ чате. Он не видел твой анализ и не будет заново изучать
-проект. Пиши так, чтобы по карточке можно было работать, ничего не додумывая: точные пути
-файлов, точные имена из документации, точные ссылки `D-<tech>-<n>`.
+The executor reads the unit card in ANOTHER chat. The executor did not see your analysis and does not examine
+the project again. Write the card so that the executor can work by it without guesses: exact file
+paths, exact names from the documentation, exact references `D-<tech>-<n>`.
 
-Разделы до «Журнал выполнения» заполняет `migration-map`. «Журнал выполнения» и «Блокер»
-заполняет `migration-step` - при создании карточки оставь их как в шаблоне.
+`migration-map` fills the sections before «Журнал выполнения». `migration-step` fills «Журнал выполнения» and «Блокер».
+When you make the card, keep these two sections as they are in the template.
 
 ```markdown
 ---
@@ -124,38 +124,33 @@ covers: [<G-n>, <A-n>, <L-n>, ...]
 -
 ```
 
-## Правила заполнения
+## Filling rules
 
-- **Список файлов - исчерпывающий.** Исполнителю запрещено менять файлы вне списка. Если не
-  уверен, что файл нужен, - лучше включи. Больше лимита своего типа (`usage` - 3 файла /
-  600 строк; `env`, `core`, `arch` - 6 файлов / 1000 строк) - дели юнит.
-- **Шаги - про «что», с основанием.** Не «мигрировать класс», а «заменить наследование от
-  `<СтарыйБазовыйКласс>` на <механизм из документации> - по `G-3`».
-- **Критерии готовности - факты про конкретные файлы, с командой.** «`ReportSteps.java`:
+- **The list of files is complete.** The executor must not change files outside the list. If you are not
+  sure that a file is necessary, include it. If the unit is larger than the limit of its type (`usage` - 3 files /
+  600 lines; `env`, `core`, `arch` - 6 files / 1000 lines), divide the unit.
+- **Each step tells «что» (what), with a basis.** Not «мигрировать класс», but «заменить наследование от `<СтарыйБазовыйКласс>` на <механизм из документации> - по `G-3`».
+- **The done criteria are facts about specific files, with a command.** Example: «`ReportSteps.java`:
   проверки ответа только через `.should(...)` - `grep -nE "assert(Equals|True|All)\(|JsonNode" <файл>`
-  пусто». Нельзя: критерий одним кодом правила («V19 устранено»), «по возможности»,
-  «где получится». В юнитах `usage`, `fix`, `arch` всегда есть критерий с командой `MR-48`
-  из `code-rules.md` по файлам юнита.
-- **Лимит юнита - жёсткий.** Не помещается - два юнита. Пометок «превышение лимита
-  сознательно» не бывает.
-- **Grep-шаблон в критериях - точный**, тот же, по которому ты на инвентаризации нашёл эти
-  файлы (например, `import <старый.пакет>`).
-- **`core`-юнит, режим `new`: напиши в шагах прямо:** «создать <что> по `T-<tech>`; старые
-  классы <перечисли> не править и не копировать». В таблице файлов - только новые файлы
-  (действие `создать`) и файлы, куда переезжают данные.
-- **`core`-юнит, режим `in-place`: напиши в шагах прямо:** «публичные методы (имена,
-  параметры, возвращаемые типы) не менять, тесты и вызывающий код не трогать» - и перечисли
-  эти публичные методы. Исключение - юнит с пометкой «сигнатура меняется, вызывающие файлы
-  включены».
-- **Тест-класс - только сценарий.** В шагах карточки для файла с `@Test` не бывает «добавить
-  приватный метод в тест». Нужное тесту действие - это метод класса шагов: либо он уже
-  есть, либо класс шагов включён в файлы юнита с шагом «добавить метод».
-- **`usage`-юнит: шаги пиши от целевой картины, а не от старого кода.** Не «заменить вызов
-  `RestHelper.get()` на аналог», а «тест вызывает <механизм фрейма> напрямую и проверяет
+  пусто». Do not write: a criterion as one rule code («V19 устранено»), «по возможности»,
+  «где получится». The units `usage`, `fix`, `arch` always have a criterion with the command `MR-48`
+  from `code-rules.md` for the unit files.
+- **The unit limit is strict.** If the work does not fit, make two units. Notes such as «превышение лимита сознательно» do not exist.
+- **The grep pattern in the criteria is exact.** Use the same pattern that found these files
+  at the inventory (for example, `import <старый.пакет>`).
+- **`core` unit, mode `new`: write this directly in the steps:** «создать <что> по `T-<tech>`; старые классы <перечисли> не править и не копировать».
+  In the files table, put only the new files (action `создать`) and the files that receive the moved data.
+- **`core` unit, mode `in-place`: write this directly in the steps:** «публичные методы (имена, параметры, возвращаемые типы) не менять, тесты и вызывающий код не трогать».
+  Then list these public methods. Exception: a unit with the note «сигнатура меняется, вызывающие файлы включены».
+- **A test class has only the scenario.** For a file with `@Test`, the card steps never contain «добавить приватный метод в тест».
+  An action that the test needs is a method of the step class: the method already
+  exists, or the step class is in the unit files with the step «добавить метод».
+- **`usage` unit: write the steps from the target picture, not from the old code.** Not «заменить вызов
+  `RestHelper.get()` на аналог», but «тест вызывает <механизм фрейма> напрямую и проверяет
   ответ через <matcher> - по `T-rest`, `D-rest-<n>`; ссылки на `RestHelper` убрать».
-- **Показательный тест - с точной командой.** Исполнитель не должен подбирать тест и
-  команду сам. Команду составь по раннеру из паспорта карты (точечный запуск одного метода).
-- **Legacy - конкретными путями.** Не «удалить старые утилиты», а список классов, пакетов,
-  координат зависимостей и файлов конфигов.
-- **Не пиши в карточку код-решение «по памяти».** Имена PVATF - только те, что ты видел в
-  документации и записал в матрицу `G`.
+- **The representative test has an exact command.** The executor must not select the test and
+  the command itself. Make the command from the runner in the map passport (a run of one method).
+- **Write legacy as specific paths.** Not «удалить старые утилиты», but a list of classes, packages,
+  dependency coordinates and config files.
+- **Do not write in the card a code solution «по памяти».** Use only the PVATF names from the
+  documentation that you wrote in the matrix `G`.

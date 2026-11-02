@@ -1,117 +1,140 @@
-# Проверка подшага (юнита): Шаг 6
+# Check of the substep (unit): Step 6
 
-Часть скилла `migration-step`. Главные правила и порядок чтения - в `SKILL.md`.
-«Если упёрся» и «Таблица решений по умолчанию» - `references/stuck.md`.
+This is a part of the skill `migration-step`. The main rules and the reading order are in
+`SKILL.md`. «Если упёрся» and «Таблица решений по умолчанию» are in `references/stuck.md`.
 
-**Режим менеджера (по умолчанию): из этого файла ты берёшь только задание агенту
-`pvatf-checker` (п.9, `references/manager.md`, п.6).** Компиляцию и самопроверку делает
-исполнитель, а всё, что здесь сказано «исправь» и «почини», в этом режиме - повтор
-исполнителя (`references/manager.md`, п.8), не твоя правка кода.
+**Manager mode (default): from this file, take only the task for the agent
+`pvatf-checker` (item 9, `references/manager.md`, item 6).** The executor does the
+compilation and the self-check. In this mode, all «исправь» and «почини» in this file mean a
+retry of the executor (`references/manager.md`, item 8), not your change of the code.
 
-## Шаг 6 - Проверь (все проверки обязательны, результат - в карточку)
+## Step 6 - Check (all checks are mandatory, write the result into the unit card)
 
-Команды компиляции и тестов - из паспорта карты.
+Take the compilation and test commands from the map passport.
 
-1. **Компиляция.** Запусти. Упала:
-   - ошибка в твоём коде -> почини, запусти снова;
-   - `cannot find symbol` / не тот тип для чего-то из PVATF -> запусти сабагента документации
-     ещё раз с точным вопросом про это имя (общее правило 1: не jar). Не помогло -> «Если упёрся»;
-   - ломается файл ВНЕ юнита, потому что он зависел от изменённого, -> «Если упёрся», пункт
-     про лишний файл.
-2. **Показательный тест.** Юнит `env` или `core`-`new` (в карточке теста нет, `-`) -> тесты
-   не запускай, запиши `тесты не запускались: проверка компиляцией` и иди к п.3.
-   Иначе запусти ТОЧНО ту команду, что в разделе «Показательный тест» карточки, с тем же
-   ограничением 10 минут (`timeout 600 ...`). Запиши в «Проверки» команду, итог (сколько
-   прошло/упало) и сколько секунд шёл.
-   - **зелёный** -> идёшь дальше;
-   - **красный** -> читай ошибку. Причина в твоей миграции -> чини код (не тест и не его
-     проверки, см. `MR-9`..`MR-11`) и запускай снова. Не больше 3 попыток; не получилось ->
-     «Если упёрся»;
-   - **красный с той же ошибкой, что и ДО изменений** (Шаг 4) -> миграция его не сломала, но
-     и не доказана: «Если упёрся», строка про тест, красный до миграции;
-   - **не запускается из-за окружения** (нет стенда, сети, доступов) -> «Если упёрся».
-   Нельзя: запускать вместо одного метода весь класс, модуль или все тесты; заменять
-   показательный тест на другой «попроще» (кроме случаев из «Если упёрся»), запускать с пропуском тестов
-   (`-DskipTests`, `-x test`), писать «зелёный» без реального прогона.
-   В карточке вместо теста `-` с причиной -> запиши `показательного теста нет: <причина>`,
-   юнит закрывается по остальным проверкам.
-3. **Остатки старого.** Выполни grep-шаблон из «Критериев готовности» по файлам юнита.
-   Должно быть пусто. Не пусто -> доделай. Затем по каждому пункту «Legacy под удаление в
-   этом юните» убедись, что файла/зависимости больше нет и grep по имени пуст. Запиши в
-   «Проверки»: что удалено и что ссылок осталось 0.
-   В `cleanup`-юните grep делай по ВСЕМУ проекту (исходники, ресурсы и файлы сборки), а не
-   только по файлам юнита: после чистки от старой реализации технологии не должно остаться
-   ничего. Что-то осталось и оно не из технологии `keep` -> удали, если ссылок нет; иначе
-   пункт во «Входящие».
-4. **Число тестов после** (та же команда, что на Шаге 4). Должно быть не меньше, чем «до».
-5. **Сверка с целевой картиной (для `core` и `usage`).** По каждому изменённому и созданному
-   файлу ответь и запиши в «Проверки» одной строкой:
-   - остались ли вызовы или импорты классов из списка «Чего НЕ будет» блока `T`? Должно
-     быть: нет;
-   - создал ли ты класс, которого нет в «Что будет» и в таблице файлов карточки? Должно
-     быть: нет;
-   - шаги обращаются к фрейму через базовый слой технологии (`MR-49`) теми механизмами, что в «Что вызывается и кем», а проверки
-     сделаны названными там matchers? Должно быть: да;
-   - в тест-классе (файл с `@Test`) есть вспомогательные методы - приватные, которые делают
-     запросы, читают файлы, собирают SQL, маппят в объекты (`MR-42`)? Должно быть: нет - эта
-     логика лежит в классах шагов. (Разовое короткое обращение к фрейму в теле самого теста
-     допустимо.)
-   Любой другой ответ -> исправь код. (`core` в режиме `in-place` проверяет только второй
-   пункт.)
-6. **Правила кода.** Запусти самопроверку:
+1. **Compilation.** Run it. If it fails:
+   - the error is in your code -> fix it and run again;
+   - `cannot find symbol` / a wrong type for something from PVATF -> start the documentation
+     subagent again with an exact question about this name (common rule 1: not the jar). If
+     this does not help -> «Если упёрся»;
+   - a file OUTSIDE the unit breaks because it depended on the changed file ->
+     «Если упёрся», the item about an extra file.
+2. **Representative test.** Unit `env` or `core`-`new` (the unit card has no test, `-`) ->
+   do not run tests. Write `тесты не запускались: проверка компиляцией` and go to item 3.
+   Else run EXACTLY the command from the section «Показательный тест» of the unit card,
+   with the same limit of 10 minutes (`timeout 600 ...`). Write into «Проверки» the command,
+   the result (how many passed/failed) and how many seconds it ran.
+   - **green** -> continue;
+   - **red** -> read the error. If the cause is in your migration -> fix the code (not the
+     test and not its checks, see `MR-9`..`MR-11`) and run again. Do not do more than 3
+     attempts. If it does not work -> «Если упёрся»;
+   - **red with the same error as BEFORE the changes** (Step 4) -> the migration did not
+     break it, but it is not proved. Go to «Если упёрся», the line about a test that was
+     red before the migration;
+   - **does not start because of the environment** (no stand, no network, no access) ->
+     «Если упёрся».
+   Do not do these things:
+   - run the full class, module or all tests instead of one method;
+   - replace the representative test with a different test «попроще» (except the cases
+     from «Если упёрся»);
+   - run with skipped tests (`-DskipTests`, `-x test`);
+   - write «зелёный» without a real run.
+   If the unit card has `-` with a cause instead of a test -> write
+   `показательного теста нет: <причина>`. The unit closes by the other checks.
+3. **Remains of old code.** Run the grep pattern from «Критериев готовности» on the files
+   of the unit. The output must be empty. If it is not empty -> finish the work. Then, for
+   each item of «Legacy под удаление в этом юните», make sure of two things: the
+   file/dependency does not exist, and grep by its name is empty. Write into «Проверки»: what you removed, and that 0 references stay.
+   In a `cleanup` unit, run grep on the FULL project (sources, resources and build files),
+   not only on the files of the unit. After the cleanup, nothing of the old implementation
+   of the technology must stay. If something stays and it is not from a `keep` technology
+   -> remove it if it has no references. Else write an item in «Входящие».
+4. **Number of tests after** (the same command as in Step 4). It must not be less than the
+   number «до».
+5. **Compare with the target picture (for `core` and `usage`).** For each changed and new
+   file, answer these questions. Write each answer into «Проверки» as one line:
+   - Are there calls or imports of classes from the list «Чего НЕ будет» of the block `T`?
+     It must be: no.
+   - Did you make a class that is not in «Что будет» and not in the file table of the unit
+     card? It must be: no.
+   - Do the steps go to the framework through the base layer of the technology (`MR-49`),
+     with the mechanisms from «Что вызывается и кем»? Do the checks use the matchers that
+     are named there? It must be: yes.
+   - Does the test class (a file with `@Test`) have helper methods - private methods that
+     send requests, read files, make SQL, map into objects (`MR-42`)? It must be: no. This
+     logic must be in the step classes. (One short call to the framework in the body of the
+     test itself is permitted.)
+   Any other answer -> fix the code. (`core` in mode `in-place` checks only the second
+   item.)
+6. **Code rules.** Run the self-check:
    ```
    java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java check M-<nnn> S-<nn>
    ```
-   Она проходит механические правила (`var`, сеттеры, `getForCurrentThread()`, ассерты, DTO,
-   свои matchers, вложенные классы, делегаты, чтение настроек, имена, логирование, `sleep`,
-   `TODO`, тест-класс) по файлам подшага и показывает изменённые файлы не из карточки
-   (п.8). Каждую строку вывода исправь - в том числе в строках, которые писал не ты, - и
-   запусти снова, пока не будет `находок 0`. Единственное разрешённое исключение - ассерт
-   по `MR-29`, когда matcher нет в документации: строка `исключение MR-29: <файл>:<строка>`
-   в «Сделано» подшага и строка во «Входящие» - тогда скрипт его пропускает. Как исправить, непонятно -> открой правило в
-   `rules-now.md` (или `Unit.java rules` с этим номером в карточке). Затем пройди правила из `.gigacode/data/migration/tmp/rules-now.md` по каждому
-   изменённому файлу. Нарушение -> исправь. Запиши: `MR: все пройдены` или список исключений
-   с причиной.
-7. **Нить.** Проверь командами:
-   - СОЗДАЛ класс или метод (`core`): посчитай, кто его вызывает -
+   It checks the mechanical rules on the files of the substep: `var`, setters,
+   `getForCurrentThread()`, asserts, DTO, own matchers, nested classes, delegates, reading
+   of settings, names, logging, `sleep`, `TODO`, test class. It also shows the changed files
+   that are not in the unit card (item 8). Fix each line of the output, also in lines that
+   you did not write. Run it again until you get `находок 0`.
+   The only permitted exception is an assert by `MR-29` when the documentation has no
+   matcher. For it, write the line `исключение MR-29: <файл>:<строка>` in «Сделано» of the
+   substep and a line in «Входящие». Then the script skips it.
+   If you do not know how to fix a line -> open the rule in `rules-now.md` (or run
+   `Unit.java rules` with this number in the unit card).
+   Then go through the rules from `.gigacode/data/migration/tmp/rules-now.md` for each
+   changed file. If a rule is broken -> fix it. Write: `MR: все пройдены` or a list of
+   exceptions with the cause.
+7. **Thread.** Check with commands:
+   - You MADE a class or a method (`core`): count its callers -
      `grep -rl "\b<ИмяКласса>\b" --include=*.java --include=*.kt <src> | grep -v "<ИмяКласса>.java"`.
-     Вызывающих пока нет - это нормально, только если дальше в карточке есть подшаги
-     `usage`, которые на него переводят (`grep -n "<ИмяКласса>"
-     .gigacode/data/migration/units/M-<nnn>.md`). Таких подшагов нет -> найди, кто делает
-     то же самое сам (команды из «Разбор технологии»), и допиши подшаги `usage` на эти
-     файлы. Обычный юнит (не `tech`) -> пункт во «Входящие» карты: `класс <Имя> создан в
-     M-<nnn>, но не подключён; то же делают сами: <файлы>`;
-   - ПЕРЕВОДИШЬ файлы на класс шагов (`usage`): в каждом файле класс шагов реально
-     вызывается (`grep -c "<ИмяКласса>" <файл>` больше 0), а обращений, которые он
-     заменяет, не осталось (команда из «Чекпоинта» пуста). Осталось -> вернись на Шаг 5.
-   Результат - одной строкой: `нить: <класс> вызывают <n> файлов`.
-8. **Границы юнита.** `git status --short` - в списке изменённых должны быть только файлы из
-   карточки. Лишнее -> верни как было (`git checkout -- <файл>`) либо «Если упёрся».
-   Служебная папка `.gigacode/data/migration/tmp/` не в счёт, её не коммить.
-9. **Проверка свежим взглядом - сабагент «проверяющий».** Ты писал этот код и своих
-   ошибок не видишь; сабагент с чистым контекстом их видит. Делается после КАЖДОГО подшага
-   (юнита) до коммита, кроме вида `разбор` (код не менялся) и `review` (у него своё ревью).
-   1) Список файлов - файлы подшага из `git status --short` (без `.gigacode/`).
-   2) Запусти агента `pvatf-checker` с заданием ниже. Файлов больше 8 - раздели на группы
-      до 8, по агенту на группу, одновременно не больше 3.
-      Сабагент обязателен, сам себя не проверяешь. Только если вызов сабагента вернул ошибку (не «долго» и не «проще самому») -> покажи ошибку в чате, запиши в журнал карты `сабагент не запустился: <ошибка>` -
-      пройди инструкцию из `.gigacode/agents/pvatf-checker.md` сам, по одному файлу, и запиши `проверка: сам - <ошибка>`.
-   3) По каждой находке сам открой строку и убедись, что она настоящая:
-      - ложная -> не трогай, в «Сделано» - `ложная: <почему>`;
-      - настоящая, `просто` -> исправь сейчас;
-      - настоящая, `крупно` -> юнит `tech`: допиши подшаг `fix` или `usage` («Дописывание
-        подшагов», `references/tech-flow.md`); другой тип юнита - строка во «Входящие» карты.
-   4) Что-то исправлял -> компиляция и ещё ОДИН запуск сабагента только по исправленным
-      файлам. Снова нашёл то же -> не крутись: строка `решить человеку: <файл>:<строка> -
-      <правило>` во «Входящие», иди дальше. Больше двух запусков на подшаг не бывает.
-   5) Запиши в «Сделано» подшага (в обычном юните - в «Проверки»): `проверка: находок <n>,
-      исправлено <n>, ложных <n>, в подшаги или Входящие <n>`. Без этой строки подшаг не
-      закрывается.
+     If there are no callers yet, this is normal only if the unit card has later substeps
+     `usage` that move code to it (`grep -n "<ИмяКласса>"
+     .gigacode/data/migration/units/M-<nnn>.md`). If there are no such substeps -> find the
+     files that do the same thing themselves (commands from «Разбор технологии»). Add
+     substeps `usage` for these files. For a usual unit (not `tech`) -> write an item in
+     «Входящие» of the migration map:
+     `класс <Имя> создан в M-<nnn>, но не подключён; то же делают сами: <файлы>`.
+   - You MOVE files to a step class (`usage`): in each file, the step class must really be
+     called (`grep -c "<ИмяКласса>" <файл>` is more than 0). No calls that it replaces must
+     stay (the command from «Чекпоинта» is empty). If some stay -> go back to Step 5.
+   Write the result as one line: `нить: <класс> вызывают <n> файлов`.
+8. **Limits of the unit.** Run `git status --short`. The list of changed files must have
+   only the files from the unit card. If there are extra files -> put them back as they were
+   (`git checkout -- <файл>`) or go to «Если упёрся».
+   The service folder `.gigacode/data/migration/tmp/` does not count. Do not make a commit
+   of it.
+9. **Check with fresh eyes - the subagent «проверяющий».** You wrote this code and you do
+   not see your errors. A subagent with a clean context sees them. Do this check after EACH
+   substep (unit) before the commit. Exceptions: the kind `разбор` (the code did not change)
+   and `review` (it has its own review).
+   1) The file list - the files of the substep from `git status --short` (without
+      `.gigacode/`).
+   2) Start the agent `pvatf-checker` with the task below. If there are more than 8 files,
+      divide them into groups of not more than 8, one agent for each group. Do not run more
+      than 3 agents at the same time.
+      The subagent is mandatory. Do not check yourself. Only if the subagent call returned
+      an error (not «долго» and not «проще самому»):
+      - show the error in the chat;
+      - write into the log of the migration map `сабагент не запустился: <ошибка>`;
+      - go through the instruction from `.gigacode/agents/pvatf-checker.md` yourself, one
+        file at a time;
+      - write `проверка: сам - <ошибка>`.
+   3) For each finding, open the line yourself and make sure that the finding is real:
+      - false -> do not touch it. In «Сделано», write `ложная: <почему>`;
+      - real, `просто` -> fix it now;
+      - real, `крупно` -> for a unit `tech`: add a substep `fix` or `usage` («Дописывание
+        подшагов», `references/tech-flow.md`). For a different type of unit: a line in
+        «Входящие» of the migration map.
+   4) If you fixed something -> run the compilation, and start the subagent ONE more time
+      only on the fixed files. If it finds the same thing again -> do not loop: write the
+      line `решить человеку: <файл>:<строка> - <правило>` in «Входящие» and continue. Never do more than two runs for a substep.
+   5) Write into «Сделано» of the substep (in a usual unit - into «Проверки»):
+      `проверка: находок <n>, исправлено <n>, ложных <n>, в подшаги или Входящие <n>`. Without this line, the
+      substep does not close.
 
-   **Задание агенту `pvatf-checker`** (подставь `<...>`, больше ничего не добавляй). Как
-   проверять и в каком виде отвечать, написано в самом агенте
-   (`.gigacode/agents/pvatf-checker.md`); правила он читает сам из `tmp/rules-now.md`.
-   Как запускать агента по имени - `references/core-rules.md`, правило 7.
+   **Task for the agent `pvatf-checker`** (replace `<...>`, do not add anything more). The
+   agent itself (`.gigacode/agents/pvatf-checker.md`) tells how to check and in which form
+   to answer. It reads the rules itself from `tmp/rules-now.md`.
+   For how to start an agent by name, see `references/core-rules.md`, rule 7.
    ```
    Проект: <абсолютный путь к корню проекта>
    Что шаг должен был сделать: <«Итоговый результат» подшага дословно>
@@ -120,6 +143,7 @@
    - <путь> - <изменён / создан / удалён>
    База: <только юнит markup: хэш из references/markup.md, п.3; в остальных юнитах этой строки нет>
    ```
-   Ответ без заголовков `## Находки`, `## Файлы без находок`, `## Не удалось прочитать` -
-   не по шаблону: запусти агента ещё раз с тем же заданием.
-10. Отметь `[x]` выполненные «Критерии готовности» в карточке.
+   If the answer does not have the headings `## Находки`, `## Файлы без находок`,
+   `## Не удалось прочитать`, it does not agree with the template. Start the agent again
+   with the same task.
+10. Mark with `[x]` the done items of «Критерии готовности» in the unit card.
