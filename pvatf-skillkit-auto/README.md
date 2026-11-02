@@ -43,11 +43,11 @@ Platform V AT Framework (PVATF) **без участия человека**: ми
 {
   "questions": [
     {"id": "Q-1", "key": "model", "text": "Где хранится тестовая модель: в Allure TestOps (testops) или в другой TMS, например Zephyr (tms)?", "options": ["testops", "tms"]},
-    {"id": "Q-2", "key": "system", "text": "Укажите КЭ тестируемой системы в поле ввода, например CI02546875.", "options": []},
-    {"id": "Q-3", "key": "stage", "text": "Укажите контур, на котором работают автотесты, в поле ввода: code, dev, st, ift, psi или prom.", "options": ["code", "dev", "st", "ift", "psi", "prom"]},
-    {"id": "Q-4", "key": "team", "text": "Укажите название команды в поле ввода - полное, как в справочнике команд.", "options": []},
-    {"id": "Q-5", "key": "regress", "text": "Тесты входят в регресс? Напишите в поле ввода: regress - в регрессе, critical - в критичном регрессе, - - не входят.", "options": ["regress", "critical", "-"], "when": {"model": "testops"}},
-    {"id": "Q-6", "key": "story", "text": "Укажите задачу для тестов в поле ввода, например PVATF-4567, или -, если задачи нет.", "options": [], "when": {"model": "testops"}}
+    {"id": "Q-2", "key": "system", "text": "Какой КЭ у тестируемой системы? Например, CI02546875.", "options": []},
+    {"id": "Q-3", "key": "stage", "text": "На каком контуре работают автотесты: code, dev, st, ift, psi или prom?", "options": ["code", "dev", "st", "ift", "psi", "prom"]},
+    {"id": "Q-4", "key": "team", "text": "Как называется команда? Полное название, как в справочнике команд.", "options": []},
+    {"id": "Q-5", "key": "regress", "text": "Тесты входят в регресс: regress - в регрессе, critical - в критичном регрессе, - - не входят?", "options": ["regress", "critical", "-"], "when": {"model": "testops"}},
+    {"id": "Q-6", "key": "story", "text": "Какая задача у тестов? Например, PVATF-4567, или -, если задачи нет.", "options": [], "when": {"model": "testops"}}
   ]
 }
 PVATF-QUESTIONS>>>
