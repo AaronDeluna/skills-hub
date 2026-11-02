@@ -97,16 +97,15 @@ Zephyr или другая TMS) - вопрос `model` (раздел 4).
    | `@TestLayer` | `ru.sber.qa.allure.layer.TestLayer` |
    | `@ApiTest`, `@DbTest`, `@MqTest`, `@UiTest` | `ru.sber.qa.allure.layer.layers.<Имя>` |
    | `@TestStage` | `ru.sber.qa.allure.stage.TestStage` |
-   | `@IftStandTest`, `@PromStandTest`, `@PsiStandTest`, `@StStandTest` | `ru.sber.qa.allure.stage.stages.<Имя>` |
+   | `@DevStandTest`, `@StStandTest`, `@IftStandTest`, `@PsiStandTest`, `@PromStandTest` | `ru.sber.qa.allure.stage.stages.<Имя>` |
    | `@System` | `ru.sber.qa.allure.system.System` |
    | `@Team` | `ru.sber.qa.allure.team.Team` |
-   | `@Regress` | `ru.sber.qa.allure.regress.Regress` |
+   | `@Regress`, `@CriticalRegress` | `ru.sber.qa.allure.regress.<Имя>` |
    | `@TmsLink`, `@Story`, `@Issue` | `io.qameta.allure.<Имя>` - это аннотации самого Allure, не allure-annotations |
 
-   Аннотации, которой нет в таблице (`@IsolatedTest`, `@DevStandTest`, `@CriticalRegress`),
-   - по аналогии с соседями (`ru.sber.qa.allure.stage.stages.<Имя>`,
-   `ru.sber.qa.allure.regress.<Имя>`), но сначала проверь, что класс есть в jar (раздел 5,
-   «Пакет и аннотации - из jar библиотеки»). Нет в jar -> не ставь, в отчёте:
+   Единственная аннотация не из таблицы - `@IsolatedTest`: по аналогии с соседями
+   (`ru.sber.qa.allure.stage.stages.IsolatedTest`), но сначала проверь, что класс есть в jar
+   (раздел 5, «Пакет и аннотации - из jar библиотеки»). Нет в jar -> не ставь, в отчёте:
    `<аннотация> - не поставлена: нет в allure-annotations <версия>`. Похожую по смыслу не
    подставляй.
 
