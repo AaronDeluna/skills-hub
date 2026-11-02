@@ -150,7 +150,8 @@ Zephyr или другая TMS) - вопрос `model` (раздел 4).
 1. в `@DisplayName` тест-метода ровно один ключ тест-кейса (`-T<цифры>`); где он стоит в
    названии - неважно;
 2. у тест-метода ещё нет `@TmsLink`;
-3. такого же ключа тест-кейса нет в `@DisplayName` другого тест-метода.
+3. такого же ключа тест-кейса нет в `@DisplayName` другого тест-метода (параметризованный
+   тест - один метод, его запуски не считаются).
 Хоть одно условие не выполнено -> ничего не ставь: тест-метод попадает в отчёт как работа
 человека. **В отчёте - причина словами, а не номер условия**, чтобы было видно, что это не
 сбой агента:
@@ -162,6 +163,19 @@ Zephyr или другая TMS) - вопрос `model` (раздел 4).
   тест-кейса: <ключ>, <ключ>`;
 - `@TmsLink` уже есть с другим ключом (условие 2): `<Класс.метод> - уже @TmsLink("<ключ>"),
   в названии <ключ>`.
+
+**Параметризованный тест (`@ParameterizedTest`) - такой же тест-метод.** Он запускается
+много раз с разными данными, но это один метод и один тест-кейс: `@TmsLink` ставится над ним
+так же, как над `@Test`. Это не одинаковый ключ (условие 3) - условие 3 про ключ в двух
+разных методах. Ключ берётся из `@DisplayName`, а если его там нет - из шаблона имени
+`@ParameterizedTest(name = "[SBOLCRM-T1234] {0}")`:
+```java
+@TmsLink("SBOLCRM-T1234")
+@ParameterizedTest(name = "[SBOLCRM-T1234] {0}")
+@ValueSource(strings = {"a", "b"})
+void create(String value) { ... }
+```
+Ключ в `@DisplayName` и в `name` того же метода один и тот же - это один ключ, не два.
 
 Как ставишь:
 - над тест-методом - `@TmsLink("<ключ>")`, ключ - ровно как в названии, без скобок и
@@ -323,7 +337,7 @@ grep -rn "allure-annotations" --include=pom.xml --include='*.gradle' --include='
 
 Ключи тест-кейсов (`-T<цифры>`) в `@DisplayName` тест-методов (кандидаты для раздела 2а):
 ```
-grep -rnE '@DisplayName\("[^"]*[A-Z][A-Z0-9]*-T[0-9]+' --include='*.java' --include='*.kt' <каталог тестов>
+grep -rnE '(@DisplayName\("|@ParameterizedTest\([^)]*name *= *")[^"]*[A-Z][A-Z0-9]*-T[0-9]+' --include='*.java' --include='*.kt' <каталог тестов>
 ```
 
 Одинаковые ключи тест-кейсов в `@DisplayName` разных тест-методов (условие 3 раздела 2а):
@@ -350,7 +364,7 @@ grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <к�
 
 1. **Ключи тест-кейсов без `@TmsLink`.** Из корня проекта, по каждому каталогу тестов:
    ```
-   grep -rlE '@DisplayName\("[^"]*[A-Z][A-Z0-9]*-T[0-9]+' --include='*.java' --include='*.kt' <каталог тестов> | while read f; do awk 'FNR==1{has=0;key=""} /^[[:space:]]*@/{ if ($0 ~ /@TmsLink\(/) has=1; if ($0 ~ /@DisplayName\(/ && match($0,/[A-Z][A-Z0-9]*-T[0-9]+/)) {key=substr($0,RSTART,RLENGTH); ln=FNR}; next} /^[[:space:]]*$/ || /^[[:space:]]*(\/\/|\/\*|\*)/ {next} { if (key!="" && !has && $0 !~ /(class|interface|object) /) print FILENAME":"ln": "key" - нет @TmsLink"; has=0; key="" }' "$f"; done
+   grep -rlE '(@DisplayName\("|@ParameterizedTest\([^)]*name *= *")[^"]*[A-Z][A-Z0-9]*-T[0-9]+' --include='*.java' --include='*.kt' <каталог тестов> | while read f; do awk 'FNR==1{has=0;key="";dn=0} /^[[:space:]]*@/{ if ($0 ~ /@TmsLink\(/) has=1; if ($0 ~ /@DisplayName\(/ && match($0,/[A-Z][A-Z0-9]*-T[0-9]+/)) {key=substr($0,RSTART,RLENGTH); ln=FNR; dn=1} else if (!dn && $0 ~ /@ParameterizedTest\(.*name *=/ && match($0,/[A-Z][A-Z0-9]*-T[0-9]+/)) {key=substr($0,RSTART,RLENGTH); ln=FNR}; next} /^[[:space:]]*$/ || /^[[:space:]]*(\/\/|\/\*|\*)/ {next} { if (key!="" && !has && $0 !~ /(class|interface|object) /) print FILENAME":"ln": "key" - нет @TmsLink"; has=0; key=""; dn=0 }' "$f"; done
    ```
    Каждая строка вывода - тест-метод, где в `@DisplayName` есть ключ тест-кейса, а
    `@TmsLink` нет. По каждой строке: условия раздела 2а выполнены -> поставь `@TmsLink` с
