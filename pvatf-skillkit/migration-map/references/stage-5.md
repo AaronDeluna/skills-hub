@@ -265,7 +265,8 @@ by `references/unit-card-template.md`, `tech: common`, `phase: 5`:
   if some subclasses already have the annotation, but the base class does not -> do not put it on the base class.
   Put it on the subclasses that do not have it, and add these subclasses to «Файлы юнита». The final re-check puts `@TmsLink` by the keys from
   `@DisplayName` (the last item). If `версия: поднять`, the first item is `поднять
-  allure-annotations <версия> -> 2.0.2` in the build file. If the value is `-`, do not put this
+  allure-annotations <версия> -> 2.0.2` in the build file. If `версия: не определена ...; поднять до 2.0.2, если ниже`,
+  the first item is `поднять allure-annotations до 2.0.2, если дерево покажет версию ниже 2.x`. If the value is `-`, do not put this
   annotation; write this in the card;
 - «Показательный тест» - `-`: compilation and grep check the markup;
 - «Что сделать» - the last item is always `перепроверка: раздел 6 правил разметки -

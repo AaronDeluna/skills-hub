@@ -70,15 +70,21 @@ Order:
      Do not fix it: it is not your error.
    In a retry («Исправь ТОЛЬКО это»), do the same checks: the previous run committed its
    changes or reverted them, thus the working tree is clean.
-2. Library. If «Что сделать» has an item about allure-annotations (add it or upgrade the
-   version), or in item 1 the dependency was not in the tree -> add it or upgrade it first
-   (section 2, item 6 of the rules), also if «Что сделать» does not have this. Then make the dependency
+2. Library. Add or upgrade it first (section 2, item 6 of the rules), also if «Что сделать» does not have this item, if one of these is true:
+   - «Что сделать» has an item about allure-annotations (add it or upgrade the version);
+   - in item 1 the dependency was not in the tree;
+   - in item 1 the major version was 0 or 1, and «Значения разметки» have `версия: поднять` or
+     `поднять до 2.0.2, если ниже`. Upgrade it to `2.0.2`.
+
+   Then make the dependency
    tree again: it must have version 2.x (major 2 or higher). Take the imports from the table of section 2, item 5 of the rules. Each annotation has its own package.
    If an annotation is not in the table -> check it in the jar (section 5 of the rules, «Пакет и аннотации - из
    jar библиотеки»). If it is not in the jar -> do not add it, write it in the report.
    Read the files from the list (only them).
 3. Do the other items of «Что сделать» in their order. Add the common annotations above the base
-   class. Do not add them above its subclasses. If an annotation is already in the file or in its base class, do not
+   class. Do not add them above its subclasses. Exception (section 2, item 4 of the rules): if some subclasses
+   already have the annotation and the base class does not -> «Что сделать» puts it on the other subclasses. Do it
+   this way. If an annotation is already in the file or in its base class, do not
    add it again. Imports - explicit, without `*`, one for each annotation, from the table of
    section 2, item 5 of the rules. `@System`: before you add it, run the check of section 2, item 5 of the rules («`@System` and
    `java.lang.System`»). If the file uses `java.lang.System` in any way (`System.getProperty`, `System.out`,
@@ -103,7 +109,7 @@ Order:
      the conditions of section 2a are true -> add `@TmsLink`, also if the file is not in the task package. In
      such a file, change only `@TmsLink` and its import. In «Файлы», write `<путь> - добавлен по
      перепроверке`. If a condition is false (same key, two keys, a different
-     `@TmsLink` already present) -> do not add it, write it in the report with the reason in words. Run the command again: the
+     `@TmsLink` already present) or the line is «значение не разобрать» -> do not add it, write it in the report with the reason in words. Run the command again: the
      output must contain only the lines that are in the report with a reason;
    - the agent set on each test class, the imports, `@DisplayName` did not change.
    Never remove and never move `@TmsLink`, also not your own. If an output line is about a method that
@@ -134,7 +140,7 @@ skip the line. If there is no block or a line is missing, the work is not done.
 Аннотации: <аннотация - где поставлена (класс / метод); не поставлена - почему>
 TmsLink поставлен: <n; по строке: Класс.метод - ключ; нет - "нет">
 Одинаковые ключи: <вывод команды «Одинаковые ключи тест-кейсов» (раздел 5 правил) по всем каталогам тестов, по строке на ключ: `<ключ> - одинаковый в <Класс.метод>, <Класс.метод>, ...: новый @TmsLink не поставлен, уже стоит у <Класс.метод / никого>`; нет - "нет">
-Ключи не взяты по другим причинам: <по строке, причина словами: два ключа в названии / уже другой @TmsLink; нет - "нет">
+Ключи не взяты по другим причинам: <по строке, причина словами: два ключа в названии / уже другой @TmsLink / значение @DisplayName не разобрать скриптом; нет - "нет">
 Перепроверка (раздел 6 правил): ключей без @TmsLink и без причины <0 / n: какие>; набор агента <всё / чего нет>; @DisplayName <не изменён / изменён>
 Проверки: до правок - git <чисто / есть изменения>, версия <... / не проверялась: причина>, компиляция <ок / ошибка / не запускалась: причина>; после - компиляция <ок / ошибка / не запускалась: причина>; Unit.java check <находок n / не запускался: без карты / не запускался: причина>
 Коммит: <хэш / не сделан: почему>

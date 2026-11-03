@@ -68,6 +68,7 @@ a value in the project -> do not search more: do what the rule for this case tel
    of the rules). Find the same keys with the command «Одинаковые ключи тест-кейсов» (section 5 of the rules)
    and show each key in one line with all its test methods.
    A key without `T` before the digits (`PVATF-4567`) is not a test case: do not put it in the table.
+   A line «значение не разобрать, проверьте вручную» -> `не взят: значение @DisplayName не разобрать скриптом`.
 6. Write the report `.gigacode/data/markup/MARKUP-REPORT.md` exactly by the template:
    ```
    # Проверка разметки
@@ -155,7 +156,9 @@ and after that you check the result by the same plan.
 1. Distribute the annotations by the rules of section 2 of the rules:
    - common for all tests (`@System`, `@Team`, `@TestStage`, common `@Regress` and `@Story`)
      -> above the base class from section 2, item 2. If the test classes extend different base
-     classes -> one line for each base class. If a test class has no base class -> above the test class;
+     classes -> one line for each base class. If a test class has no base class -> above the test class.
+     Exception (section 2, item 4 of the rules): if some subclasses already have the annotation and the base class
+     does not -> not above the base class, but one line for each subclass without it;
    - `@TestLayer` -> above the test class or above the base class of the layer (section 3 of the rules);
    - keys `взять` -> `@TmsLink` above the test method; `@DisplayName` does not change. A test class with
      such keys is in the plan in its own line, also if it gets all the other annotations
@@ -177,7 +180,7 @@ and after that you check the result by the same plan.
    one line only.
 3. Compare the plan with the rules before you send it to the agent:
    - the common annotations are above the base class, and no line adds them again above
-     its subclasses;
+     its subclasses. Exception: the case of section 2, item 4 of the rules (above);
    - the plan does not have annotations that are already in the class or in its parent;
    - each key from the plan has the status `взять` in the report and has `T` before the digits;
    - `@TmsLink` is only in the lines with a key `взять`; the plan has no changes of `@DisplayName`;

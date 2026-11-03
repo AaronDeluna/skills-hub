@@ -23,7 +23,9 @@ import java.util.stream.Stream;
  * java -Dfile.encoding=UTF-8 MarkupKeys.java dup <каталог тестов>...      - один ключ у разных тест-методов
  * java -Dfile.encoding=UTF-8 MarkupKeys.java count <каталог тестов>...    - сколько тест-методов и сколько с @TmsLink
  *
- * Ключи метода - из его @DisplayName и из name его @ParameterizedTest (один и тот же ключ в обоих - один ключ).
+ * Учитываются только тест-методы: с @Test, @ParameterizedTest, @RepeatedTest, @TestFactory или @TestTemplate.
+ * Ключи метода - из строк @DisplayName и из строки name его @ParameterizedTest (один и тот же ключ в обоих - один ключ).
+ * Ключ в комментарии внутри аннотации не считается.
  * Для dup считаются все ключи метода: из @DisplayName, из name и из @TmsLink. @DisplayName над классом не считается.
  * Файл разбирается по символам: комментарии и строки не путаются с кодом, аннотации могут быть многострочными,
  * с пробелами и переводами строки перед "(", полным именем и на одной строке с объявлением.
@@ -32,9 +34,12 @@ import java.util.stream.Stream;
 public class MarkupKeys {
 
     private static final Pattern KEY = Pattern.compile("[A-Z][A-Z0-9]*-T[0-9]+");
+    private static final Pattern NAME_ARG = Pattern.compile("\\bname\\s*=");
+    private static final Pattern VALUE_ARG = Pattern.compile("^\\(\\s*value\\s*=");
     private static final Set<String> TESTS = Set.of("Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate");
 
-    private record Method(String place, String name, Set<String> keys, Set<String> all, boolean hasLink, boolean test) {
+    private record Method(String place, String name, Set<String> keys, Set<String> all, boolean hasLink, boolean test,
+                          boolean unknown) {
     }
 
     public static void main(String[] args) throws IOException {
@@ -58,7 +63,10 @@ public class MarkupKeys {
         int found = 0;
         if (args[0].equals("missing")) {
             for (Method m : methods) {
-                if (!m.keys().isEmpty() && !m.hasLink()) {
+                if (m.test() && m.unknown()) {
+                    System.out.println(m.place() + ": " + m.name() + " - значение не разобрать, проверьте вручную");
+                    found++;
+                } else if (m.test() && !m.keys().isEmpty() && !m.hasLink()) {
                     System.out.println(m.place() + ": " + m.name() + " - " + String.join(" ", m.keys()) + " - нет @TmsLink");
                     found++;
                 }
@@ -66,6 +74,9 @@ public class MarkupKeys {
         } else if (args[0].equals("dup")) {
             Map<String, List<String>> byKey = new TreeMap<>();
             for (Method m : methods) {
+                if (!m.test()) {
+                    continue;
+                }
                 for (String key : m.all()) {
                     byKey.computeIfAbsent(key, k -> new ArrayList<>()).add(m.place() + ":" + m.name());
                 }
@@ -73,6 +84,12 @@ public class MarkupKeys {
             for (Map.Entry<String, List<String>> e : byKey.entrySet()) {
                 if (e.getValue().size() > 1) {
                     System.out.println(e.getKey() + " - " + String.join(" ", e.getValue()));
+                    found++;
+                }
+            }
+            for (Method m : methods) {
+                if (m.test() && m.unknown()) {
+                    System.out.println(m.place() + ":" + m.name() + " - значение не разобрать, проверьте вручную");
                     found++;
                 }
             }
@@ -91,7 +108,8 @@ public class MarkupKeys {
     /** Разбор файла: аннотации копятся до объявления метода; класс, поле, блок или ";" их сбрасывают. */
     private static List<Method> parse(Path file) throws IOException {
         String text = Files.readString(file, StandardCharsets.UTF_8);
-        String code = mask(text);
+        String code = mask(text, true);
+        String noComments = mask(text, false);
         List<Method> result = new ArrayList<>();
         Pending p = new Pending();
         int i = 0;
@@ -111,12 +129,14 @@ public class MarkupKeys {
                 name = name.substring(name.lastIndexOf('.') + 1);
                 int k = skipSpace(code, j);
                 String argsText = "";
+                String argsCode = "";
                 if (k < n && code.charAt(k) == '(') {
                     int end = matching(code, k);
-                    argsText = text.substring(k, end);
+                    argsText = noComments.substring(k, end);
+                    argsCode = code.substring(k, end);
                     j = end;
                 }
-                p.add(name, argsText);
+                p.add(name, argsText, argsCode);
                 i = j;
                 continue;
             }
@@ -166,18 +186,45 @@ public class MarkupKeys {
     private static final class Pending {
         boolean hasLink;
         boolean test;
+        boolean unknown;
         Set<String> displayKeys = new LinkedHashSet<>();
         Set<String> nameKeys = new LinkedHashSet<>();
         Set<String> linkKeys = new LinkedHashSet<>();
 
-        void add(String name, String args) {
+        /** args - текст аргументов без комментариев, code - тот же текст, где строки заменены пробелами. */
+        void add(String name, String args, String code) {
             switch (name) {
-                case "TmsLink", "TmsLinks" -> {
+                case "TmsLink" -> {
                     hasLink = true;
-                    addKeys(linkKeys, args);
+                    value(linkKeys, args, code);
                 }
-                case "DisplayName" -> addKeys(displayKeys, args);
-                case "ParameterizedTest" -> addKeys(nameKeys, args);
+                case "TmsLinks" -> {
+                    hasLink = true;
+                    Matcher m = KEY.matcher(args);
+                    while (m.find()) {
+                        linkKeys.add(m.group());
+                    }
+                }
+                case "DisplayName" -> value(displayKeys, args, code);
+                case "ParameterizedTest" -> {
+                    Matcher m = NAME_ARG.matcher(code);
+                    if (m.find()) {
+                        int end = m.end();
+                        int depth = 0;
+                        while (end < code.length() - 1) {
+                            char c = code.charAt(end);
+                            if (c == '(' || c == '{' || c == '[') {
+                                depth++;
+                            } else if (c == ')' || c == '}' || c == ']') {
+                                depth--;
+                            } else if (c == ',' && depth == 0) {
+                                break;
+                            }
+                            end++;
+                        }
+                        addValue(nameKeys, args.substring(m.end(), end));
+                    }
+                }
                 default -> {
                 }
             }
@@ -188,21 +235,104 @@ public class MarkupKeys {
 
         void declare(String place, String method, List<Method> result) {
             Set<String> keys = new LinkedHashSet<>(displayKeys);
-        keys.addAll(nameKeys);
+            keys.addAll(nameKeys);
             Set<String> all = new LinkedHashSet<>(displayKeys);
             all.addAll(nameKeys);
             all.addAll(linkKeys);
-            if (!all.isEmpty() || test) {
-                result.add(new Method(place, method, keys, all, hasLink, test));
+            if (!all.isEmpty() || test || unknown) {
+                result.add(new Method(place, method, keys, all, hasLink, test, unknown));
+            }
+        }
+
+        /** Значение единственного аргумента (или value = ...) аннотации. */
+        private void value(Set<String> target, String args, String code) {
+            if (args.length() < 2) {
+                return;
+            }
+            Matcher v = VALUE_ARG.matcher(code);
+            int from = v.find() ? v.end() : 1;
+            addValue(target, args.substring(from, args.length() - 1));
+        }
+
+        /** Ключи из значения выражения. Выражение не из строк и "+" (константа, вызов) - unknown: проверить вручную. */
+        private void addValue(Set<String> target, String expr) {
+            String text = evaluate(expr);
+            if (text == null) {
+                unknown = true;
+                return;
+            }
+            Matcher m = KEY.matcher(text);
+            while (m.find()) {
+                target.add(m.group());
             }
         }
     }
 
-    private static void addKeys(Set<String> target, String text) {
-        Matcher m = KEY.matcher(text);
-        while (m.find()) {
-            target.add(m.group());
+    /** Значение константного выражения из строковых литералов и "+"; null - выражение не разобрать. */
+    static String evaluate(String expr) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        int n = expr.length();
+        boolean any = false;
+        while (i < n) {
+            char c = expr.charAt(i);
+            if (Character.isWhitespace(c) || c == '+') {
+                i++;
+            } else if (expr.startsWith("\"\"\"", i)) {
+                int end = expr.indexOf("\"\"\"", i + 3);
+                if (end < 0) {
+                    return null;
+                }
+                out.append(textBlock(expr.substring(i + 3, end)));
+                i = end + 3;
+                any = true;
+            } else if (c == '"') {
+                int j = i + 1;
+                while (j < n && expr.charAt(j) != '"') {
+                    if (expr.charAt(j) == '\\' && j + 1 < n) {
+                        char e = expr.charAt(++j);
+                        out.append(e == 'n' ? '\n' : e == 't' ? '\t' : e);
+                    } else {
+                        out.append(expr.charAt(j));
+                    }
+                    j++;
+                }
+                if (j >= n) {
+                    return null;
+                }
+                i = j + 1;
+                any = true;
+            } else {
+                return null;
+            }
         }
+        return any ? out.toString() : null;
+    }
+
+    /** Текстовый блок Java: без первой строки после открывающих кавычек и без общего отступа. */
+    private static String textBlock(String raw) {
+        int nl = raw.indexOf('\n');
+        String body = nl >= 0 && raw.substring(0, nl).isBlank() ? raw.substring(nl + 1) : raw;
+        String[] lines = body.split("\n", -1);
+        int indent = Integer.MAX_VALUE;
+        for (String l : lines) {
+            if (!l.isBlank() || l == lines[lines.length - 1]) {
+                int k = 0;
+                while (k < l.length() && Character.isWhitespace(l.charAt(k))) {
+                    k++;
+                }
+                indent = Math.min(indent, k);
+            }
+        }
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            String l = lines[i];
+            b.append(l.length() >= indent ? l.substring(indent) : l.strip());
+            if (i < lines.length - 1) {
+                b.append('\n');
+            }
+        }
+        return b.toString();
     }
 
     private static int skipSpace(String s, int i) {
@@ -229,8 +359,8 @@ public class MarkupKeys {
         return code.length();
     }
 
-    /** Та же длина и те же переводы строк; содержимое комментариев, строк, текстовых блоков и символов - пробелы. */
-    private static String mask(String t) {
+    /** Та же длина и те же переводы строк; комментарии - пробелы, а при strings=true - и строки, текстовые блоки, символы. */
+    private static String mask(String t, boolean strings) {
         StringBuilder b = new StringBuilder(t);
         int n = t.length();
         int i = 0;
@@ -247,7 +377,9 @@ public class MarkupKeys {
             } else if (t.startsWith("\"\"\"", i)) {
                 int end = t.indexOf("\"\"\"", i + 3);
                 end = end < 0 ? n : end + 3;
-                blank(b, t, i, end);
+                if (strings) {
+                    blank(b, t, i, end);
+                }
                 i = end;
             } else if (t.charAt(i) == '"' || t.charAt(i) == '\'') {
                 char q = t.charAt(i);
@@ -256,7 +388,9 @@ public class MarkupKeys {
                     j += t.charAt(j) == '\\' ? 2 : 1;
                 }
                 int end = Math.min(n, j + 1);
-                blank(b, t, i, end);
+                if (strings) {
+                    blank(b, t, i, end);
+                }
                 i = end;
             } else {
                 i++;

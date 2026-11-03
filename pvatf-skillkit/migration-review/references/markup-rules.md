@@ -356,8 +356,11 @@ this property: `grep -rn "<имя свойства>" --include=pom.xml --include
 
 Find and count the test-case keys and the test methods with the script, not with grep. The script reads
 multi-line annotations, spaces and line breaks before `(`, full annotation names, annotations on one line with
-the method, `@ParameterizedTest` and Kotlin. It does not take comments, strings, text blocks and a `@DisplayName`
-above a class. The last output line is always `итого: <n>`: it is not a test method. Each other line is a finding.
+the method, `@ParameterizedTest` and Kotlin. It takes only test methods (`@Test`, `@ParameterizedTest`,
+`@RepeatedTest`, `@TestFactory`, `@TestTemplate`). It takes the keys only from the value of the annotation: string
+literals, text blocks and their concatenation with `+`. If the value is something different (a constant, a method call)
+-> the script cannot read it and prints the line `... - значение не разобрать, проверьте вручную`.
+It does not take comments, strings and text blocks outside the annotations, and a `@DisplayName` above a class. The last output line is always `итого: <n>`: it is not a test method. Each other line is a finding.
 `итого: 0` -> no findings. If there are more test directories than one -> write all of them, separated by spaces.
 
 «Ключи тест-кейсов без `@TmsLink`» - test-case keys without `@TmsLink` (candidates for section 2a):
@@ -365,15 +368,17 @@ above a class. The last output line is always `итого: <n>`: it is not a tes
 java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java missing <каталог тестов>...
 ```
 Line: `<файл>:<строка>: <метод> - <ключи> - нет @TmsLink`. If a line has two or more keys -
-condition 1 of section 2a is false. The last line is `итого: <n>`.
+condition 1 of section 2a is false. Line `<файл>:<строка>: <метод> - значение не разобрать, проверьте вручную` ->
+do not add `@TmsLink`: it is work for the human, reason «значение @DisplayName не разобрать скриптом». The last line is `итого: <n>`.
 
 «Одинаковые ключи тест-кейсов» - the same test-case keys in different test methods (condition 3 of section 2a; the script counts the keys
 from `@DisplayName`, from `name` of `@ParameterizedTest` and from `@TmsLink`):
 ```
 java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java dup <каталог тестов>...
 ```
-Line: `<ключ> - <файл>:<строка>:<метод> <файл>:<строка>:<метод> ...`. `итого: 0` means
-there are no same keys.
+Line: `<ключ> - <файл>:<строка>:<метод> <файл>:<строка>:<метод> ...`. Line
+`<файл>:<строка>:<метод> - значение не разобрать, проверьте вручную` -> the key of this method is not known: write it in
+the report for the human. `итого: 0` means there are no same keys.
 
 «Тест-методы без `@TmsLink`» - test methods without `@TmsLink` (work for the human, not a reason for agent changes):
 ```
