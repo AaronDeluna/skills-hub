@@ -172,8 +172,9 @@
       `Разметка: не нужна - проект размечен`, дальше не иди;
    4) по каждому ключу из раздела 4 правил (`model`, `system`, `stage`, `team`, `regress`,
       `story`) поищи значение в проекте: аннотации, настройки, README, Jenkinsfile
-      (`grep -rniE "CI0[0-9]{7}|@Team|team|testops|zephyr|allure" --include='*.md' --include='*.properties' --include='*.yml' --include='Jenkinsfile*' . | grep -v "/target/\|/build/\|\.gigacode" | head`).
-      Нашёл -> пиши в паспорт с пометкой `из проекта: <файл>`;
+      (`grep -rniE "CI[0-9]+|@Team|team|testops|zephyr|allure" --include='*.md' --include='*.properties' --include='*.yml' --include='Jenkinsfile*' . | grep -v "/target/\|/build/\|\.gigacode" | head`).
+      Нашёл -> пиши в паспорт с пометкой `из проекта: <файл>`. КЭ (`system`) - только по
+      подразделу «КЭ» раздела 4 правил: все КЭ по `CI[0-9]+`, принадлежность тест-классам;
    5) ключи без значения - вопросы человеку. Фильтр вопросов к ним не применяется: эти
       значения есть только у человека. Задай их **прямо сейчас, по одному**, в порядке
       таблицы раздела 4 правил, обычным сообщением, ровно текстом из колонки «Вопрос» -
