@@ -20,10 +20,14 @@ import java.util.regex.Pattern;
  *
  *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java recite M-007 [S-04]   - что делаю сейчас (напоминание)
  *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java rules  M-007 [S-04]   - правила подшага в tmp/rules-now.md
- *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java check  M-007 [S-04]   - самопроверка правил кода и границ
+ *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java check  M-007 [S-04]   - самопроверка правил кода и границ + классификатор
+ *   java -Dfile.encoding=UTF-8 <каталог скилла>/scripts/Unit.java classify M-007 [S-04] - только классификатор
  *
  * Подшаг не указан - берётся первый подшаг юнита со статусом не done.
  * Нужна только Java 17+, внешних команд (grep, awk) не использует, кроме git в check.
+ * Классификатор - модель по OpenAI-совместимому API: PVATF_CLASSIFIER_URL, PVATF_CLASSIFIER_KEY,
+ * PVATF_CLASSIFIER_MODEL, PVATF_CLASSIFIER_BATCH или ~/.gigacode/pvatf-classifier.properties
+ * (url, key, model, batch). Не настроен - check работает без него.
  */
 public class Unit {
 
@@ -32,7 +36,7 @@ public class Unit {
     public static void main(String[] args) throws Exception {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
         if (args.length < 2) {
-            System.out.println("Использование: java Unit.java <recite|rules|check> M-<nnn> [S-<nn>]");
+            System.out.println("Использование: java Unit.java <recite|rules|check|classify> M-<nnn> [S-<nn>]");
             System.exit(2);
         }
         String command = args[0];
@@ -49,6 +53,8 @@ public class Unit {
             System.exit(rules(card, step, true));
         } else if (command.equals("check")) {
             System.exit(check(card, step));
+        } else if (command.equals("classify")) {
+            System.exit(classify(card, step) == 0 ? 0 : 1);
         } else {
             System.out.println("Неизвестная команда: " + command);
             System.exit(2);
@@ -95,7 +101,7 @@ public class Unit {
                 + "  (текст - в tmp/docs-now.md после Unit.java rules; поиск по конспекту - Notes.java find " + card.tech + " <слова>)");
         System.out.println("Правила подшага: " + String.join(", ", ids)
                 + "  (текст: java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/Unit.java rules " + card.id + " " + step.id + ")");
-        System.out.println("Порядок: правила -> правки по «Что сделать» -> Unit.java check -> проверяющий -> чекпоинт -> коммит");
+        System.out.println("Порядок: правила -> правки по «Что сделать» -> Unit.java check (с классификатором) -> проверяющий -> чекпоинт -> коммит");
         System.out.println("Нельзя: вопросы человеку; файлы не из списка; DTO ответа; свои matchers и списки matchers;"
                 + " делегаты и вложенные классы; имена фрейма не из «Таблицы подтверждений».");
     }
@@ -291,6 +297,11 @@ public class Unit {
             findings += checkServiceLookups(file, lines);
         }
         findings += checkBoundaries(step);
+        if (findings > 0) {
+            System.out.println("КЛАССИФИКАТОР: пропущен - сначала исправь находки выше");
+        } else {
+            findings += classify(card, step);
+        }
         System.out.println("ИТОГ: находок " + findings + (findings == 0 ? " - чисто" : " - исправь и запусти снова"));
         return findings == 0 ? 0 : 1;
     }
@@ -452,6 +463,369 @@ public class Unit {
             }
         }
         return count;
+    }
+
+
+    // ---------- классификатор ----------
+
+    private static final String CLASSIFIER_SYSTEM = "Ты - классификатор нарушений правил кода в проекте автотестов. "
+            + "Проверяешь один файл по списку правил. По каждому правилу из списка отвечаешь ровно одной строкой "
+            + "в заданном формате, в том же порядке, больше ничего не пишешь. Нарушение - только если можешь назвать "
+            + "номер строки файла, где оно есть. Сомневаешься - «не нарушено». Правило не про такой код - «не относится».";
+
+    /**
+     * Каждый файл подшага (.java, .kt) и каждую пачку его правил отправляет модели: задача подшага,
+     * git diff файла, файл целиком с номерами строк, тексты правил. Модель отвечает по каждому правилу
+     * строкой «MR-n | нарушено | строка | что не так» / «не нарушено» / «не относится». Нарушения
+     * печатаются как находки. Ответ без строки на какое-то правило - один повтор, потом находка
+     * КЛАССИФИКАТОР. Полный ответ кешируется по тексту запроса: неизменённый файл второй раз не
+     * отправляется. Отчёт - tmp/classify.md.
+     *
+     * @return число находок (нарушения + ошибки классификатора)
+     */
+    private static int classify(Card card, Step step) throws IOException, InterruptedException {
+        Map<String, String> config = classifierConfig();
+        if (config.get("url").isEmpty() || config.get("model").isEmpty()) {
+            System.out.println("КЛАССИФИКАТОР: не настроен (PVATF_CLASSIFIER_URL и PVATF_CLASSIFIER_MODEL"
+                    + " или ~/.gigacode/pvatf-classifier.properties) - пропущен");
+            return 0;
+        }
+        Map<String, String> rules = ruleTexts(ruleIds(card, step));
+        if (rules.isEmpty()) {
+            System.out.println("КЛАССИФИКАТОР: у подшага нет правил MR - пропущен");
+            return 0;
+        }
+        int size = Math.max(1, Integer.parseInt(config.get("batch")));
+        List<List<String>> batches = new ArrayList<>();
+        List<String> ids = new ArrayList<>(rules.keySet());
+        for (int i = 0; i < ids.size(); i += size) {
+            batches.add(ids.subList(i, Math.min(ids.size(), i + size)));
+        }
+        String task = "Итоговый результат: " + oneLine(step.result) + "\nЧто сделать:\n"
+                + (Card.field(step.body, "Что сделать").isEmpty() ? "-" : Card.field(step.body, "Что сделать"));
+        Path cache = MIGRATION.resolve("tmp").resolve("classify-cache");
+        Files.createDirectories(cache);
+        StringBuilder report = new StringBuilder("# Классификатор " + card.id + " " + step.id + "\n\n"
+                + "| Файл | Правило | Ответ | Строка | Что не так |\n|------|---------|-------|--------|------------|\n");
+        int findings = 0;
+        int files = 0;
+        int requests = 0;
+        int cached = 0;
+        for (Map.Entry<String, String> entry : step.files.entrySet()) {
+            Path file = Paths.get(entry.getKey());
+            String name = file.toString();
+            if (entry.getValue().contains("удал") || !Files.exists(file) || !(name.endsWith(".java") || name.endsWith(".kt"))) {
+                continue;
+            }
+            files++;
+            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            StringBuilder numbered = new StringBuilder();
+            for (int i = 0; i < lines.size(); i++) {
+                numbered.append(i + 1).append(": ").append(lines.get(i)).append('\n');
+            }
+            String diff = git("diff", "HEAD", "--", entry.getKey());
+            if (diff.isBlank()) {
+                diff = git("ls-files", "--", entry.getKey()).isBlank()
+                        ? "(файл создан в этом подшаге: изменения - весь файл)" : "(изменений нет)";
+            }
+            for (List<String> batch : batches) {
+                StringBuilder prompt = new StringBuilder();
+                prompt.append("Задача подшага (что исполнитель должен был сделать):\n").append(task).append("\n\n");
+                prompt.append("Файл: ").append(entry.getKey()).append("\n\n");
+                prompt.append("Изменения подшага в этом файле (git diff):\n").append(diff).append("\n\n");
+                prompt.append("Файл целиком, с номерами строк (правила действуют на весь файл):\n").append(numbered).append('\n');
+                prompt.append("Правила:\n");
+                for (String id : batch) {
+                    prompt.append(rules.get(id)).append('\n');
+                }
+                prompt.append("\nОтвет - ровно ").append(batch.size()).append(" строк, по одной на правило, в этом порядке: ")
+                        .append(String.join(", ", batch)).append(". Формат строки - один из трёх:\n")
+                        .append("MR-<n> | нарушено | <номер строки> | <что не так, одна фраза>\n")
+                        .append("MR-<n> | не нарушено\n")
+                        .append("MR-<n> | не относится\n");
+                Path cached0 = cache.resolve(sha256(config.get("model") + "\n" + prompt) + ".txt");
+                Map<String, String[]> verdicts;
+                if (Files.exists(cached0)) {
+                    verdicts = parseVerdicts(Files.readString(cached0, StandardCharsets.UTF_8), batch);
+                    cached++;
+                } else {
+                    String answer;
+                    try {
+                        answer = askClassifier(config, prompt.toString());
+                        requests++;
+                        verdicts = parseVerdicts(answer, batch);
+                        if (verdicts.size() < batch.size()) {
+                            List<String> missing = new ArrayList<>(batch);
+                            missing.removeAll(verdicts.keySet());
+                            answer = askClassifier(config, prompt + "\nВ прошлом ответе не было строк для: "
+                                    + String.join(", ", missing) + ". Ответь заново по всем правилам, строго в формате.");
+                            requests++;
+                            verdicts = parseVerdicts(answer, batch);
+                        }
+                    } catch (IOException e) {
+                        System.out.println("КЛАССИФИКАТОР " + name + " - ошибка запроса: " + oneLine(e.getMessage() == null ? e.toString() : e.getMessage())
+                                + " (запусти check ещё раз; повторилось - строка «решить человеку» во «Входящие»)");
+                        findings++;
+                        continue;
+                    }
+                    if (verdicts.size() == batch.size()) {
+                        Files.writeString(cached0, answer, StandardCharsets.UTF_8);
+                    }
+                }
+                for (String id : batch) {
+                    String[] verdict = verdicts.get(id);
+                    if (verdict == null) {
+                        System.out.println("КЛАССИФИКАТОР " + name + " - нет ответа по " + id + " (запусти check ещё раз)");
+                        report.append("| ").append(name).append(" | ").append(id).append(" | нет ответа | - | - |\n");
+                        findings++;
+                        continue;
+                    }
+                    report.append("| ").append(name).append(" | ").append(id).append(" | ").append(verdict[0])
+                            .append(" | ").append(verdict[1]).append(" | ").append(verdict[2]).append(" |\n");
+                    if (verdict[0].equals("нарушено")) {
+                        System.out.println(id + " " + name + ":" + verdict[1] + " - классификатор: " + verdict[2]);
+                        findings++;
+                    }
+                }
+            }
+        }
+        Path target = MIGRATION.resolve("tmp").resolve("classify.md");
+        Files.writeString(target, report.toString(), StandardCharsets.UTF_8);
+        System.out.println("КЛАССИФИКАТОР: файлов " + files + ", правил " + ids.size() + ", запросов " + requests
+                + ", из кеша " + cached + ", находок " + findings + " (ответы - " + target + ")");
+        return findings;
+    }
+
+    /** Строки ответа модели -> правило: {ответ, строка, что не так}. Берутся только правила пачки. */
+    static Map<String, String[]> parseVerdicts(String answer, List<String> batch) {
+        Map<String, String[]> verdicts = new LinkedHashMap<>();
+        Pattern line = Pattern.compile("^[\\s*`|-]*(MR-[0-9H]+)[\\s*`]*\\|\\s*(не нарушено|не относится|нарушено)\\s*"
+                + "(?:\\|\\s*([0-9]+|-)?\\s*)?(?:\\|\\s*(.*?))?[\\s|`]*$", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+        for (String raw : answer.split("\n")) {
+            Matcher m = line.matcher(raw);
+            if (!m.find()) {
+                continue;
+            }
+            String id = m.group(1).toUpperCase();
+            if (batch.contains(id) && !verdicts.containsKey(id)) {
+                String why = m.group(4) == null || m.group(4).isBlank() ? "-" : m.group(4).replace("|", "/");
+                verdicts.put(id, new String[] {m.group(2).toLowerCase(), m.group(3) == null ? "-" : m.group(3), why});
+            }
+        }
+        return verdicts;
+    }
+
+    /** Тексты правил из code-rules.md: от «- **MR-n ·» до следующего правила или заголовка. */
+    private static Map<String, String> ruleTexts(List<String> ids) throws IOException {
+        String text = Files.readString(skillDir().resolve("references").resolve("code-rules.md"), StandardCharsets.UTF_8);
+        Map<String, String> rules = new LinkedHashMap<>();
+        String current = null;
+        StringBuilder body = new StringBuilder();
+        for (String line : (text + "\n## конец").split("\n", -1)) {
+            Matcher rule = Pattern.compile("^- \\*\\*(MR-[0-9H]+) ·").matcher(line);
+            boolean end = rule.find() || line.startsWith("## ") || line.startsWith("---");
+            if (end && current != null) {
+                rules.put(current, body.toString().trim());
+                current = null;
+            }
+            if (rule.find(0) && ids.contains(rule.group(1)) && !rules.containsKey(rule.group(1))) {
+                current = rule.group(1);
+                body.setLength(0);
+            }
+            if (current != null) {
+                body.append(line).append('\n');
+            }
+        }
+        Map<String, String> ordered = new LinkedHashMap<>();
+        for (String id : ids) {
+            if (rules.containsKey(id)) {
+                ordered.put(id, rules.get(id));
+            }
+        }
+        return ordered;
+    }
+
+    /** Настройки: переменные окружения, иначе ~/.gigacode/pvatf-classifier.properties. */
+    private static Map<String, String> classifierConfig() throws IOException {
+        java.util.Properties file = new java.util.Properties();
+        Path path = Paths.get(System.getProperty("user.home"), ".gigacode", "pvatf-classifier.properties");
+        if (Files.exists(path)) {
+            try (var reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                file.load(reader);
+            }
+        }
+        Map<String, String> config = new LinkedHashMap<>();
+        for (String key : List.of("url", "key", "model", "batch")) {
+            String env = System.getenv("PVATF_CLASSIFIER_" + key.toUpperCase());
+            String value = env != null && !env.isBlank() ? env : file.getProperty(key, "");
+            config.put(key, value.trim());
+        }
+        if (!config.get("batch").matches("[0-9]+")) {
+            config.put("batch", "5");
+        }
+        return config;
+    }
+
+    /** Один запрос chat/completions, temperature 0; возвращает текст ответа модели. */
+    private static String askClassifier(Map<String, String> config, String prompt) throws IOException, InterruptedException {
+        String body = "{\"model\":" + Json.quote(config.get("model")) + ",\"temperature\":0,\"messages\":["
+                + "{\"role\":\"system\",\"content\":" + Json.quote(CLASSIFIER_SYSTEM) + "},"
+                + "{\"role\":\"user\",\"content\":" + Json.quote(prompt) + "}]}";
+        java.net.http.HttpRequest.Builder request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(config.get("url")))
+                .timeout(java.time.Duration.ofSeconds(180))
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+        if (!config.get("key").isEmpty()) {
+            request.header("Authorization", "Bearer " + config.get("key"));
+        }
+        java.net.http.HttpResponse<String> response = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(30)).build()
+                .send(request.build(), java.net.http.HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() != 200) {
+            String text = response.body();
+            throw new IOException("HTTP " + response.statusCode() + ": " + text.substring(0, Math.min(200, text.length())));
+        }
+        try {
+            Object root = new Json(response.body()).value();
+            Object choice = ((List<?>) ((Map<?, ?>) root).get("choices")).get(0);
+            Object content = ((Map<?, ?>) ((Map<?, ?>) choice).get("message")).get("content");
+            return String.valueOf(content);
+        } catch (RuntimeException e) {
+            throw new IOException("ответ не в формате chat/completions: " + e.getMessage());
+        }
+    }
+
+    private static String git(String... args) throws IOException, InterruptedException {
+        List<String> command = new ArrayList<>(List.of("git"));
+        command.addAll(List.of(args));
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        process.waitFor();
+        return output;
+    }
+
+    private static String sha256(String text) {
+        try {
+            byte[] hash = java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** Минимальный JSON: строки, числа, объекты, массивы, true/false/null. */
+    static final class Json {
+        private final String s;
+        private int i;
+
+        Json(String s) {
+            this.s = s;
+        }
+
+        static String quote(String text) {
+            StringBuilder out = new StringBuilder("\"");
+            for (char c : text.toCharArray()) {
+                switch (c) {
+                    case '"': out.append("\\\""); break;
+                    case '\\': out.append("\\\\"); break;
+                    case '\n': out.append("\\n"); break;
+                    case '\r': out.append("\\r"); break;
+                    case '\t': out.append("\\t"); break;
+                    default:
+                        if (c < 0x20) {
+                            out.append(String.format("\\u%04x", (int) c));
+                        } else {
+                            out.append(c);
+                        }
+                }
+            }
+            return out.append('"').toString();
+        }
+
+        Object value() {
+            skip();
+            char c = s.charAt(i);
+            if (c == '{') {
+                Map<String, Object> map = new LinkedHashMap<>();
+                i++;
+                skip();
+                if (s.charAt(i) == '}') {
+                    i++;
+                    return map;
+                }
+                while (true) {
+                    skip();
+                    String key = string();
+                    skip();
+                    i++; // ':'
+                    map.put(key, value());
+                    skip();
+                    if (s.charAt(i++) == '}') {
+                        return map;
+                    }
+                }
+            }
+            if (c == '[') {
+                List<Object> list = new ArrayList<>();
+                i++;
+                skip();
+                if (s.charAt(i) == ']') {
+                    i++;
+                    return list;
+                }
+                while (true) {
+                    list.add(value());
+                    skip();
+                    if (s.charAt(i++) == ']') {
+                        return list;
+                    }
+                }
+            }
+            if (c == '"') {
+                return string();
+            }
+            int start = i;
+            while (i < s.length() && ",}] \n\r\t".indexOf(s.charAt(i)) < 0) {
+                i++;
+            }
+            String word = s.substring(start, i);
+            return word.equals("null") ? null : word;
+        }
+
+        private String string() {
+            StringBuilder out = new StringBuilder();
+            i++; // '"'
+            while (true) {
+                char c = s.charAt(i++);
+                if (c == '"') {
+                    return out.toString();
+                }
+                if (c == '\\') {
+                    char e = s.charAt(i++);
+                    switch (e) {
+                        case 'n': out.append('\n'); break;
+                        case 'r': out.append('\r'); break;
+                        case 't': out.append('\t'); break;
+                        case 'b': out.append('\b'); break;
+                        case 'f': out.append('\f'); break;
+                        case 'u': out.append((char) Integer.parseInt(s.substring(i, i + 4), 16)); i += 4; break;
+                        default: out.append(e);
+                    }
+                } else {
+                    out.append(c);
+                }
+            }
+        }
+
+        private void skip() {
+            while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
+                i++;
+            }
+        }
     }
 
     // ---------- helpers ----------
