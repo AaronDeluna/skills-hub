@@ -261,7 +261,9 @@ by `references/unit-card-template.md`, `tech: common`, `phase: 5`:
   in all test directories (section 6 of the markup rules);
 - «Что сделать»: one item per file: which annotations and with which values from the passport row
   «Разметка». The common annotations (`@System`, `@Team`, `@TestStage`, common `@Regress` and
-  `@Story`) go only on the base class, not on its subclasses. The final re-check puts `@TmsLink` by the keys from
+  `@Story`) go only on the base class, not on its subclasses. Exception (section 2, item 4 of the rules):
+  if some subclasses already have the annotation, but the base class does not -> do not put it on the base class.
+  Put it on the subclasses that do not have it, and add these subclasses to «Файлы юнита». The final re-check puts `@TmsLink` by the keys from
   `@DisplayName` (the last item). If `версия: поднять`, the first item is `поднять
   allure-annotations <версия> -> 2.0.2` in the build file. If the value is `-`, do not put this
   annotation; write this in the card;

@@ -21,27 +21,26 @@ import java.util.stream.Stream;
  *
  * java -Dfile.encoding=UTF-8 MarkupKeys.java missing <каталог тестов>...  - ключ есть, @TmsLink нет
  * java -Dfile.encoding=UTF-8 MarkupKeys.java dup <каталог тестов>...      - один ключ у разных тест-методов
+ * java -Dfile.encoding=UTF-8 MarkupKeys.java count <каталог тестов>...    - сколько тест-методов и сколько с @TmsLink
  *
- * Ключ метода - из его @DisplayName, а если там нет - из name его @ParameterizedTest.
+ * Ключи метода - из его @DisplayName и из name его @ParameterizedTest (один и тот же ключ в обоих - один ключ).
  * Для dup считаются все ключи метода: из @DisplayName, из name и из @TmsLink. @DisplayName над классом не считается.
- * Аннотации могут быть многострочными и стоять на одной строке с объявлением.
+ * Файл разбирается по символам: комментарии и строки не путаются с кодом, аннотации могут быть многострочными,
+ * с пробелами и переводами строки перед "(", полным именем и на одной строке с объявлением.
+ * Последняя строка вывода - всегда "итого: N". Строки до неё - находки; "итого: 0" - находок нет.
  */
 public class MarkupKeys {
 
     private static final Pattern KEY = Pattern.compile("[A-Z][A-Z0-9]*-T[0-9]+");
-    private static final Pattern STRING = Pattern.compile("\"(?:[^\"\\\\]|\\\\.)*\"");
-    private static final Pattern ANNOTATION = Pattern.compile("@[A-Za-z_.]+(\\([^)]*\\))?");
-    private static final Pattern CLASS = Pattern.compile("(^|\\s)(class|interface|object|enum)\\s");
-    private static final Pattern METHOD_ON_LINE = Pattern.compile("(void|fun)\\s+[A-Za-z_]");
-    private static final Pattern NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*\\s*\\(");
+    private static final Set<String> TESTS = Set.of("Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate");
 
-    private record Method(String place, String name, Set<String> keys, Set<String> all, boolean hasLink) {
+    private record Method(String place, String name, Set<String> keys, Set<String> all, boolean hasLink, boolean test) {
     }
 
     public static void main(String[] args) throws IOException {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
-        if (args.length < 2 || !(args[0].equals("missing") || args[0].equals("dup"))) {
-            System.out.println("использование: MarkupKeys.java missing|dup <каталог тестов>...");
+        if (args.length < 2 || !Set.of("missing", "dup", "count").contains(args[0])) {
+            System.out.println("использование: MarkupKeys.java missing|dup|count <каталог тестов>...");
             System.exit(2);
         }
         List<Method> methods = new ArrayList<>();
@@ -64,7 +63,7 @@ public class MarkupKeys {
                     found++;
                 }
             }
-        } else {
+        } else if (args[0].equals("dup")) {
             Map<String, List<String>> byKey = new TreeMap<>();
             for (Method m : methods) {
                 for (String key : m.all()) {
@@ -77,83 +76,126 @@ public class MarkupKeys {
                     found++;
                 }
             }
+        } else {
+            long tests = methods.stream().filter(Method::test).count();
+            long linked = methods.stream().filter(m -> m.test() && m.hasLink()).count();
+            System.out.println("тест-методов: " + tests);
+            System.out.println("с @TmsLink: " + linked);
+            found = (int) (tests - linked);
+            System.out.println("итого без @TmsLink: " + found);
+            return;
         }
         System.out.println("итого: " + found);
     }
 
+    /** Разбор файла: аннотации копятся до объявления метода; класс, поле, блок или ";" их сбрасывают. */
     private static List<Method> parse(Path file) throws IOException {
+        String text = Files.readString(file, StandardCharsets.UTF_8);
+        String code = mask(text);
         List<Method> result = new ArrayList<>();
-        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-        State st = new State();
-        for (int n = 0; n < lines.size(); n++) {
-            String line = lines.get(n);
-            String place = file + ":" + (n + 1);
-            if (st.depth > 0 || st.textBlock) {
-                if (st.open == 'd') {
-                    addKeys(st.displayKeys, line);
-                } else if (st.open == 'p') {
-                    addKeys(st.nameKeys, line);
+        Pending p = new Pending();
+        int i = 0;
+        int n = code.length();
+        while (i < n) {
+            char c = code.charAt(i);
+            if (c == '@') {
+                int j = i + 1;
+                int start = j;
+                while (j < n && (Character.isJavaIdentifierPart(code.charAt(j)) || code.charAt(j) == '.' || code.charAt(j) == ':')) {
+                    j++;
                 }
-                st.update(line);
-                if (st.depth <= 0 && !st.textBlock) {
-                    st.open = ' ';
+                String name = code.substring(start, j);
+                if (name.contains(":")) {
+                    name = name.substring(name.lastIndexOf(':') + 1);
                 }
+                name = name.substring(name.lastIndexOf('.') + 1);
+                int k = skipSpace(code, j);
+                String argsText = "";
+                if (k < n && code.charAt(k) == '(') {
+                    int end = matching(code, k);
+                    argsText = text.substring(k, end);
+                    j = end;
+                }
+                p.add(name, argsText);
+                i = j;
                 continue;
             }
-            String trimmed = line.strip();
-            if (trimmed.startsWith("@")) {
-                if (line.contains("@TmsLink(")) {
-                    st.hasLink = true;
-                    addKeys(st.linkKeys, line.substring(line.indexOf("@TmsLink(")));
+            if (Character.isJavaIdentifierStart(c) && (i == 0 || !Character.isJavaIdentifierPart(code.charAt(i - 1)))) {
+                int j = i;
+                while (j < n && Character.isJavaIdentifierPart(code.charAt(j))) {
+                    j++;
                 }
-                if (line.contains("@DisplayName(")) {
-                    st.display = true;
-                    addKeys(st.displayKeys, line.substring(line.indexOf("@DisplayName(")));
-                }
-                if (line.contains("@ParameterizedTest(")) {
-                    addKeys(st.nameKeys, line.substring(line.indexOf("@ParameterizedTest(")));
-                }
-                st.depth = 0;
-                st.update(line);
-                if (st.depth > 0) {
-                    if (line.matches(".*@DisplayName\\([^)]*$")) {
-                        st.open = 'd';
-                    } else if (line.matches(".*@ParameterizedTest\\([^)]*$")) {
-                        st.open = 'p';
+                String word = code.substring(i, j);
+                if (word.equals("class") || word.equals("interface") || word.equals("object") || word.equals("enum")) {
+                    p = new Pending();
+                } else if (word.equals("void") || word.equals("fun")) {
+                    int k = skipSpace(code, j);
+                    int s = k;
+                    if (k < n && code.charAt(k) == '`') {
+                        int close = code.indexOf('`', k + 1);
+                        k = close < 0 ? n : close + 1;
+                    } else {
+                        while (k < n && Character.isJavaIdentifierPart(code.charAt(k))) {
+                            k++;
+                        }
+                    }
+                    if (k > s) {
+                        String method = code.substring(s, k).replace("`", "");
+                        int line = 1;
+                        for (int q = 0; q < s; q++) {
+                            if (text.charAt(q) == '\n') {
+                                line++;
+                            }
+                        }
+                        p.declare(file + ":" + line, method, result);
+                        p = new Pending();
+                        j = k;
                     }
                 }
-                String code = STRING.matcher(line).replaceAll("");
-                if (CLASS.matcher(code).find()) {
-                    st.reset();
-                } else if (st.depth <= 0 && !st.textBlock && METHOD_ON_LINE.matcher(code).find()) {
-                    declaration(st, line, place, result);
-                }
+                i = j;
                 continue;
             }
-            if (trimmed.isEmpty() || trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*")) {
-                continue;
+            if (c == ';' || c == '{' || c == '}' || c == '=') {
+                p = new Pending();
             }
-            if (CLASS.matcher(STRING.matcher(line).replaceAll("")).find()) {
-                st.reset();
-            } else {
-                declaration(st, line, place, result);
-            }
+            i++;
         }
         return result;
     }
 
-    private static void declaration(State st, String line, String place, List<Method> result) {
-        Set<String> keys = st.display ? st.displayKeys : st.nameKeys;
-        Set<String> all = new LinkedHashSet<>(st.displayKeys);
-        all.addAll(st.nameKeys);
-        all.addAll(st.linkKeys);
-        if (!all.isEmpty()) {
-            String code = ANNOTATION.matcher(STRING.matcher(line).replaceAll("")).replaceAll("");
-            Matcher m = NAME.matcher(code);
-            String name = m.find() ? m.group().replaceAll("\\s*\\($", "") : "?";
-            result.add(new Method(place, name, new LinkedHashSet<>(keys), all, st.hasLink));
+    private static final class Pending {
+        boolean hasLink;
+        boolean test;
+        Set<String> displayKeys = new LinkedHashSet<>();
+        Set<String> nameKeys = new LinkedHashSet<>();
+        Set<String> linkKeys = new LinkedHashSet<>();
+
+        void add(String name, String args) {
+            switch (name) {
+                case "TmsLink", "TmsLinks" -> {
+                    hasLink = true;
+                    addKeys(linkKeys, args);
+                }
+                case "DisplayName" -> addKeys(displayKeys, args);
+                case "ParameterizedTest" -> addKeys(nameKeys, args);
+                default -> {
+                }
+            }
+            if (TESTS.contains(name)) {
+                test = true;
+            }
         }
-        st.reset();
+
+        void declare(String place, String method, List<Method> result) {
+            Set<String> keys = new LinkedHashSet<>(displayKeys);
+        keys.addAll(nameKeys);
+            Set<String> all = new LinkedHashSet<>(displayKeys);
+            all.addAll(nameKeys);
+            all.addAll(linkKeys);
+            if (!all.isEmpty() || test) {
+                result.add(new Method(place, method, keys, all, hasLink, test));
+            }
+        }
     }
 
     private static void addKeys(Set<String> target, String text) {
@@ -163,46 +205,70 @@ public class MarkupKeys {
         }
     }
 
-    private static final class State {
-        boolean hasLink;
-        boolean display;
-        boolean textBlock;
-        int depth;
-        char open = ' ';
-        Set<String> displayKeys = new LinkedHashSet<>();
-        Set<String> nameKeys = new LinkedHashSet<>();
-        Set<String> linkKeys = new LinkedHashSet<>();
-
-        void reset() {
-            hasLink = false;
-            display = false;
-            open = ' ';
-            displayKeys = new LinkedHashSet<>();
-            nameKeys = new LinkedHashSet<>();
-            linkKeys = new LinkedHashSet<>();
+    private static int skipSpace(String s, int i) {
+        while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
+            i++;
         }
+        return i;
+    }
 
-        void update(String s) {
-            if (textBlock) {
-                int i = s.indexOf("\"\"\"");
-                if (i < 0) {
-                    return;
+    /** Индекс после ")", парной к "(" в позиции open. Строки и комментарии уже заменены пробелами. */
+    private static int matching(String code, int open) {
+        int depth = 0;
+        for (int i = open; i < code.length(); i++) {
+            char c = code.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')') {
+                depth--;
+                if (depth == 0) {
+                    return i + 1;
                 }
-                textBlock = false;
-                s = s.substring(i + 3);
             }
-            int i = s.indexOf("\"\"\"");
-            if (i >= 0) {
-                textBlock = true;
-                s = s.substring(0, i);
-            }
-            s = STRING.matcher(s).replaceAll("");
-            for (char c : s.toCharArray()) {
-                if (c == '(') {
-                    depth++;
-                } else if (c == ')') {
-                    depth--;
+        }
+        return code.length();
+    }
+
+    /** Та же длина и те же переводы строк; содержимое комментариев, строк, текстовых блоков и символов - пробелы. */
+    private static String mask(String t) {
+        StringBuilder b = new StringBuilder(t);
+        int n = t.length();
+        int i = 0;
+        while (i < n) {
+            if (t.startsWith("//", i)) {
+                while (i < n && t.charAt(i) != '\n') {
+                    b.setCharAt(i++, ' ');
                 }
+            } else if (t.startsWith("/*", i)) {
+                int end = t.indexOf("*/", i + 2);
+                end = end < 0 ? n : end + 2;
+                blank(b, t, i, end);
+                i = end;
+            } else if (t.startsWith("\"\"\"", i)) {
+                int end = t.indexOf("\"\"\"", i + 3);
+                end = end < 0 ? n : end + 3;
+                blank(b, t, i, end);
+                i = end;
+            } else if (t.charAt(i) == '"' || t.charAt(i) == '\'') {
+                char q = t.charAt(i);
+                int j = i + 1;
+                while (j < n && t.charAt(j) != q && t.charAt(j) != '\n') {
+                    j += t.charAt(j) == '\\' ? 2 : 1;
+                }
+                int end = Math.min(n, j + 1);
+                blank(b, t, i, end);
+                i = end;
+            } else {
+                i++;
+            }
+        }
+        return b.toString();
+    }
+
+    private static void blank(StringBuilder b, String t, int from, int to) {
+        for (int i = from; i < to; i++) {
+            if (t.charAt(i) != '\n') {
+                b.setCharAt(i, ' ');
             }
         }
     }

@@ -129,7 +129,8 @@ tests of its subclasses. Do not add the full set above each method.
    have it -> add it to the build of this module from zero, scope `test` (Gradle - `testImplementation`).
    The version comes from the markup values (there it is `2.0.2`, if the human did not give a different one). If it is already present (also
    when it comes through a different library) -> do not change it: not the version and not the scope. One
-   exception: the markup values contain `версия: поднять <старая> -> 2.0.2` (section 2b, item 2) ->
+   exception: the markup values contain `версия: поднять <старая> -> 2.0.2` or, when the version was not known
+   at the map, `поднять до 2.0.2, если ниже` and the tree now shows major 0 or 1 (section 2b, item 2) ->
    change the version number to `2.0.2` where the project writes it (in the dependency or in a
    property; command «Где записан номер версии», section 5). If the project does not write the number
    (a BOM or a parent pom sets the version, or it comes through a different library) -> add the
@@ -153,8 +154,9 @@ the sign of a test case. Without it (`PVATF-4567`, `SBOLCRM-123`) the key is a t
 not a test case. Do not use such a key, also if it is the only key in the name.
 
 Use the key only if all these conditions are true:
-1. the `@DisplayName` of the test method has exactly one test-case key (`-T<цифры>`); its position in
-   the name is not important;
+1. the name of the test method has exactly one test-case key (`-T<цифры>`). The name is `@DisplayName`
+   and `name` of `@ParameterizedTest` together: the same key in both is one key, different keys are two keys.
+   The position of the key in the name is not important;
 2. the test method does not have `@TmsLink` yet;
 3. no other test method has the same test-case key - not in `@DisplayName`, not in
    `name` of its `@ParameterizedTest`, not in its `@TmsLink` (a parameterized test is one
@@ -176,15 +178,16 @@ an agent failure:
 **A parameterized test (`@ParameterizedTest`) is a test method of the same type.** It runs
 many times with different data, but it is one method and one test case: add `@TmsLink` above it
 the same as above `@Test`. This is not a same key (condition 3): condition 3 is about one key in two
-different methods. Take the key from `@DisplayName`. If it is not there, take it from the name template
-`@ParameterizedTest(name = "[SBOLCRM-T1234] {0}")`:
+different methods. Take the key from `@DisplayName` or from the name template
+`@ParameterizedTest(name = "[SBOLCRM-T1234] {0}")` (condition 1):
 ```java
 @TmsLink("SBOLCRM-T1234")
 @ParameterizedTest(name = "[SBOLCRM-T1234] {0}")
 @ValueSource(strings = {"a", "b"})
 void create(String value) { ... }
 ```
-If `@DisplayName` and `name` of the same method have the same key, it is one key, not two.
+If `@DisplayName` and `name` of the same method have the same key, it is one key, not two. If they have
+different keys, it is two keys: condition 1 is false.
 
 How to add:
 - above the test method - `@TmsLink("<ключ>")`. The key is exactly as in the name, without brackets and
@@ -288,13 +291,14 @@ The markup (the unit `markup` or the changes in the separate check) is not neces
 ```
 grep -rlE "@(TestLayer|ApiTest|DbTest|MqTest|UiTest|UnitTest|CdcConsumerTest|CdcProviderTest|PerformanceTest)\b" --include='*.java' --include='*.kt' <каталог тестов>
 grep -rlE "@(TestStage|IsolatedTest|DevStandTest|StStandTest|IftStandTest|PsiStandTest|PromStandTest)\b" --include='*.java' --include='*.kt' <каталог тестов>
-grep -rlE "@(ru\.sber\.qa\.allure\.system\.)?System\(" --include='*.java' --include='*.kt' <каталог тестов>
-grep -rlE "@Team\(" --include='*.java' --include='*.kt' <каталог тестов>
+grep -rlE "@(ru\.sber\.qa\.allure\.system\.)?System\b" --include='*.java' --include='*.kt' <каталог тестов>
+grep -rlE "@Team\b" --include='*.java' --include='*.kt' <каталог тестов>
 grep -rlE "@(Regress|CriticalRegress)\b" --include='*.java' --include='*.kt' <каталог тестов>
 grep -rlE "@(Story|Issue)\b" --include='*.java' --include='*.kt' <каталог тестов>
 ```
 If a file is in the output -> the annotation is above its class (look and make sure that it is above `class` and
-not above only one method). Regress and task are two different rows of the set: check each
+not above only one method). If a file is not in the output, open it before you add an annotation: grep finds a line,
+not an annotation (for example, the argument can be on the next line). If the annotation is above the class -> it is present. Regress and task are two different rows of the set: check each
 separately.
 
 «Зависимость и версия» - get the dependency and the version from the build dependency tree, not by a search in files. The tree
@@ -350,9 +354,11 @@ grep -rn "allure-annotations" --include=pom.xml --include='*.gradle' --include='
 If a property sets the version (`${allure.annotations.version}`, `libs.versions.toml`) -> the place is
 this property: `grep -rn "<имя свойства>" --include=pom.xml --include='*.gradle' --include='*.kts' --include='*.properties' --include='*.toml' .`.
 
-Find the test-case keys with the script, not with grep. The script reads multi-line annotations, annotations
-on one line with the method, `@ParameterizedTest`, Kotlin, and it does not take a `@DisplayName` above a
-class. If there are more test directories than one -> write all of them, separated by spaces.
+Find and count the test-case keys and the test methods with the script, not with grep. The script reads
+multi-line annotations, spaces and line breaks before `(`, full annotation names, annotations on one line with
+the method, `@ParameterizedTest` and Kotlin. It does not take comments, strings, text blocks and a `@DisplayName`
+above a class. The last output line is always `итого: <n>`: it is not a test method. Each other line is a finding.
+`итого: 0` -> no findings. If there are more test directories than one -> write all of them, separated by spaces.
 
 «Ключи тест-кейсов без `@TmsLink`» - test-case keys without `@TmsLink` (candidates for section 2a):
 ```
@@ -369,14 +375,13 @@ java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.ja
 Line: `<ключ> - <файл>:<строка>:<метод> <файл>:<строка>:<метод> ...`. `итого: 0` means
 there are no same keys.
 
-Test methods without `@TmsLink` (work for the human, not a reason for agent changes):
+«Тест-методы без `@TmsLink`» - test methods without `@TmsLink` (work for the human, not a reason for agent changes):
 ```
-grep -rhoE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <каталог тестов> | wc -l
-grep -rhoE "@TmsLink\(" --include='*.java' --include='*.kt' <каталог тестов> | wc -l
-grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <каталог тестов> | xargs grep -LE "@TmsLink\("
+java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java count <каталог тестов>...
+grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <каталог тестов> | xargs grep -LE "@TmsLink\b"
 ```
-The first two commands show how many test methods there are and how many of them have a link to the TMS. The third shows the
-test classes that have no `@TmsLink`.
+The script prints three lines: `тест-методов: <n>`, `с @TmsLink: <n>`, `итого без @TmsLink: <n>`. Use these numbers in reports.
+The grep shows the test classes that have no `@TmsLink`. It is an estimate only: open a file before you use it.
 
 ## 6. Final re-check at the end - mandatory
 

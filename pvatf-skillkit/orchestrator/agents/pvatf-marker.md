@@ -57,7 +57,8 @@ Order:
      search in files). The tree now is the main source: after the migration, the dependency can be new
      or changed. If the command failed -> «Статус: не сделан: не построилось дерево
      зависимостей». In «Не сделано и почему», write the first 10 lines of the error. If the major version
-     (the number before the first dot) is 0 or 1, and «Значениях разметки» do not have `версия: поднять` ->
+     (the number before the first dot) is 0 or 1, and «Значениях разметки» do not have `версия: поднять` or
+     `поднять до 2.0.2, если ниже` ->
      «Статус: не сделан: allure-annotations <версия>, нужна 2.x». If the dependency is already present as
      2.x, but «Что сделать» tells you to add it or to upgrade it -> do not do this item. In «Сделано», write:
      `уже есть <версия>`. If the dependency is not in the tree -> do not change anything yet, only
@@ -79,8 +80,10 @@ Order:
 3. Do the other items of «Что сделать» in their order. Add the common annotations above the base
    class. Do not add them above its subclasses. If an annotation is already in the file or in its base class, do not
    add it again. Imports - explicit, without `*`, one for each annotation, from the table of
-   section 2, item 5 of the rules. `@System`: if the file has `System.<метод>` (java.lang) -> do not use an
-   import, write the full name `@ru.sber.qa.allure.system.System("<КЭ>")` (same place, item 5).
+   section 2, item 5 of the rules. `@System`: before you add it, run the check of section 2, item 5 of the rules («`@System` and
+   `java.lang.System`»). If the file uses `java.lang.System` in any way (`System.getProperty`, `System.out`,
+   `System::currentTimeMillis`, a type) -> do not use an import, write the full name
+   `@ru.sber.qa.allure.system.System("<КЭ>")`.
 4. Compilation - the command from the task package. Before the changes the project compiled (item 1). Thus the error is
    in your code: fix it. If you cannot fix it in 3 attempts, revert the changes
    (`git checkout -- <файлы из пакета>`) and write it in the report.
@@ -94,7 +97,8 @@ Order:
 7. **Final re-check at the end - mandatory** (section 6 of the markup rules), on ALL test
    directories of the project, not only on the files of the task package:
    - first, run the command «Одинаковые ключи тест-кейсов» (section 5 of the rules). Do not add `@TmsLink` to any method
-     for the keys from its output. Write its output in the line «Одинаковые ключи» of the report;
+     for the keys from its output. For each key of its output (without the line `итого:`), write one line in
+     «Одинаковые ключи» of the report, by the template of this line;
    - run the command «Ключи тест-кейсов без @TmsLink» (section 5 of the rules). If, for an output line,
      the conditions of section 2a are true -> add `@TmsLink`, also if the file is not in the task package. In
      such a file, change only `@TmsLink` and its import. In «Файлы», write `<путь> - добавлен по
@@ -132,11 +136,14 @@ TmsLink поставлен: <n; по строке: Класс.метод - кл�
 Одинаковые ключи: <вывод команды «Одинаковые ключи тест-кейсов» (раздел 5 правил) по всем каталогам тестов, по строке на ключ: `<ключ> - одинаковый в <Класс.метод>, <Класс.метод>, ...: новый @TmsLink не поставлен, уже стоит у <Класс.метод / никого>`; нет - "нет">
 Ключи не взяты по другим причинам: <по строке, причина словами: два ключа в названии / уже другой @TmsLink; нет - "нет">
 Перепроверка (раздел 6 правил): ключей без @TmsLink и без причины <0 / n: какие>; набор агента <всё / чего нет>; @DisplayName <не изменён / изменён>
-Проверки: до правок - git <чисто / есть изменения>, версия <...>, компиляция <ок / ошибка>; после - компиляция <ок / ошибка>; Unit.java check <находок n / не запускался: без карты>
+Проверки: до правок - git <чисто / есть изменения>, версия <... / не проверялась: причина>, компиляция <ок / ошибка / не запускалась: причина>; после - компиляция <ок / ошибка / не запускалась: причина>; Unit.java check <находок n / не запускался: без карты / не запускался: причина>
 Коммит: <хэш / не сделан: почему>
 Не сделано и почему: <пункт - причина; нет - "нет">
 === КОНЕЦ ОТЧЁТА ===
 ```
 
 ALWAYS fill the line «Одинаковые ключи» from the output of the command, also if the task package does not
-tell anything about them: run the command at step 7 and copy each line of its output with the test methods.
+tell anything about them: run the command at step 7. For each output line, write `<ключ> - одинаковый в
+<Класс.метод>, ...`: take the class from the file name and the method from the output. In «уже стоит у», write
+the methods from the output that have `@TmsLink` with this key. `итого: 0` -> write «нет».
+If you stopped before step 7 (item 1, no permissions) -> write «не проверялись: причина».

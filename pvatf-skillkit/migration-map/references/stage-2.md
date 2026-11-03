@@ -200,9 +200,11 @@ Read `references/inventory-guide.md` and work by it. What you must get:
       - If it exists -> `версия: есть в сборке <версия>`.
       - If it does not exist -> `версия: 2.0.2`. The markup unit adds it from zero.
 
-      If the command failed -> `версия: не определена - дерево зависимостей не
-      построилось`. Do not ask the question `upgrade`: the markup agent makes the dependency
-      tree again before the changes.
+      If the command failed -> say «Не удалось построить дерево зависимостей, поэтому не понять, есть ли
+      allure-annotations и какой версии: <первые строки ошибки>» and ask the question `upgrade` now, before the
+      other markup questions. `да` -> `версия: не определена - дерево зависимостей не построилось; поднять до 2.0.2, если ниже`.
+      `нет` -> `версия: не определена - дерево зависимостей не построилось; не поднимать`.
+      The markup agent makes the dependency tree again before the changes and uses this answer.
 
       Do not go to .jar, `~/.m2` or the internet for the version.
       If the major version (the number before the first dot) is 0 or 1 -> the markup by the

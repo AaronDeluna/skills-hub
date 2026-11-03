@@ -35,8 +35,12 @@ a value in the project -> do not search more: do what the rule for this case tel
    has a unit `markup` with a status that is not `done` -> the migration adds the markup. Do the check (section 2),
    but do not do the plan and the changes (sections 4-5). In the result, say «Разметку поставит шаг
    миграции M-<nnn>: `/orchestrator Продолжи миграцию`».
-4. Test directories:
+4. Test directories. First the standard paths:
    `find . -type d \( -path "*/src/test/java" -o -path "*/src/test/kotlin" \) | grep -v "/target/\|/build/\|\.gigacode"`.
+   Then the build can set other paths: `grep -rnE "testSourceDirectory|srcDir|sourceSets|java\.srcDirs|kotlin\.srcDirs" --include=pom.xml --include='*.gradle' --include='*.kts' . | grep -v "/target/\|/build/"`.
+   Add each existing directory from this output. If both commands found nothing, search the files with tests in the project:
+   `grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' . | grep -v "/target/\|/build/\|\.gigacode"`.
+   Their source root (the directory before the package path) is a test directory.
    Test classes are files with tests:
    `grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <каталог>`.
    If there are no test classes -> say «В проекте не нашлось тестов для разметки» and stop.
@@ -105,8 +109,11 @@ a value in the project -> do not search more: do what the rule for this case tel
    ```
    If there are more than 15 classes without an annotation or more than 15 keys -> write the first 15 and «и ещё <n>».
 7. Show the human the agent set table, the TMS-link part and the result.
-   - If the regress or the task is missing and the model is not known -> first ask the question `model` (item 4). If the answer
-     is not `testops` -> these lines are not part of the result.
+   - If the regress or the task is missing and the model is not known:
+     - the human asked only for a check -> first ask the question `model` (item 4). If the answer
+       is not `testops` -> these lines are not part of the result;
+     - the human asked to add the markup, or answered «да» to the question below -> do not ask `model` here.
+       Go to section 3: the question `upgrade` comes first, `model` comes with the other values.
    - If the project has markup and there are no keys to take -> stop: give the final answer (section 6).
    - If the project does not have markup or there are keys `взять`, and the human asked only for a check -> ask
      «Поставить недостающие аннотации и @TmsLink по ключам из @DisplayName? да/нет».
