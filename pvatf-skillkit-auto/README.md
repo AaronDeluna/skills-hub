@@ -285,6 +285,7 @@ FlowRunner фрейма: тест становится цепочкой имен
 | `/pvatf migrate 3` | не больше 3 юнитов за запуск |
 | `/pvatf markup` | разметка тестов без миграции: проверка и постановка |
 | `/pvatf markup check` | только проверка разметки, без правок |
+| `/pvatf markup src/test/java/ru/example/api` | разметка только этого каталога; можно пакет: `/pvatf markup ru.example.api`, вместе с `check` тоже |
 | `/pvatf status` | где сейчас миграция |
 
 **Значения разметки** (`upgrade`, `model`, `system`, `stage`, `team`, `regress`, `story`) - в той

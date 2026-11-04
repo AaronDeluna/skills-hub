@@ -1,7 +1,7 @@
 export const meta = {
   name: 'pvatf',
   description: 'Единая команда набора PVATF (автономная версия). migrate - миграция от и до: карта, юниты (через pvatf-unit), разметка, проверка миграции, финал. markup - проверка и постановка разметки тестов без миграции. status - где сейчас миграция. Значения разметки можно передать сразу: system=CI02546875 stage=ift team="Payments" model=tms. Нет значения - workflow останавливается с вопросами; повторный запуск продолжает с того же места.',
-  whenToUse: 'Любая работа по миграции проекта автотестов на PVATF или по разметке тестов. Аргумент - строка: "migrate", "migrate M-007", "markup", "markup check", "status" и значения key=value.',
+  whenToUse: 'Любая работа по миграции проекта автотестов на PVATF или по разметке тестов. Аргумент - строка: "migrate", "migrate M-007", "markup", "markup check", "markup src/test/java/ru/example/api" (или пакет ru.example.api), "status" и значения key=value.',
   phases: [
     { title: 'Команда', detail: 'разбор аргументов, NextAction' },
     { title: 'Работа', detail: 'карта, юниты, разметка, проверка - по NextAction' },
@@ -15,7 +15,7 @@ const KEYS = ['upgrade', 'model', 'system', 'stage', 'team', 'regress', 'story']
 
 function parseArgs(raw) {
   if (raw && typeof raw === 'object') {
-    return { command: raw.command || 'migrate', unit: raw.unit || '', check: !!raw.check, values: raw.values || {}, max: raw.max }
+    return { command: raw.command || 'migrate', unit: raw.unit || '', check: !!raw.check, values: raw.values || {}, max: raw.max, area: raw.area || '' }
   }
   const text = String(raw || '')
   const values = {}
@@ -26,7 +26,9 @@ function parseArgs(raw) {
   const command = ['migrate', 'markup', 'status'].includes(rest[0]) ? rest[0] : 'migrate'
   const unit = (text.match(/\bM-\d+\b/) || [])[0] || ''
   const maxWord = rest.find(w => /^\d+$/.test(w))
-  return { command, unit, check: rest.includes('check'), values, max: maxWord ? Number(maxWord) : undefined }
+  // область разметки: каталог (есть «/») или пакет (ru.example.api)
+  const area = rest.find(w => w.includes('/') || /^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)+$/.test(w)) || ''
+  return { command, unit, check: rest.includes('check'), values, max: maxWord ? Number(maxWord) : undefined, area }
 }
 
 const input = parseArgs(args)
@@ -164,7 +166,7 @@ function questionsResult(step, where) {
     status: 'questions',
     where,
     questions: step.questions.map(q => ({ key: q.key, text: q.text, options: q.options || [] })),
-    next: `Ответьте значениями и запустите снова: /pvatf ${input.command}${input.check ? ' check' : ''} `
+    next: `Ответьте значениями и запустите снова: /pvatf ${input.command}${input.check ? ' check' : ''}${input.area ? ` ${input.area}` : ''} `
       + step.questions.map(q => `${q.key}=${q.options && q.options.length ? `<${q.options.join('|')}>` : '<значение>'}`).join(' '),
   }
 }
@@ -175,7 +177,7 @@ const ctx = { root: '' }
 phase('Команда')
 const [pwd] = await run('корень проекта', ['pwd'])
 ctx.root = String(pwd.output).trim().split('\n')[0]
-log(`команда: ${input.command}${input.unit ? ` ${input.unit}` : ''}${input.check ? ' check' : ''}; значения: ${Object.keys(input.values).join(', ') || '-'}`)
+log(`команда: ${input.command}${input.unit ? ` ${input.unit}` : ''}${input.check ? ' check' : ''}${input.area ? `; область: ${input.area}` : ''}; значения: ${Object.keys(input.values).join(', ') || '-'}`)
 const first = await nextAction('')
 if (first.action === 'агенты установлены') {
   return { status: 'restart', reason: first.why, next: `Перезапустите GigaCode и запустите снова: /pvatf ${typeof args === 'string' ? args : input.command}` }
@@ -197,10 +199,11 @@ if (input.command === 'markup') {
 (правила - \`.gigacode/skills/orchestrator/references/markup-rules.md\`). Просьба человека: ${input.check
     ? '«проверь разметку» - только проверить; на вопрос «Поставить недостающие аннотации...? да/нет» ответ человека: нет'
     : '«разметь тесты» - проверить и поставить'}.
+Область (markup.md, раздел 1, п.5): ${input.area || 'не названа - весь проект'}.
 Агента pvatf-marker сам не запускай: задание ему (раздел 5, п.4 markup.md) верни в requests, agent: pvatf-marker. Его отчёт придёт
 тебе следующим вызовом - дальше раздел 5, п.5-7 и итоговый ответ (раздел 6), его текст - в summary.`, 'разметка')
   if (step.stopped === 'questions') return questionsResult(step, 'разметка тестов')
-  return { status: step.ok ? (step.done ? 'done' : 'stopped') : 'stopped', reason: step.stop_reason || '', summary: step.summary, human: step.human || [],
+  return { status: step.ok ? (step.done ? 'done' : 'stopped') : 'stopped', area: input.area || 'весь проект', reason: step.stop_reason || '', summary: step.summary, human: step.human || [],
     report: '.gigacode/data/markup/MARKUP-REPORT.md' }
 }
 
