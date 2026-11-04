@@ -216,7 +216,7 @@ if (!start || !start.ok) {
   return { status: 'stopped', unit: ctx.unit, reason: start ? start.stop_reason : 'менеджер не ответил по схеме' }
 }
 if (start.type === 'markup') {
-  return { status: 'stopped', unit: ctx.unit, reason: 'юнит markup делает агент pvatf-marker по references/markup.md: запустите /orchestrator Продолжи миграцию' }
+  return { status: 'markup', unit: ctx.unit, reason: 'юнит markup: его делает /pvatf (агент pvatf-marker по references/markup.md)' }
 }
 ctx.compile = start.compile
 let steps = start.steps.length ? start.steps : [{ id: '', kind: start.type, title: '', status: 'todo' }]
