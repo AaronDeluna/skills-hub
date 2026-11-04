@@ -33,6 +33,7 @@ public class NextAction {
 
     private static final Path MIGRATION = Paths.get(".gigacode", "data", "migration");
     private static final Path AGENTS = Paths.get(".gigacode", "agents");
+    private static final Path WORKFLOWS = Paths.get(".gigacode", "workflows");
     private static final int BATCH_LIMIT = 5;
     private static final List<String> STATUSES = List.of("todo", "in-progress", "done", "blocked");
     private static final List<String> BROKEN_ROWS = new ArrayList<>();
@@ -41,8 +42,8 @@ public class NextAction {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
         List<String> installed = installAgents();
         if (!installed.isEmpty()) {
-            say("агенты установлены", "в .gigacode/agents/ записаны: " + String.join(", ", installed)
-                    + " - GigaCode читает агентов при запуске: перезапустите GigaCode (выйдите и запустите заново) и введите тот же запрос: /orchestrator <запрос человека дословно>");
+            say("агенты установлены", "в .gigacode/ записаны: " + String.join(", ", installed)
+                    + " - GigaCode читает агентов и workflow при запуске: перезапустите GigaCode (выйдите и запустите заново) и введите тот же запрос: /orchestrator <запрос человека дословно>");
             return;
         }
         Path mapFile = MIGRATION.resolve("MIGRATION-MAP.md");
@@ -439,29 +440,39 @@ public class NextAction {
                     + " запускай как java <каталог скилла>/scripts/NextAction.java");
             return List.of();
         }
+        List<String> written = install(source, ".md", AGENTS);
+        Path workflows = skill.resolve("workflows");
+        if (Files.isDirectory(workflows)) {
+            written.addAll(install(workflows, ".js", WORKFLOWS));
+        }
+        return written;
+    }
+
+    /** Файлы кита с расширением ext из source - в target проекта, если их там нет или они отличаются. */
+    private static List<String> install(Path source, String ext, Path targetDir) throws IOException {
         List<Path> files;
         try (Stream<Path> listing = Files.list(source)) {
-            files = listing.filter(file -> file.getFileName().toString().endsWith(".md")).sorted().collect(Collectors.toList());
+            files = listing.filter(file -> file.getFileName().toString().endsWith(ext)).sorted().collect(Collectors.toList());
         }
-        Path homeAgents = Paths.get(System.getProperty("user.home"), ".gigacode", "agents");
+        Path homeDir = Paths.get(System.getProperty("user.home")).resolve(targetDir);
         List<String> written = new ArrayList<>();
         for (Path file : files) {
             String name = file.getFileName().toString();
             byte[] content = Files.readAllBytes(file);
             String expected = normalized(content);
-            Path target = AGENTS.resolve(name);
+            Path target = targetDir.resolve(name);
             if (Files.exists(target) && normalized(Files.readAllBytes(target)).equals(expected)) {
                 continue;
             }
-            // такой же агент уже стоит у пользователя и в проекте его нет - GigaCode его видит
-            Path inHome = homeAgents.resolve(name);
+            // такой же файл уже стоит у пользователя и в проекте его нет - GigaCode его видит
+            Path inHome = homeDir.resolve(name);
             if (!Files.exists(target) && Files.exists(inHome) && normalized(Files.readAllBytes(inHome)).equals(expected)) {
                 continue;
             }
             boolean existed = Files.exists(target);
-            Files.createDirectories(AGENTS);
+            Files.createDirectories(targetDir);
             Files.write(target, content);
-            written.add(name + (existed ? " (обновлён: текст отличался)" : " (новый)"));
+            written.add(targetDir.getFileName() + "/" + name + (existed ? " (обновлён: текст отличался)" : " (новый)"));
         }
         return written;
     }
