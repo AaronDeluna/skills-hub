@@ -22,6 +22,8 @@ import java.util.stream.Stream;
  * java -Dfile.encoding=UTF-8 MarkupKeys.java missing <каталог тестов>...  - ключ есть, @TmsLink нет
  * java -Dfile.encoding=UTF-8 MarkupKeys.java dup <каталог тестов>...      - один ключ у разных тест-методов
  * java -Dfile.encoding=UTF-8 MarkupKeys.java count <каталог тестов>...    - сколько тест-методов и сколько с @TmsLink
+ * java -Dfile.encoding=UTF-8 MarkupKeys.java classes [--need stage,layer,system,team,regress,story] <каталог тестов>...
+ *     - каждый тест-класс и его разметка: своя или от базового класса из проекта; НЕТ - нужной аннотации нет нигде
  *
  * Учитываются только тест-методы: с @Test, @ParameterizedTest, @RepeatedTest, @TestFactory или @TestTemplate.
  * Ключи метода - из значений всех его аннотаций: @DisplayName, name у @ParameterizedTest, @Zephyr("...") и любых других
@@ -41,18 +43,59 @@ public class MarkupKeys {
     private static final Pattern VALUE_ARG = Pattern.compile("^\\(\\s*value\\s*=");
     private static final Set<String> TESTS = Set.of("Test", "ParameterizedTest", "RepeatedTest", "TestFactory", "TestTemplate");
 
+    private static final Pattern STAGE = Pattern.compile("TestStage|IsolatedTest|DevStandTest|StStandTest|IftStandTest|PsiStandTest|PromStandTest");
+    private static final Pattern LAYER = Pattern.compile("TestLayer|ApiTest|DbTest|MqTest|UiTest|UnitTest|CdcConsumerTest|CdcProviderTest|PerformanceTest");
+    private static final Pattern EXTENDS = Pattern.compile("\\bextends\\s+([A-Za-z_][A-Za-z0-9_.]*)");
+    private static final Pattern KOTLIN_SUPER = Pattern.compile(":\\s*([A-Za-z_][A-Za-z0-9_.]*)");
+    /** Ключ набора -> название в выводе. Порядок - как в выводе. */
+    private static final Map<String, String> SET = new java.util.LinkedHashMap<>();
+
+    static {
+        SET.put("stage", "контур");
+        SET.put("layer", "слой");
+        SET.put("system", "КЭ");
+        SET.put("team", "команда");
+        SET.put("regress", "регресс");
+        SET.put("story", "задача");
+    }
+
+    /** Класс верхнего уровня: файл, строка, имя, базовый класс (простое имя или null), аннотации набора над ним. */
+    private record Decl(Path file, int line, String name, String parent, Map<String, String> marks) {
+    }
+
+    private static final List<Decl> DECLS = new ArrayList<>();
+
     private record Method(String place, String name, Set<String> keys, Set<String> all, boolean hasLink, boolean test,
                           boolean unknown, Set<String> from) {
     }
 
     public static void main(String[] args) throws IOException {
         System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
-        if (args.length < 2 || !Set.of("missing", "dup", "count").contains(args[0])) {
-            System.out.println("использование: MarkupKeys.java missing|dup|count <каталог тестов>...");
+        if (args.length < 2 || !Set.of("missing", "dup", "count", "classes").contains(args[0])) {
+            System.out.println("использование: MarkupKeys.java missing|dup|count|classes [--need stage,layer,system,team,regress,story] <каталог тестов>...");
             System.exit(2);
         }
+        int first = 1;
+        Set<String> need = new LinkedHashSet<>(List.of("stage", "layer", "system", "team"));
+        if (args[0].equals("classes") && args[1].equals("--need")) {
+            if (args.length < 4) {
+                System.out.println("использование: MarkupKeys.java classes --need stage,layer,system,team,regress,story <каталог тестов>...");
+                System.exit(2);
+            }
+            need = new LinkedHashSet<>();
+            for (String k : args[2].split(",")) {
+                if (!k.isBlank() && !SET.containsKey(k.strip())) {
+                    System.out.println("неизвестный ключ в --need: " + k.strip() + " (можно: " + String.join(",", SET.keySet()) + ")");
+                    System.exit(2);
+                }
+                if (!k.isBlank()) {
+                    need.add(k.strip());
+                }
+            }
+            first = 3;
+        }
         List<Method> methods = new ArrayList<>();
-        for (int i = 1; i < args.length; i++) {
+        for (int i = first; i < args.length; i++) {
             List<Path> files;
             try (Stream<Path> walk = Files.walk(Paths.get(args[i]))) {
                 files = walk.filter(p -> p.toString().endsWith(".java") || p.toString().endsWith(".kt"))
@@ -97,6 +140,8 @@ public class MarkupKeys {
                     found++;
                 }
             }
+        } else if (args[0].equals("classes")) {
+            found = classes(methods, need);
         } else {
             long tests = methods.stream().filter(Method::test).count();
             long linked = methods.stream().filter(m -> m.test() && m.hasLink()).count();
@@ -118,8 +163,14 @@ public class MarkupKeys {
         Pending p = new Pending();
         int i = 0;
         int n = code.length();
+        int depth = 0;
         while (i < n) {
             char c = code.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
             if (c == '@') {
                 int j = i + 1;
                 int start = j;
@@ -151,6 +202,9 @@ public class MarkupKeys {
                 }
                 String word = code.substring(i, j);
                 if (word.equals("class") || word.equals("interface") || word.equals("object") || word.equals("enum")) {
+                    if (depth == 0 && (i == 0 || code.charAt(i - 1) != '@')) {
+                        declareClass(file, text, code, j, p);
+                    }
                     p = new Pending();
                 } else if (word.equals("void") || word.equals("fun")) {
                     int k = skipSpace(code, j);
@@ -187,7 +241,153 @@ public class MarkupKeys {
         return result;
     }
 
+    /** Класс верхнего уровня: имя после ключевого слова, базовый класс из заголовка до "{". */
+    private static void declareClass(Path file, String text, String code, int afterWord, Pending p) {
+        int n = code.length();
+        int k = skipSpace(code, afterWord);
+        int s = k;
+        while (k < n && Character.isJavaIdentifierPart(code.charAt(k))) {
+            k++;
+        }
+        if (k == s) {
+            return;
+        }
+        String name = code.substring(s, k);
+        StringBuilder header = new StringBuilder();
+        int depth = 0;
+        for (int q = k; q < n; q++) {
+            char c = code.charAt(q);
+            if (c == '(' || c == '<') {
+                depth++;
+                continue;
+            }
+            if (c == ')' || c == '>') {
+                depth--;
+                continue;
+            }
+            if (depth > 0) {
+                continue;
+            }
+            if (c == '{' || c == ';' || c == '}' || c == '@' || c == '=') {
+                break;
+            }
+            if (Character.isJavaIdentifierStart(c) && !Character.isJavaIdentifierPart(code.charAt(q - 1))) {
+                int e = q;
+                while (e < n && Character.isJavaIdentifierPart(code.charAt(e))) {
+                    e++;
+                }
+                String w = code.substring(q, e);
+                if (Set.of("class", "interface", "object", "fun", "val", "var", "enum").contains(w)) {
+                    break;
+                }
+            }
+            header.append(c);
+        }
+        String h = header.toString();
+        Matcher m = EXTENDS.matcher(h);
+        String parent = null;
+        if (m.find()) {
+            parent = m.group(1);
+        } else if (file.toString().endsWith(".kt")) {
+            m = KOTLIN_SUPER.matcher(h);
+            if (m.find()) {
+                parent = m.group(1);
+            }
+        }
+        if (parent != null) {
+            parent = parent.substring(parent.lastIndexOf('.') + 1);
+        }
+        int line = 1;
+        for (int q = 0; q < s; q++) {
+            if (text.charAt(q) == '\n') {
+                line++;
+            }
+        }
+        DECLS.add(new Decl(file, line, name, parent, p.marks));
+    }
+
+    /** Режим classes: строка на тест-класс, НЕТ - нужной аннотации нет ни над ним, ни над его предками из проекта. */
+    private static int classes(List<Method> methods, Set<String> need) {
+        Map<String, Decl> byName = new java.util.HashMap<>();
+        Map<Path, Decl> mainOf = new java.util.HashMap<>();
+        for (Decl d : DECLS) {
+            byName.putIfAbsent(d.name(), d);
+            mainOf.putIfAbsent(d.file(), d);
+        }
+        Set<Path> testFiles = new java.util.TreeSet<>();
+        for (Method m : methods) {
+            if (m.test()) {
+                String place = m.place();
+                String path = place.substring(0, place.lastIndexOf(':'));
+                testFiles.add(Paths.get(path));
+            }
+        }
+        int bad = 0;
+        for (Path f : testFiles) {
+            Decl d = mainOf.get(f);
+            if (d == null) {
+                continue;
+            }
+            List<Decl> chain = new ArrayList<>();
+            chain.add(d);
+            List<String> bases = new ArrayList<>();
+            Decl cur = d;
+            String outside = null;
+            Set<String> seen = new LinkedHashSet<>(List.of(d.name()));
+            while (cur.parent() != null) {
+                Decl up = byName.get(cur.parent());
+                if (up == null) {
+                    outside = cur.parent();
+                    break;
+                }
+                if (!seen.add(up.name())) {
+                    break;
+                }
+                chain.add(up);
+                bases.add(up.name());
+                cur = up;
+            }
+            StringBuilder line = new StringBuilder(d.file() + ":" + d.line() + ": " + d.name() + " · база: ");
+            if (bases.isEmpty() && outside == null) {
+                line.append("нет");
+            } else {
+                List<String> all = new ArrayList<>(bases);
+                if (outside != null) {
+                    all.add(outside + " (не из проекта)");
+                }
+                line.append(String.join(" <- ", all));
+            }
+            List<String> missing = new ArrayList<>();
+            for (Map.Entry<String, String> e : SET.entrySet()) {
+                String value = null;
+                for (Decl c : chain) {
+                    String v = c.marks().get(e.getKey());
+                    if (v != null) {
+                        value = c == d ? v : v + " (в " + c.name() + ")";
+                        break;
+                    }
+                }
+                if (value == null) {
+                    if (need.contains(e.getKey())) {
+                        value = "НЕТ";
+                        missing.add(e.getValue());
+                    } else {
+                        value = "нет";
+                    }
+                }
+                line.append(" · ").append(e.getValue()).append(": ").append(value);
+            }
+            System.out.println(line);
+            if (!missing.isEmpty()) {
+                bad++;
+            }
+        }
+        System.out.println("тест-классов: " + testFiles.size() + ", с НЕТ: " + bad);
+        return bad;
+    }
+
     private static final class Pending {
+        Map<String, String> marks = new java.util.LinkedHashMap<>();
         boolean hasLink;
         boolean test;
         boolean unknown;
@@ -197,6 +397,20 @@ public class MarkupKeys {
 
         /** args - текст аргументов без комментариев, code - тот же текст, где строки заменены пробелами. */
         void add(String name, String args, String code) {
+            String shown = "@" + name + (args.isEmpty() ? "" : args.replaceAll("\\s+", " "));
+            if (STAGE.matcher(name).matches()) {
+                marks.putIfAbsent("stage", shown);
+            } else if (LAYER.matcher(name).matches()) {
+                marks.putIfAbsent("layer", shown);
+            } else if (name.equals("System") && !args.isEmpty()) {
+                marks.putIfAbsent("system", shown);
+            } else if (name.equals("Team")) {
+                marks.putIfAbsent("team", shown);
+            } else if (name.equals("Regress") || name.equals("CriticalRegress")) {
+                marks.putIfAbsent("regress", shown);
+            } else if (name.equals("Story") || name.equals("Issue")) {
+                marks.putIfAbsent("story", shown);
+            }
             switch (name) {
                 case "TmsLink" -> {
                     hasLink = true;
