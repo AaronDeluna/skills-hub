@@ -1,7 +1,7 @@
 # Справка: tools (Fixtures, Таймауты, TestContainers, SberMock, OpenShift, DataConverter, Toggler, Launcher)
 
 Для агента `pvatf-generator`. Имена фрейма - только из конспекта (`D-fixtures-`, `D-sbermock-`,
-`D-toggler-` и т.д.) или кода проекта.
+`D-toggler-`, `D-timeouts-`, `D-testcontainers-`, `D-openshift-`, `D-dataconverter-`, `D-launcher-`) или кода проекта.
 
 ## Что искать в конспекте
 

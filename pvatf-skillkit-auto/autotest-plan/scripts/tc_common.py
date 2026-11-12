@@ -23,7 +23,7 @@ GROUPS = [
             ("Работа с DataSource", "db", ["datasource"]),
             ("Работа с Базами Данных", "db", ["select ", "insert ", "update ", "delete from", "sql", "в бд", "в базе", "базы данных", "таблиц", "postgres", "oracle"])]),
     ("logs_metrics", [("Работа с Единым Аудитом", "audit", ["аудит"]),
-                      ("Работа с Журналами ЕФС и ППРБ", "journal", ["журнал", "ефс", "ппрб"]),
+                      ("Работа с Журналами ЕФС и ППРБ", "journals", ["журнал", "ефс", "ппрб"]),
                       ("Работа с PVM-ABYSS", "abyss", ["pvm-abyss", "abyss"]),
                       ("Работа с хранилищем метрик Thanos/Victoria Metrics", "metrics", ["thanos", "victoria", "метрик"]),
                       ("Работа с СУП-Параметрами", "sup", ["суп"])]),
@@ -42,7 +42,7 @@ GROUPS = [
                      ("Работа с WebSocket", "websocket", ["websocket", "веб-сокет", "ws://", "wss://"]),
                      ("Работа с Rest API", "rest", ["rest", "http", "post", "get ", "put ", "patch", "delete ", "эндпоинт", "endpoint", "/api/", "запрос", "ответ", "json", "statuscode", "код ответа", "jsonpath"])]),
     ("ui", [("Работа с UI", "ui", ["selenide", "playwright", "браузер", "страниц", "кнопк", "клик", "нажать", "поле ", "форм", "экран", "вкладк", "ссылк", "чекбокс", "отображается"])]),
-    ("other", [("Работа с Сессиями", "session", ["сесси", "авториз"]),
+    ("other", [("Работа с Сессиями", "sessions", ["сесси", "авториз"]),
                ("ValueService", "value", ["valueservice", "сгенерир", "случайн"]),
                ("Работа с Invocation", "invocation", ["invocation"])]),
 ]

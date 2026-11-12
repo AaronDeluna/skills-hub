@@ -45,10 +45,10 @@
    | `kafka` | Работа с Kafka | KafkaService |
    | `ui` | Работа с UI Playwright / Работа с UI Selenide | нет |
    | `mobile` | Работа с Appium Android / Работа с Appium iOS | AndroidPage |
-   | `audit` / `journal` / `abyss` / `metrics` | Работа с Единым Аудитом / Журналами ЕФС и ППРБ / PVM-ABYSS / хранилищем метрик | AuditFlow / JournalFlow / нет / MetricsFlow |
+   | `audit` / `journals` / `abyss` / `metrics` | Работа с Единым Аудитом / Журналами ЕФС и ППРБ / PVM-ABYSS / хранилищем метрик | AuditFlow / JournalFlow / нет / MetricsFlow |
    | `fixtures` / `testcontainers` / `sbermock` / `toggler` / `launcher` | Сервис для работы с Fixtures / Работа с TestContainers / Работа с SberMock / Работа с Toggler / Работа с Launcher | FixtureService / ContainerService / SberMockService / TogglerService / LauncherService |
    | `timeouts` / `openshift` / `dataconverter` | Сервис для работы с Таймаутами / Работа с OpenShift и Kubernetes / Работа с DataConverter | нет / нет / DataConverterService |
-   | `value` / `session` / `invocation` | ValueService / Работа с Сессиями / Работа с Invocation | ValueService / нет / нет |
+   | `value` / `sessions` / `invocation` | ValueService / Работа с Сессиями / Работа с Invocation | ValueService / нет / нет |
 4. **Память - это файлы, а не чат.** Состояние окружения - `.gigacode/data/autotest/ENV*.md`,
    `ENV.json`; генерации - `.gigacode/data/autotest/<ID ТК>/`. Результат этапа сразу пиши в
    файл, потом следующий этап. Сомневаешься, где ты, - файл главнее памяти.

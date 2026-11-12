@@ -376,7 +376,7 @@ def cmd_approve(target, choice, target_only):
             approved.append(item[0])
         text = re.sub(r"(?m)^(\| " + re.escape(item[0]) + r" \|(?:(?:[^|\n\\]|\\.)*\|){5}) *\w+ *\|$",
                       lambda m: m.group(1) + " " + status + " |", text, count=1)
-    text = set_head(set_head(text, "review_status", "approved"), "target_only", "yes" if target_only else "no")
+    text = set_head(set_head(text, "review_status", "approved" if approved else "checked"), "target_only", "yes" if target_only else "no")
     path.write_text(journal(text, "approve -> " + (", ".join(approved) or "нет")), encoding="utf-8")
     print("ОДОБРЕНО: " + (", ".join(approved) or "нет") + (" · только тест-класс" if target_only else ""))
     return 0

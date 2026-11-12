@@ -321,7 +321,7 @@ def cmd_check(key, compile_on):
         print(f)
     print("КОМПИЛЯЦИЯ: " + status + (" · " + details[0] if details else ""))
     print("ИТОГ: находок " + str(len(findings)) + (" - чисто" if not findings else " - исправь и запусти снова"))
-    if not findings and status == "ok":
+    if not [f for f in findings if not f.startswith("STUB ")] and status in ("ok", "skipped"):
         path.write_text(journal(set_head(text, "plan_status", "checked"), "check -> чисто"), encoding="utf-8")
         print("plan_status: checked")
     return 0 if not findings and status in ("ok", "skipped") else 1

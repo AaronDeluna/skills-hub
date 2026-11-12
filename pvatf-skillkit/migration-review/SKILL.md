@@ -23,7 +23,7 @@ description: 'Проверяет, как прошла миграция прое�
 ## Предусловия
 
 - Запуск из корня проекта; карта `.gigacode/data/migration/MIGRATION-MAP.md` - если есть.
-- Агент `pvatf-docs` и сабагенты ревью по `references/review-subagent.md`.
+- Сабагенты ревью по `references/review-subagent.md`.
 - Код проекта не меняется: правки делает только `migration-step`.
 
 ## Шаги

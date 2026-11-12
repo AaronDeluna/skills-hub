@@ -310,7 +310,7 @@ def check_plain(text):
         problems.append("«Что сделать» без пронумерованных действий")
     for empty in EMPTY_WORDS.finditer(todo):
         problems.append("слово без содержания «" + empty.group() + "» в «Что сделать»")
-    if not re.search(r"MR-[0-9H]+", parts.get("Правила юнита", "")):
+    if front(text, "type") != "review" and not re.search(r"MR-[0-9H]+", parts.get("Правила юнита", "")):
         problems.append("пустой раздел «Правила юнита»")
     if "<точный grep" in parts.get("Критерии готовности", ""):
         problems.append("в «Критериях готовности» не подставлен grep-шаблон")
