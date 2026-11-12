@@ -34,7 +34,7 @@ MANDATORY_DEPS = ["environment-junit5", "allure2"]
 RECOMMENDED_DEPS = ["slf4j-api", "slf4j-simple", "allure-junit5", "aspectjweaver"]
 RECOMMENDED_PLUGINS = ["maven-surefire-plugin", "allure-maven", "maven-resources-plugin"]
 REQUIRED_PROPERTY_KEY = "perfeccionista.attachment.dir"
-DEFAULT_TIMEOUT = 600
+DEFAULT_TIMEOUT = 900
 
 
 def main():
@@ -94,7 +94,9 @@ def main():
     command = compile_command(root, tool)
     report["project"]["compile_command"] = " ".join(command) if command else "-"
     report["project"]["compile_argv"] = command
-    if tool != "-":
+    if tool == "-":
+        check(report, "E6", "компиляция тестов", "warning", "не запускалась: нет файла сборки")
+    else:
         if compile_on:
             run_compile(report, command, timeout)
         else:

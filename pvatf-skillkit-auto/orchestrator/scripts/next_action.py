@@ -200,8 +200,8 @@ def card_rows(uid):
 
 def core_steps_left(uid):
     rows = card_rows(uid)
-    if rows is None:
-        return 0
+    if not rows:
+        return 1   # карточки нет или в ней нет подшагов - ядро юнита не сделано, юнит нужно запустить
     return sum(1 for row in rows if re.fullmatch(r"разбор|env|core", row[1]) and row[4] != "done")
 
 
@@ -513,8 +513,12 @@ def main(args):
         env(args[1:])
     elif args and args[0] == "review":
         review(args[1:])
+    elif args and args[0] == "update-map":
+        say("migration-map", "карта устарела по словам человека - режим обновления (Этап 6)")
+    elif args and args[0] == "check-migration":
+        say("migration-review", "проверка миграции по просьбе человека; карта не обязательна")
     elif args and args[0].startswith("-"):
-        print("Использование: next_action.py [M-<n> | M-<a>..M-<b> | autotest [ключ ТК] | env [check|setup|update] | review [файл теста]]")
+        print("Использование: next_action.py [M-<n> | M-<a>..M-<b> | autotest [ключ ТК] | env [check|setup|update] | review [файл теста] | check-migration | update-map]")
         return 2
     else:
         migration(args)

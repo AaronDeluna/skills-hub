@@ -77,7 +77,7 @@
    grep -rlE "org\.springframework" --include=pom.xml --include=*.gradle --include=*.kts . | grep -v "/target/\|/build/" | head
    grep -rlE "@SpringBootTest|@ContextConfiguration|@Autowired|@Component|@Configuration|SpringExtension" --include=*.java --include=*.kt <каталог тестов> | wc -l
    ```
-   Обе команды пусты -> `Spring: нет`. Что-то нашлось -> это ВСЕГДА вопрос человеку в
+   Первая команда ничего не вывела и вторая вывела `0` -> `Spring: нет`. Что-то нашлось -> это ВСЕГДА вопрос человеку в
    раздел 6 (фильтр вопросов к нему не применяется - решение меняет всю карту). Текст:
    «В проекте используется Spring (<где: зависимости, n классов с аннотациями>). Как
    поступаем?», варианты:

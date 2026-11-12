@@ -12,7 +12,7 @@
 | `ENV.json` ok | `/orchestrator Проверь тест-кейс tc.md` | `autotest tc.md` | `autotest-plan` | `autotest-plan`, шаги 1-3 |
 | `PLAN.md` planned | `/orchestrator Продолжи генерацию CMN-T120` | `autotest CMN-T120` | `autotest-gen CMN-T120` | `autotest-gen` |
 | `PLAN.md` checked | `/orchestrator Продолжи генерацию CMN-T120` | `autotest CMN-T120` | `финал CMN-T120` | никакой, итог из `CHECK.md` |
-| `TC-CHECK.md` FAIL | `/orchestrator Продолжи генерацию BAD-T1` | `autotest BAD-T1` | `autotest-plan BAD-T1` | `autotest-plan`: показать находки, план не строить |
+| `TC-CHECK.md` FAIL, `PLAN.md` нет | `/orchestrator Продолжи генерацию BAD-T1` | `autotest BAD-T1` | `autotest-plan BAD-T1` | `autotest-plan`: показать находки, план не строить |
 | `ENV.json` ok | `/orchestrator Проверь автотест src/test/java/ru/demo/tests/PayTest.java` | `review src/test/java/ru/demo/tests/PayTest.java` | `autotest-review src/test/java/ru/demo/tests/PayTest.java` | `autotest-review`, шаги 1-8, вопрос о выборе правок |
 | `REVIEW-PLAN.md` fixing | `/orchestrator Продолжи проверку автотеста` | `review` | `autotest-review <файл>` | `autotest-review` с шага 4 |
 | `ENV.json` ok | `/orchestrator Оптимизируй тест` | `review` | `autotest-review` | никакой, вопрос о пути к тест-классу |

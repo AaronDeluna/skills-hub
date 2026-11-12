@@ -326,7 +326,7 @@ def check_doc_refs(text):
         tech = ref.group(1)
         if tech not in notes:
             notes[tech] = read(MIGRATION / "doc-notes" / (tech + ".md"))
-        if ref.group() not in notes[tech]:
+        if not re.search(r"(?m)^#{2,3} " + re.escape(ref.group()) + r"\b", notes[tech] or ""):
             problems.append("ссылка " + ref.group() + " - такой записи нет в doc-notes/" + tech + ".md")
 
 

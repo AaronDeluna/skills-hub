@@ -190,8 +190,14 @@ def cmd_mark(key, gid, status):
     pattern = re.compile(r"(?m)^(\| " + re.escape(gid) + r" \|(?:[^|\n]*\|){6}) *\w+ *\|$")
     if not pattern.search(text):
         return fail("в разделе 3 плана нет строки " + gid, 1)
-    if status in ("ok", "stub") and not (folder(key) / "fragments" / (gid + ".md")).is_file():
+    frag = folder(key) / "fragments" / (gid + ".md")
+    if status == "ok" and not frag.is_file():
         return fail("нет фрагмента fragments/" + gid + ".md - агент его не записал; статус не меняю", 1)
+    if status == "stub" and not frag.is_file():
+        frag.parent.mkdir(parents=True, exist_ok=True)
+        frag.write_text("# " + gid + "\n\n- Статус: stub\n- Файлы шагов: -\n\n## imports\n```java\n```\n\n"
+                        "## fields\n```java\n```\n\n## body\n```java\n// STUB " + gid
+                        + ": фрагмент не получен, шаг дописать вручную\n```\n", encoding="utf-8")
     text = pattern.sub(lambda m: m.group(1) + " " + status + " |", text, count=1)
     if head.get("plan_status") == "planned" or (status == "todo" and head.get("plan_status") in ("assembled", "checked")):
         text = set_head(text, "plan_status", "generating")

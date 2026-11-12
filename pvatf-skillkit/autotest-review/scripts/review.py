@@ -33,7 +33,6 @@ DUP_LINES = 5            # MR-39: блок из 5 и более строк
 SHARED_FILES = 2         # литерал ещё в 2 и более других тестах -> общий класс констант
 COMPILE_TIMEOUT = 900
 MAX_ROUNDS = 3           # кругов check -> исправление; после - rollback
-MAX_FILE = 1024 * 1024   # файлы больше 1 МБ в копию не берутся
 # правила кода для агента при правках (выписывает start в rules-now.md)
 REVIEW_RULES = ["MR-1", "MR-2", "MR-4", "MR-5", "MR-7", "MR-9", "MR-10", "MR-11", "MR-12", "MR-13", "MR-14", "MR-15",
                 "MR-18", "MR-19", "MR-21", "MR-22", "MR-29", "MR-33", "MR-39", "MR-40", "MR-41", "MR-42", "MR-43",
@@ -389,7 +388,7 @@ def snapshot(dest):
     manifest = []
     for root in source_roots():
         for path in root.rglob("*"):
-            if path.is_file() and not (set(path.parts) & SKIP_DIRS) and path.stat().st_size <= MAX_FILE:
+            if path.is_file() and not (set(path.parts) & SKIP_DIRS):
                 copy = dest / "files" / path.as_posix()
                 copy.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, copy)
@@ -405,7 +404,8 @@ def changed_files(target):
     except ValueError:
         return [], []
     known = set(manifest)
-    changed = [p for p in manifest if read(p) != read(dest / "files" / p) or not Path(p).is_file()]
+    changed = [p for p in manifest
+               if not Path(p).is_file() or Path(p).read_bytes() != (dest / "files" / p).read_bytes()]
     created = []
     for root in source_roots():
         for path in root.rglob("*"):

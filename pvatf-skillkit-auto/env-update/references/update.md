@@ -11,7 +11,7 @@
 ```
 python3 .gigacode/skills/env-check/scripts/env_check.py
 ```
-Таймаут команды 900 секунд. В шапку `ENV-UPDATE.md`: `before_status` - значение `СТАТУС`.
+Таймаут команды 1000 секунд. В шапку `ENV-UPDATE.md`: `before_status` - значение `СТАТУС`.
 Строка `E6 · компиляция тестов` не `ok` -> обработка ошибок, «компиляция failed до обновления».
 
 ## Этап 2 - текущая версия
@@ -68,9 +68,9 @@ python3 .gigacode/skills/env-update/scripts/env_update.py bump <to>
 ## Этап 7 - компиляция после обновления
 
 ```
-python3 .gigacode/skills/env-check/scripts/env_check.py
+python3 .gigacode/skills/env-check/scripts/env_check.py --timeout 1800
 ```
-Таймаут 1800 секунд. `E6` ok и мест из этапа 5 нет -> этап 9. Иначе - этап 8.
+Таймаут команды 1900 секунд. `E6` ok и мест из этапа 5 нет -> этап 9. Иначе - этап 8.
 
 ## Этап 8 - исправления (не больше 3 кругов)
 

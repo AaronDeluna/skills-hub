@@ -78,7 +78,7 @@
    grep -rlE "org\.springframework" --include=pom.xml --include=*.gradle --include=*.kts . | grep -v "/target/\|/build/" | head
    grep -rlE "@SpringBootTest|@ContextConfiguration|@Autowired|@Component|@Configuration|SpringExtension" --include=*.java --include=*.kt <каталог тестов> | wc -l
    ```
-   Обе команды пусты -> `Spring: нет`. Что-то нашлось -> это ВСЕГДА запись в раздел 6
+   Первая команда ничего не вывела и вторая вывела `0` -> `Spring: нет`. Что-то нашлось -> это ВСЕГДА запись в раздел 6
    (проверки из `references/questions-filter.md` к ней не применяются - решение меняет всю
    карту), и решение без человека всегда одно - **оставить Spring**: без человека
    архитектуру проекта не перестраиваем. Запись:
