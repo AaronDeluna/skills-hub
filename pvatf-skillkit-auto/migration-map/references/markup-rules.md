@@ -666,7 +666,9 @@ grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <к�
   grep -rnE "^import (ru\.sber\.qa\.allure|io\.qameta\.allure)\.[a-zA-Z0-9_.]*\*;" --include='*.java' --include='*.kt' <каталог>
   grep -rnE "^import [a-zA-Z0-9_.]+\.(TestLayer|TestStage|System|Team|Regress|CriticalRegress|ApiTest|DbTest|MqTest|UiTest|TmsLink|Story|Issue);" --include='*.java' --include='*.kt' <каталог>
   ```
-  Первая команда - импорт со `*`; вторая - пакет не как в таблице. `ошибка`, `агент`.
+  Первая команда находит импорт со `*` - это `ошибка`. Вторая печатает все импорты этих
+  аннотаций: сравни пакет каждой строки с таблицей раздела 2, п.5. Пакет совпал - не находка.
+  Не совпал - `ошибка`. Исправляет `агент`.
 - **П-13. Общие аннотации - над базовым классом, без дублей** (раздел 2, пп.1, 4).
   `@System`, `@Team`, `@TestStage` с одним значением стоят над каждым наследником, а над
   базовым классом нет; или та же аннотация с тем же значением и над классом, и над его

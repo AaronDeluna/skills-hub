@@ -75,7 +75,7 @@ def classify_rows(rows, ui_lib):
         group, tech, label, conf, found = tcc.classify(r["action"] + " " + r["data"])
         if group == "UNKNOWN_GROUP":
             group, tech, label, conf, found = tcc.classify(r["expected"])
-            conf = "MEDIUM" if group != "UNKNOWN_GROUP" else conf
+            conf = "MEDIUM" if conf == "HIGH" else conf
         r.update(group=group, tech=tech, label=label, conf=conf, why=", ".join(found[:3]) or "-")
     for index, r in enumerate(rows):
         if r["group"] != "UNKNOWN_GROUP":

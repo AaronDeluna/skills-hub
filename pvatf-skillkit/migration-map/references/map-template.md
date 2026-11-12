@@ -15,7 +15,7 @@ project: <имя проекта>
 map_status: building | review | approved
 scope: full | core
 map_stage: <номер этапа, который сейчас в работе: 1-6>
-review_status: <заполняет migration-review: clean | findings; пока проверки не было - `-`>
+review_status: <заполняет migration-review: clean | findings | incomplete; пока проверки не было - `-`>
 review_round: <заполняет migration-review: номер круга проверки; пока не было - 0>
 created: <ГГГГ-ММ-ДД>
 updated: <ГГГГ-ММ-ДД>

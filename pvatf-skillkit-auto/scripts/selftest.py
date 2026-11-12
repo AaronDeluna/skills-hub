@@ -149,6 +149,10 @@ def main():
         expect("env_update bump", p, eu, ["bump", "3.5.0"], 0, "ИЗМЕНЕНО: pom.xml:2 · pvat.version · 3.4.1 -> 3.5.0")
         expect("env_update bump повторно", p, eu, ["bump", "3.5.0"], 1, "УЖЕ:")
         expect("env_update rollback", p, eu, ["rollback"], 0, "ВОЗВРАЩЁН: pom.xml")
+        expect("env_update bump для reset", p, eu, ["bump", "3.5.0"], 0, "ИЗМЕНЕНО: pom.xml:2")
+        expect("env_update reset", p, eu, ["reset"], 0, "СБРОШЕНО")
+        expect("env_update rollback после reset", p, eu, ["rollback"], 1, "КОПИЙ НЕТ")
+        write(p, "pom.xml", (Path(p) / "pom.xml").read_text(encoding="utf-8").replace("3.5.0", "3.4.1"))
         ap = ".gigacode/skills/autotest-plan/scripts/"
         expect("tc_convert md", p, ap + "tc_convert.py", ["tc.md"], 0, "ТК: CMN-T120", "ШАГОВ: 2")
         write(p, "tc.xml", "<testCase key=\"XML-T1\"><name>Создание заказа через REST API</name><objective>цель</objective>"

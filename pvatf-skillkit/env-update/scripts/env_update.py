@@ -5,6 +5,7 @@
   python3 <скилл>/scripts/env_update.py latest <файл>            - самая новая версия в сохранённых release notes
   python3 <скилл>/scripts/env_update.py bump <версия> [--only 1,3] - заменить текущую версию на новую (с копией файлов)
   python3 <скилл>/scripts/env_update.py rollback                 - вернуть файлы сборки из копии
+  python3 <скилл>/scripts/env_update.py reset                    - стереть копии и состояние прошлого обновления
   python3 <скилл>/scripts/env_update.py usages <файл имён>       - где в коде проекта встречаются имена из списка
   python3 <скилл>/scripts/env_update.py errors                   - ошибки компиляции из ENV.json, сгруппированные по файлам
 
@@ -216,8 +217,16 @@ def cmd_errors(args):
     return 0
 
 
+def cmd_reset(args):
+    shutil.rmtree(str(BACKUP), ignore_errors=True)
+    if STATE.exists():
+        STATE.unlink()
+    print("СБРОШЕНО: копий и состояния прошлого обновления нет")
+    return 0
+
+
 COMMANDS = {"versions": cmd_versions, "latest": cmd_latest, "bump": cmd_bump, "rollback": cmd_rollback,
-            "usages": cmd_usages, "errors": cmd_errors}
+            "reset": cmd_reset, "usages": cmd_usages, "errors": cmd_errors}
 
 
 def main(args):

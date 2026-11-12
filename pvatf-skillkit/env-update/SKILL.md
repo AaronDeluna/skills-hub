@@ -36,7 +36,11 @@ description: 'Обновление фрейма PVATF в проекте авто
 
 1. Прочитай шапку `.gigacode/data/autotest/ENV-UPDATE.md`. Файла нет -> создай по шаблону
    `references/report-template.md`, `update_stage: 1`. Есть и `update_status: in-progress` ->
-   продолжай с этапа `update_stage`.
+   продолжай с этапа `update_stage`. Просят откатить, статус `done` или `failed` -> сразу этап 9,
+   ветка «откат», `reset` не запускай. Иначе статус другой (`done`, `failed`, `rolled-back`) ->
+   переименуй файл в `ENV-UPDATE-<from>-<to>.md`, запусти
+   `python3 .gigacode/skills/env-update/scripts/env_update.py reset` (стирает копии файлов
+   сборки прошлого обновления, ждёт `СБРОШЕНО`) и создай новый файл по шаблону, `update_stage: 1`.
 2. Выполняй этапы `references/update.md` по порядку, от текущего до 9. После каждого этапа
    обнови в шапке `update_stage` и допиши строку в раздел «Журнал».
 3. Этап закончился ошибкой из таблицы «Обработка ошибок» -> поступай по таблице, дальше не иди.

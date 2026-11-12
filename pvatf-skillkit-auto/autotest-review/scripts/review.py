@@ -218,10 +218,10 @@ def const_type(literal):
         return "String"
     if literal[-1] in "Ll":
         return "long"
-    if literal[-1] in "Dd" or "." in literal:
-        return "double"
     if literal[-1] in "Ff":
         return "float"
+    if literal[-1] in "Dd" or "." in literal:
+        return "double"
     return "int"
 
 

@@ -193,11 +193,21 @@ def cmd_mark(key, gid, status):
     frag = folder(key) / "fragments" / (gid + ".md")
     if status == "ok" and not frag.is_file():
         return fail("нет фрагмента fragments/" + gid + ".md - агент его не записал; статус не меняю", 1)
-    if status == "stub" and not frag.is_file():
+    if status in ("stub", "blocked") and not frag.is_file():
+        # заглушка с комментарием «// Шаг <n>» на каждый шаг G: проверка покрытия видит шаг,
+        # а строка STUB уходит в итог человеку
+        steps = {r[0]: r for r in section_rows(text, "2. Шаги")}
+        row = next((g for g in section_rows(text, "3. Порядок генерации") if g[0] == gid), None)
+        body = []
+        for sid in (row[1].replace(" ", "").split(",") if row else []):
+            action = steps[sid][1] if sid in steps and len(steps[sid]) > 1 else "-"
+            body += ["// Шаг " + sid + ": " + action,
+                     "// STUB " + gid + ": фрагмент не получен, шаг дописать вручную"]
+        if not body:
+            body = ["// STUB " + gid + ": фрагмент не получен, шаг дописать вручную"]
         frag.parent.mkdir(parents=True, exist_ok=True)
-        frag.write_text("# " + gid + "\n\n- Статус: stub\n- Файлы шагов: -\n\n## imports\n```java\n```\n\n"
-                        "## fields\n```java\n```\n\n## body\n```java\n// STUB " + gid
-                        + ": фрагмент не получен, шаг дописать вручную\n```\n", encoding="utf-8")
+        frag.write_text("# " + gid + "\n\n- Статус: " + status + "\n- Файлы шагов: -\n\n## imports\n```java\n```\n\n"
+                        "## fields\n```java\n```\n\n## body\n```java\n" + "\n".join(body) + "\n```\n", encoding="utf-8")
     text = pattern.sub(lambda m: m.group(1) + " " + status + " |", text, count=1)
     if head.get("plan_status") == "planned" or (status == "todo" and head.get("plan_status") in ("assembled", "checked")):
         text = set_head(text, "plan_status", "generating")
@@ -225,7 +235,7 @@ def cmd_assemble(key):
     if text is None:
         return fail("НЕТ PLAN.md")
     gens = section_rows(text, "3. Порядок генерации")
-    not_ready = [g[0] + " " + g[7] for g in gens if len(g) >= 8 and g[7] not in ("ok", "stub")]
+    not_ready = [g[0] + " " + g[7] for g in gens if len(g) >= 8 and g[7] not in ("ok", "stub", "blocked")]
     if not_ready:
         return fail("НЕ ГОТОВЫ: " + ", ".join(not_ready) + " - сначала next/mark по каждому G", 1)
     parts = [fragment(folder(key) / "fragments" / (g[0] + ".md")) for g in gens]
@@ -261,7 +271,7 @@ def cmd_assemble(key):
         out += [("        " + l if l.strip() else "") for l in p["body"].split("\n")]
     out += ["    }", "}", ""]
     target = Path(head["test_file"])
-    if target.is_file() and MARK + key not in read(target):
+    if target.is_file() and MARK + key not in [line.strip() for line in read(target).splitlines()]:
         return fail("ФАЙЛ ЕСТЬ: " + str(target) + " создан не autotest-gen - не перезаписываю; поменяй class в плане", 1)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("\n".join(out), encoding="utf-8")
@@ -298,8 +308,7 @@ def cmd_check(key, compile_on):
             findings.append("ФАЙЛ %s - назван во фрагменте, но его нет" % item)
     body = read(target)
     for row in section_rows(text, "2. Шаги"):
-        number = row[0].split(".")[0]
-        if not re.search(r"//\s*Шаг\s+" + re.escape(row[0]) + r"\b|//\s*Шаг\s+" + re.escape(number) + r"\b", body):
+        if not re.search(r"//\s*Шаг\s+" + re.escape(row[0]) + r"(?=\s|:|$)", body, re.M):
             findings.append("ПОКРЫТИЕ шаг %s - в тест-методе нет комментария «// Шаг %s: ...»: шаг не сгенерирован" % (row[0], row[0]))
     status, details = ("skipped", ["--no-compile"]) if not compile_on else compile_project(900)
     if status == "failed":

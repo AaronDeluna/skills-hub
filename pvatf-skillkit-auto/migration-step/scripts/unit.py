@@ -114,6 +114,9 @@ class Card:
         whole.result = parts.get("Цель", "")
         whole.checkpoint = parts.get("Критерии готовности", "")
         whole.rules = parts.get("Правила юнита", "")
+        if self.type == "fix" and not whole.rules:
+            # у карточки fix правила - в колонке «Правило» таблицы находок, плюс базовые MR-9 и MR-11
+            whole.rules = "MR-9 MR-11 " + parts.get("Находки (что исправить)", "")
         whole.body = text
         self.whole = whole
         self.confirmations = ""

@@ -90,7 +90,7 @@ def classify(text):
     groups = {h[0] for h in hits}
     group, tech, label, found = hits[0]
     confidence = "HIGH" if len(groups) == 1 and len(found) >= 1 else "MEDIUM"
-    if len(groups) > 2:
+    if len(groups) > 1:
         confidence = "LOW"
     return group, tech, label, confidence, found
 

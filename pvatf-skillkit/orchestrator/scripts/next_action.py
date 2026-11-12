@@ -368,8 +368,8 @@ def migration(args):
     rnd = parse_int(head.get("review_round", "0"))
     if review == "clean":
         say("финал", "все юниты done, проверка миграции чистая (круг " + str(rnd) + ")")
-    elif review == "findings" and rnd >= 3:
-        say("проверка не сходится", "три круга проверки с находками - покажи сводку последнего круга, дальше решает человек")
+    elif review in ("findings", "incomplete") and rnd >= 3:
+        say("проверка не сходится", "три круга проверки с находками или незаконченные - покажи сводку последнего круга, дальше решает человек")
     else:
         say("migration-review", "все юниты done, проверка миграции " + ("ещё не запускалась" if rnd == 0 else "круг " + str(rnd + 1)))
     map_size_note(text)
