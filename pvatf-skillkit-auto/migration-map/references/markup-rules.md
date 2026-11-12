@@ -1,7 +1,7 @@
 # Разметка тестов (allure-annotations)
 
-Общий файл кита: источник - `shared/markup-rules.md`, копии в скиллах раскладывает
-`scripts/SyncShared.java`. Правишь - правь только источник.
+Общий файл набора: источник - `shared/markup-rules.md`, копии в скиллах раскладывает
+`scripts/sync_shared.py`. Правишь - правь только источник.
 
 Разметка - аннотации библиотеки `allure-annotations` (`ru.sber.qa`), по которым Allure
 TestOps фильтрует тесты и строит статистику. Документации фрейма она не касается: всё, что
@@ -492,7 +492,7 @@ grep -rn "allure-annotations" --include=pom.xml --include='*.gradle' --include='
 
 Ключи тест-кейсов без `@TmsLink` (кандидаты для раздела 2а):
 ```
-java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java missing <каталог тестов>...
+python3 .gigacode/skills/migration-step/scripts/markup_keys.py missing <каталог тестов>...
 ```
 Строка: `<файл>:<строка>: <метод> - <ключи> - нет @TmsLink (из <аннотации>)`. Ключей в строке два
 и больше - условие 1 раздела 2а не выполнено. Строка `<файл>:<строка>: <метод> - значение не
@@ -502,7 +502,7 @@ java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.ja
 Одинаковые ключи тест-кейсов у разных тест-методов (условие 3 раздела 2а; считаются ключи
 из всех аннотаций тест-метода и из `@TmsLink`):
 ```
-java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java dup <каталог тестов>...
+python3 .gigacode/skills/migration-step/scripts/markup_keys.py dup <каталог тестов>...
 ```
 Строка: `<ключ> - <файл>:<строка>:<метод> <файл>:<строка>:<метод> ...`. Строка
 `<файл>:<строка>:<метод> - значение не разобрать, проверьте вручную` - ключ этого метода неизвестен,
@@ -510,7 +510,7 @@ java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.ja
 
 Разметка каждого тест-класса - скриптом, не grep-ом (наследование grep не видит):
 ```
-java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java classes --need <ключи> <каталог тестов>...
+python3 .gigacode/skills/migration-step/scripts/markup_keys.py classes --need <ключи> <каталог тестов>...
 ```
 `--need` - какие аннотации набора нужны, через запятую, без пробелов: `stage` (контур), `layer`
 (слой) - всегда; `system` (КЭ), `team` (команда) - если значение не `-`; `regress`, `story` -
@@ -543,7 +543,7 @@ grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <к�
    раздела 2а). Потом из корня проекта команда «Ключи тест-кейсов без `@TmsLink`»
    (раздел 5) по всем каталогам тестов:
    ```
-   java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java missing <каталог тестов>...
+   python3 .gigacode/skills/migration-step/scripts/markup_keys.py missing <каталог тестов>...
    ```
    Каждая строка вывода - тест-метод, где есть ключ тест-кейса, а `@TmsLink` нет. По каждой строке: условия раздела 2а выполнены -> поставь `@TmsLink` с
    этим ключом; не выполнены -> в отчёт с причиной словами (раздел 2а: одинаковый ключ -
@@ -608,7 +608,7 @@ grep -rlE "@(Test|ParameterizedTest)\b" --include='*.java' --include='*.kt' <к�
 - **П-1. allure-annotations 2.x** (раздел 2б, п.2). Дерево зависимостей (раздел 5): мажорная
   версия 0 или 1, или зависимости нет. `ошибка`, `агент` (вопрос `upgrade`).
 - **П-2. Набор агента у каждого тест-класса** - сам или через предка (разделы 1, 5). Команда
-  «Разметка каждого тест-класса» (`MarkupKeys.java classes`, раздел 5), `--need
+  «Разметка каждого тест-класса» (`markup_keys.py classes`, раздел 5), `--need
   stage,layer,system,team` (+ `regress,story` при `model: testops`): каждое `НЕТ` в выводе.
   Одна строка на аннотацию со списком тест-классов без неё. `ошибка`, `агент` (значения - вопросы раздела 4); нет только
   `@Team` - `замечание`.

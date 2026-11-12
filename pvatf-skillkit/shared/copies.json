@@ -1,0 +1,60 @@
+{
+  "core-rules.md": [
+    "orchestrator",
+    "migration-map",
+    "migration-step",
+    "migration-review"
+  ],
+  "matchers.md": [
+    "migration-map",
+    "migration-step",
+    "autotest-gen",
+    "autotest-review"
+  ],
+  "frame-topics.md": [
+    "migration-map",
+    "migration-step"
+  ],
+  "architecture-template.md": [
+    "migration-map",
+    "migration-review"
+  ],
+  "substep-rules.md": [
+    "migration-map",
+    "migration-step"
+  ],
+  "markup-rules.md": [
+    "orchestrator",
+    "migration-map",
+    "migration-step",
+    "migration-review"
+  ],
+  "code-rules.md": [
+    "migration-step",
+    "autotest-gen",
+    "autotest-review"
+  ],
+  "autotest-rules.md": [
+    "orchestrator",
+    "env-check",
+    "env-update",
+    "autotest-plan",
+    "autotest-gen",
+    "autotest-review"
+  ],
+  "scripts/notes.py": [
+    "migration-map",
+    "migration-step",
+    "env-check",
+    "env-update",
+    "autotest-gen"
+  ],
+  "scripts/frame_versions.py": [
+    "env-check",
+    "env-update"
+  ],
+  "scripts/java_checks.py": [
+    "autotest-gen",
+    "autotest-review"
+  ]
+}

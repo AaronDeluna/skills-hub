@@ -40,13 +40,13 @@ approvalMode: auto-edit
 4. **Разметка каждого тест-класса** - команда из раздела 5 правил, по ВСЕМ каталогам сразу,
    вывод - в файл, целиком:
    ```
-   java -Dfile.encoding=UTF-8 .gigacode/skills/migration-step/scripts/MarkupKeys.java classes --need <ключи> <каталоги> > .gigacode/data/markup/MARKUP-CLASSES.txt
+   python3 .gigacode/skills/migration-step/scripts/markup_keys.py classes --need <ключи> <каталоги> > .gigacode/data/markup/MARKUP-CLASSES.txt
    ```
    `--need` - по «Значениям разметки»: `stage,layer` всегда; `system`, `team` - если значение
    не `-`; `regress`, `story` - если `model: testops` и значение не `-`. Режим `проверка` -
    `stage,layer,system,team`. Этот файл - главный источник: по нему ты знаешь, у какого класса
    чего нет. Глазами и grep-ом разметку классов не определяй.
-5. Ключи тест-кейсов (раздел 5 правил): `MarkupKeys.java missing`, `dup`, `count` по всем
+5. Ключи тест-кейсов (раздел 5 правил): `markup_keys.py missing`, `dup`, `count` по всем
    каталогам. Решение по каждому ключу - по условиям раздела 2а правил: `взять` / `не взят:
    <причина словами>`.
 6. Значения в проекте - для сверки с ответами:

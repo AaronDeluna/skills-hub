@@ -1,6 +1,6 @@
 ---
 name: pvatf-docs
-description: Достаёт справку из документации фрейма PVATF (MCP, инструмент get_pv_at_doc) по готовому заданию из скиллов migration-map и migration-step. Вызывать только из этих скиллов, по имени. Для других задач не использовать.
+description: Достаёт справку из документации фрейма PVATF (MCP, инструмент get_pv_at_doc) по готовому заданию из скиллов migration-map, migration-step, env-check, env-update, autotest-gen и autotest-review. Вызывать только из этих скиллов, по имени. Для других задач не использовать.
 disallowedTools:
   - write_file
   - edit
