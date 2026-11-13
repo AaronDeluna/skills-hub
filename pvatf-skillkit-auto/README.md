@@ -87,7 +87,7 @@ Platform V AT Framework (PVATF) **без участия человека**: ми
     {"id": "Q-1", "key": "teams", "text": "Сколько команд пишут автотесты в этом проекте: одна или несколько?", "options": ["одна", "несколько"]},
     {"id": "Q-2", "key": "team", "text": "Как называется команда? Полное название, как в справочнике команд.", "options": [], "when": {"teams": "одна"}},
     {"id": "Q-3", "key": "fos", "text": "Какой ФОС у команды? Например, 00CG0000.", "options": [], "when": {"teams": "одна"}},
-    {"id": "Q-4", "key": "team", "text": "Какие команды пишут автотесты и чьи это тесты? Названия - полные, как в справочнике команд. Например: payments - модуль payments-tests; cards - каталог src/test/java/cards", "options": [], "when": {"teams": "несколько"}},
+    {"id": "Q-4", "key": "team", "text": "Какие команды пишут автотесты, какой ФОС у каждой и чьи это тесты? Названия - полные, как в справочнике команд. Например: payments (00CG0000) - модуль payments-tests; cards (00CG0001) - каталог src/test/java/cards", "options": [], "when": {"teams": "несколько"}},
     {"id": "Q-5", "key": "system", "text": "Какой КЭ у тестируемой системы? Например, CI02546875.", "options": []},
     {"id": "Q-6", "key": "model", "text": "Где хранится тестовая модель: в Allure TestOps (testops) или в другой TMS, например Zephyr (tms)?", "options": ["testops", "tms"]},
     {"id": "Q-7", "key": "stage", "text": "На каком контуре работают автотесты: code, dev, st, ift, psi или prom?", "options": ["code", "dev", "st", "ift", "psi", "prom"]},
