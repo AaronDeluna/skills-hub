@@ -29,6 +29,12 @@
 | TC-11 | логин или пароль прямо в шаге | 10 parametrizability | нет | Укажите учётную запись по роли: «пользователь с ролью ADMIN из тестовых данных» |
 | TC-12 | ссылка на шаг, которого раньше нет; опора на «созданное ранее» без предусловий | 30 independence | да | Добавьте шаг или предусловие, которое создаёт нужное состояние |
 | TC-13 | `determinism` или `objective_verifiability` ниже 60 | - | да | Исправьте находки TC-5..TC-9 |
+| TC-14 | нет тэгов `@TestLayer` (или `@ApiTest`, `@DbTest`, `@MqTest`, `@UiTest`...) и `@System`; есть тэги Allure TestOps (`@Regress`, `@CriticalRegress`, `@Story`, `@Issue`), но нет пары: регресс без задачи или задача без регресса | - | нет | Добавьте в ТК тэги: `@TestLayer("api")`, `@System("<КЭ>")`; для Allure TestOps - `@Regress` и `@Story("<задача>")` |
+| TC-15 | противоречия в тэгах: два разных значения `@TestLayer`, `@TestStage` или `@System`; контур не из code, dev, st, ift, psi, prom; слой - технология (`@TestLayer("rest")`, `"kafka"`); `@Regress` и `@CriticalRegress` сразу | - | нет | Оставьте одно значение; слой - уровень: api, db, mq, ui, unit (правила разметки, раздел 3) |
+
+Тэги ТК (TC-14, TC-15) проверяются по тем же аннотациям, что разметка в коде (`markup-rules.md`).
+Они не блокируют генерацию, только переводят оценку в WARNING. Поле «Цель» для ТК,
+восстановленного из лога, кода или Allure, - рекомендуемое, а не обязательное.
 
 Атомарность всего ТК (TC-3) и шага (TC-4) скрипт видит по глаголам; это подсказка, а не
 решение. Тест-кейс с TC-3 генерируется как один тест, если человек не попросил иначе.
@@ -41,4 +47,16 @@
   (порядок колонок любой);
 - XML и JSON выгрузки Zephyr Scale и TestOps: `testCase` / `name` / `key` / `objective` /
   `precondition` / `testScript.steps[]` (`description`, `testData`, `expectedResult`);
-- результат Allure `*-result.json`: `name`, `steps[].name`, ключ - из `links`.
+- результат Allure: файл `*-result.json` или каталог `allure-results/` (тестов несколько - `--name` или
+  `--key`): `name`, `steps[].name`, `steps[].parameters` - тестовые данные, метка `layer` - тэг
+  `@TestLayer`, ключ - из `links`;
+- лог прогона `.log`, `.txt`: шаги - строки `Step:` / `@Step` / `Allure.step`, HTTP-запросы
+  (`POST /api/...`), SQL, отправка и чтение топика Kafka; ожидаемый результат - код ответа и
+  `expected: <x> but was: <y>`; название - из `Running <класс>`;
+- код автотеста `.java`, `.kt` на любом фреймворке (JUnit, TestNG, RestAssured, Selenide...): один
+  тест-метод (`--method`, если их несколько); шаги - `Allure.step("...")`, вызовы методов с
+  `@Step("...")`, `.post("/path")`, SQL в строках, `send("topic")`; ожидаемый результат -
+  `statusCode(200)`, `assert...`, `.should...`; `@BeforeEach` / `@BeforeAll` - предусловия,
+  `@AfterEach` / `@AfterAll` - шаги «Очистить после теста»; ключ - `@TmsLink` или `@DisplayName`;
+  импорты (`io.restassured`, `java.sql`, `kafka`, `selenide`...) - строка «Технологии источника».
+  Восстановленные шаги - подсказка скрипта: их сверяет человек (шаг 1 SKILL.md).

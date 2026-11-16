@@ -6,7 +6,7 @@
   python3 <каталог скилла>/scripts/next_action.py M-001..M-005 - миграция: пачка (или список через запятую)
   python3 <каталог скилла>/scripts/next_action.py autotest     - генерация автотестов: что делать дальше
   python3 <каталог скилла>/scripts/next_action.py autotest TC-123 - генерация: состояние этого тест-кейса
-  python3 <каталог скилла>/scripts/next_action.py env [check|setup|update] - окружение: что делать дальше
+  python3 <каталог скилла>/scripts/next_action.py env [check|setup|update|init] - окружение: что делать дальше
   python3 <каталог скилла>/scripts/next_action.py review [файл теста] - проверка существующего автотеста
 
 Печатает строку «ДЕЙСТВИЕ: ...» и строку «ПОЧЕМУ: ...», иногда «ЗАМЕТКА: ...». Файлы процессов не
@@ -387,7 +387,7 @@ def env_state():
 
 def env(args):
     """Окружение: незаконченное обновление продолжается; иначе - запрошенный режим (check / setup / update)."""
-    mode = args[0] if args and args[0] in ("check", "setup", "update") else "check"
+    mode = args[0] if args and args[0] in ("check", "setup", "update", "init") else "check"
     update = read(AUTOTEST / "ENV-UPDATE.md")
     if update is not None:
         head = front_matter(update)
@@ -403,6 +403,12 @@ def env(args):
                 " сначала настройка окружения или правка человеком")
             return
         say("env-update", "обновить фрейм до последней версии из release notes")
+        return
+    if mode == "init":
+        if any(Path(name).is_file() for name in ("pom.xml", "build.gradle", "build.gradle.kts")):
+            say("env-setup", "файл сборки уже есть - каркас не нужен; проверить окружение и доставить недостающее")
+        else:
+            say("env-init", "файла сборки нет - создать каркас проекта (pom.xml, каталоги тестов), затем настройка по документации")
         return
     if mode == "setup":
         say("env-setup", "проверить окружение и доставить недостающее" + (
@@ -427,8 +433,8 @@ def autotest(args):
         say("env-check", why + " - генерация не запускается, пока проверка не вернёт ok или warning")
         return
     want = args[0] if args else None
-    if want and ("/" in want or "\\" in want or re.search(r"\.(md|xml|json)$", want)):
-        say("autotest-plan", "новый тест-кейс из файла " + want + " - разбор, проверка, план")
+    if want and ("/" in want or "\\" in want or re.search(r"\.(md|xml|json|log|txt|java|kt)$", want) or Path(want).is_dir()):
+        say("autotest-plan", "новый тест-кейс из артефакта " + want + " - разбор, проверка, план")
         return
     rows = []
     for plan in sorted(AUTOTEST.glob("*/PLAN.md")) if AUTOTEST.is_dir() else []:
@@ -440,8 +446,11 @@ def autotest(args):
                 say(*autotest_step(tc, status, tc_status))
                 return
         tc_file = AUTOTEST / want / "TC.md"
-        say("autotest-plan " + want, ("тест-кейс разобран, плана нет" if tc_file.is_file() else "плана для " + want + " нет")
-            + " - разбор, проверка, план")
+        if tc_file.is_file():
+            say("autotest-plan " + want, "тест-кейс разобран, плана нет - проверка, план")
+        else:
+            say("autotest-plan " + want, "тест-кейса " + want + " в проекте нет - загрузить из Zephyr по ключу"
+                " (MCP zephyr_get_testcase), потом разбор, проверка, план")
         return
     for tc, status, tc_status in rows:
         if status != "checked" and tc_status != "FAIL":
@@ -449,7 +458,7 @@ def autotest(args):
             return
     failed = [tc for tc, _, tc_status in rows if tc_status == "FAIL"]
     note = "; тест-кейсы с FAIL ждут исправления: " + ", ".join(failed) if failed else ""
-    say("autotest-plan", "незаконченных тест-кейсов нет - нужен новый: попроси путь к файлу ТК (md, xml или json)" + note)
+    say("autotest-plan", "незаконченных тест-кейсов нет - нужен новый: попроси путь к файлу ТК (md, xml или json) или ключ ТК в Zephyr" + note)
 
 
 def autotest_step(tc, status, tc_status):
@@ -501,6 +510,20 @@ def review(args):
     say("autotest-review", "незаконченных проверок нет - нужен путь к тест-классу")
 
 
+def deps(args):
+    """Ревью зависимостей: незаконченное продолжается; иначе - новое."""
+    if not any(Path(n).is_file() for n in ("pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts")):
+        say("нельзя", "в корне нет pom.xml, build.gradle и settings.gradle - ревью зависимостей нечего проверять;"
+            " проект с нуля - /orchestrator создай проект автотестов")
+        return
+    head = front_matter(read(DATA / "dependency" / "FINDINGS.md") or "")
+    status = head.get("deps_status", "-")
+    if status in ("scanned", "tree-done"):
+        say("dependency-review", "deps_status: " + status + " - ревью не закончено, продолжить с того же места")
+        return
+    say("dependency-review", "новое ревью зависимостей" + ("" if status == "-" else "; прошлое: " + head.get("date", "-")))
+
+
 def main(args):
     installed = install_agents()
     if installed:
@@ -513,12 +536,14 @@ def main(args):
         env(args[1:])
     elif args and args[0] == "review":
         review(args[1:])
+    elif args and args[0] == "deps":
+        deps(args[1:])
     elif args and args[0] == "update-map":
         say("migration-map", "карта устарела по словам человека - режим обновления (Этап 6)")
     elif args and args[0] == "check-migration":
         say("migration-review", "проверка миграции по просьбе человека; карта не обязательна")
     elif args and args[0].startswith("-"):
-        print("Использование: next_action.py [M-<n> | M-<a>..M-<b> | autotest [ключ ТК] | env [check|setup|update] | review [файл теста] | check-migration | update-map]")
+        print("Использование: next_action.py [M-<n> | M-<a>..M-<b> | autotest [ключ ТК] | env [check|setup|update|init] | review [файл теста] | deps | check-migration | update-map]")
         return 2
     else:
         migration(args)

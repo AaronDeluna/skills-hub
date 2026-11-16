@@ -32,6 +32,49 @@ ADDRESS = re.compile(r"(https?://|/[\w\-{}]+/|\b[a-z]+[-_][a-z]+\b\s*(топик
 HARDCODE = re.compile(r"(логин|login|пароль|password)\s*[:=]\s*\S+", re.I)
 PREV_REF = re.compile(r"(?:из|на|в)\s+шаг[аеу]?\s*(?:№\s*)?(\d+)", re.I)
 CREATED_BEFORE = re.compile(r"созданн\w*\s+(?:ранее|на прошлом|на предыдущем)", re.I)
+# Тэги ТК (TC-14, TC-15) - те же аннотации, что в правилах разметки (markup-rules.md, раздел 1)
+LAYER_READY = {"ApiTest": "api", "DbTest": "db", "MqTest": "mq", "UiTest": "ui", "UnitTest": "unit",
+               "PerformanceTest": "performance", "CdcConsumerTest": "cdcConsumer", "CdcProviderTest": "cdcProvider"}
+STAGE_READY = {"IsolatedTest": "code", "DevStandTest": "dev", "StStandTest": "st", "IftStandTest": "ift",
+               "PsiStandTest": "psi", "PromStandTest": "prom"}
+STAGES = set(STAGE_READY.values())
+LAYERS = set(LAYER_READY.values())
+TECH_WORDS = {"rest", "http", "grpc", "graphql", "kafka", "sql", "jdbc", "postgres", "oracle", "selenide", "playwright",
+              "appium", "websocket", "opensearch", "soap"}
+TAG_RE = re.compile(r"@(\w+)(?:\(\s*\"?([^\")]*)\"?\s*\))?")
+
+
+def tag_findings(tags):
+    """-> [(правило, что не так)] по тэгам ТК."""
+    found = {}
+    for name, value in TAG_RE.findall(tags or ""):
+        if name in LAYER_READY:
+            name, value = "TestLayer", LAYER_READY[name]
+        elif name in STAGE_READY:
+            name, value = "TestStage", STAGE_READY[name]
+        found.setdefault(name, []).append(value.strip())
+    out = []
+    missing = [t for t in ("TestLayer", "System") if t not in found]
+    if missing:
+        out.append(("TC-14", "нет тэгов: " + ", ".join("@" + t for t in missing)))
+    testops = [t for t in ("Regress", "CriticalRegress", "Story", "Issue") if t in found]
+    if testops and not ({"Regress", "CriticalRegress"} & set(found)):
+        out.append(("TC-14", "тэги Allure TestOps (" + ", ".join("@" + t for t in testops) + ") без @Regress или @CriticalRegress"))
+    if testops and not ({"Story", "Issue"} & set(found)):
+        out.append(("TC-14", "тэги Allure TestOps (" + ", ".join("@" + t for t in testops) + ") без @Story или @Issue"))
+    for name in ("TestLayer", "TestStage", "System"):
+        values = sorted({v for v in found.get(name, []) if v})
+        if len(values) > 1:
+            out.append(("TC-15", "@" + name + " с разными значениями: " + ", ".join(values)))
+    for value in found.get("TestStage", []):
+        if value and value not in STAGES:
+            out.append(("TC-15", "@TestStage(\"" + value + "\") - контур не из списка " + ", ".join(sorted(STAGES))))
+    for value in found.get("TestLayer", []):
+        if value.lower() in TECH_WORDS:
+            out.append(("TC-15", "@TestLayer(\"" + value + "\") - это технология, а не слой: " + ", ".join(sorted(LAYERS))))
+    if "Regress" in found and "CriticalRegress" in found:
+        out.append(("TC-15", "@Regress и @CriticalRegress сразу - ставится одна"))
+    return out
 
 
 def main(args):
@@ -53,9 +96,16 @@ def main(args):
 
     if not tc["steps"]:
         add("TC-0", "ТК", "шагов нет или таблица шагов не читается", critical=True)
+    source = tc["fields"].get("Источник", "tms")
+    restored = source in ("log", "code", "allure")
     for name in REQUIRED:
         if tc["fields"].get(name, "-") in ("", "-"):
-            add("TC-1", "шапка", "нет обязательного поля «" + name + "»", critical=True)
+            if restored and name == "Цель":
+                add("TC-1", "шапка", "нет поля «Цель» (ТК восстановлен из " + source + ")")
+            else:
+                add("TC-1", "шапка", "нет обязательного поля «" + name + "»", critical=True)
+    for rule, what in tag_findings(tc["fields"].get("Тэги", "")):
+        add(rule, "тэги", what)
     for name in RECOMMENDED:
         if tc["fields"].get(name, "-") in ("", "-"):
             add("TC-1", "шапка", "нет рекомендуемого поля «" + name + "»")
@@ -103,7 +153,7 @@ def main(args):
             critical = True
             findings.append(("TC-13", "оценки", name + " = " + str(scores[name]) + " < 60", True))
     avg = sum(scores.values()) // len(scores)
-    status = "FAIL" if critical else ("PASS" if avg >= 80 and not any(f[0] == "TC-1" for f in findings) else "WARNING")
+    status = "FAIL" if critical else ("PASS" if avg >= 80 and not any(f[0] in ("TC-1", "TC-14", "TC-15") for f in findings) else "WARNING")
     lines = ["# Проверка тест-кейса " + tc["key"], "",
              "- Статус: " + status, "- Blocking: " + ("true" if status == "FAIL" else "false"),
              "- Средняя оценка: " + str(avg), "- Оценки: " + ", ".join(k + " " + str(v) for k, v in scores.items()), "",

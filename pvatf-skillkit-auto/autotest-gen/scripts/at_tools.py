@@ -230,6 +230,47 @@ def fragment(path):
     return {"status": status.group(1) if status else "-", "files": files.group(1) if files else "-", **blocks}
 
 
+STEP_MARK = re.compile(r"^\s*//\s*Шаг\s+([0-9]+(?:\.[0-9]+)?)\s*:")
+DECL = re.compile(r"^(\s*)(?:final\s+)?([A-Z][\w.]*(?:<[^=;]*>)?(?:\[\])?)\s+([a-z]\w*)\s*=\s*(.*)$")
+PHASE = {"SETUP": "before", "TEARDOWN_CLEANUP": "after"}
+
+
+def split_phases(parts, types):
+    """Тела фрагментов -> строки трёх методов: before (SETUP), test, after (TEARDOWN_CLEANUP).
+    Граница - комментарий «// Шаг <id>:»; строки до первого комментария идут с первым шагом фрагмента."""
+    phases = {"before": [], "test": [], "after": []}
+    for p in parts:
+        lines = p["body"].split("\n")
+        first = next((STEP_MARK.match(l).group(1) for l in lines if STEP_MARK.match(l)), None)
+        current = PHASE.get(types.get(first, ""), "test")
+        chunk = []
+        for line in lines:
+            mark = STEP_MARK.match(line)
+            if mark:
+                nxt = PHASE.get(types.get(mark.group(1), ""), "test")
+                if nxt != current and chunk:
+                    phases[current].append(chunk)
+                    chunk = []
+                current = nxt
+            chunk.append(line)
+        if chunk:
+            phases[current].append(chunk)
+    return {k: [l for c in v for l in c + [""]][:-1] if v else [] for k, v in phases.items()}
+
+
+def lift_shared(phases):
+    """Переменная объявлена в одном методе и нужна в другом -> поле класса, в методе - присваивание."""
+    fields = []
+    for name, lines in phases.items():
+        others = "\n".join(l for k, v in phases.items() if k != name for l in v)
+        for index, line in enumerate(lines):
+            m = DECL.match(line)
+            if m and re.search(r"\b" + re.escape(m.group(3)) + r"\b", others):
+                fields.append("private " + m.group(2) + " " + m.group(3) + ";")
+                lines[index] = m.group(1) + m.group(3) + " = " + m.group(4)
+    return fields
+
+
 def cmd_assemble(key):
     path, text, head = plan(key)
     if text is None:
@@ -253,6 +294,14 @@ def cmd_assemble(key):
                     field_names.add(name.group(1))
     tc_head = read(folder(key) / "TC.md").split("\n", 1)[0].lstrip("# ")
     title = tc_head.split("·", 1)[1].strip() if "·" in tc_head else tc_head
+    types = {r[0]: r[3] for r in section_rows(text, "2. Шаги") if len(r) > 3}
+    phases = split_phases(parts, types)
+    for line in lift_shared(phases):
+        if line not in fields:
+            fields.append(line)
+    for extra, phase in (("import org.junit.jupiter.api.BeforeEach;", "before"), ("import org.junit.jupiter.api.AfterEach;", "after")):
+        if phases[phase] and extra not in imports:
+            imports.append(extra)
     for extra in ("import io.qameta.allure.TmsLink;", "import org.junit.jupiter.api.DisplayName;", "import org.junit.jupiter.api.Test;"):
         if extra not in imports:
             imports.append(extra)
@@ -262,14 +311,19 @@ def cmd_assemble(key):
     out = ["package " + head["package"] + ";", ""] + sorted(imports) + ["", MARK + key,
            "public class " + name + (" extends " + base if base not in ("", "-") else "") + " {", ""]
     out += ["    " + f for f in fields] + ([""] if fields else [])
+    suffix = method[0].upper() + method[1:]
+    if phases["before"]:
+        out += ["    @BeforeEach", "    void before" + suffix + "() {"]
+        out += [("        " + l if l.strip() else "") for l in phases["before"]] + ["    }", ""]
     out += ["    @Test", "    @TmsLink(\"" + key + "\")",
             "    @DisplayName(\"[" + key + "] " + title.replace("\\", "\\\\").replace("\"", "\\\"") + "\")",
             "    void " + method + "() {"]
-    for index, p in enumerate(parts):
-        if index:
-            out.append("")
-        out += [("        " + l if l.strip() else "") for l in p["body"].split("\n")]
-    out += ["    }", "}", ""]
+    out += [("        " + l if l.strip() else "") for l in phases["test"]]
+    out += ["    }"]
+    if phases["after"]:
+        out += ["", "    @AfterEach", "    void after" + suffix + "() {"]
+        out += [("        " + l if l.strip() else "") for l in phases["after"]] + ["    }"]
+    out += ["}", ""]
     target = Path(head["test_file"])
     if target.is_file() and MARK + key not in [line.strip() for line in read(target).splitlines()]:
         return fail("ФАЙЛ ЕСТЬ: " + str(target) + " создан не autotest-gen - не перезаписываю; поменяй class в плане", 1)
@@ -280,6 +334,7 @@ def cmd_assemble(key):
     path.write_text(journal(text, "assemble -> " + str(target)), encoding="utf-8")
     print("СОБРАНО: " + str(target) + " · фрагментов " + str(len(parts)) + " · импортов " + str(len(imports)) + " · полей " + str(len(fields)))
     print("ЗАГЛУШКИ: " + (", ".join(stubs) or "нет"))
+    print("МЕТОДЫ: @BeforeEach %s · @Test · @AfterEach %s" % ("есть" if phases["before"] else "нет", "есть" if phases["after"] else "нет"))
     return 0
 
 

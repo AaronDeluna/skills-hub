@@ -1,6 +1,5 @@
-"""Где в файлах сборки объявлена версия фрейма PVATF. Общий модуль набора: источник -
-shared/scripts/frame_versions.py, копии в скиллах env-check и env-update раскладывает
-scripts/sync_shared.py. Сам не запускается - его импортируют env_check.py и env_update.py.
+"""Где в файлах сборки объявлена версия фрейма PVATF. Модуль, а не команда: его импортируют
+env_check.py и env_update.py из той же папки scripts/.
 
 Объявление - строка файла, где версия записана буквально: свойство (<pvat.version>3.4.1</pvat.version>,
 pvatVersion=3.4.1, pvat = "3.4.1" в libs.versions.toml) или версия прямо в зависимости,
@@ -174,6 +173,20 @@ def declarations(root):
                 if pf == f and has_marker(name):
                     add(pf, number, "свойство", name, value, name)
     return sorted(found.values(), key=lambda d: (d["file"], d["line"]))
+
+
+def newest(text, allow_snapshot=False):
+    """Номера версий в тексте release notes -> (самая новая стабильная или предварительная, все по убыванию)."""
+    found = []
+    for m in re.finditer(r"(?<![\w.])v?([0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?:-[0-9A-Za-z.]+)?)(?![\w.])", text or ""):
+        value = m.group(1)
+        if "SNAPSHOT" in value.upper() and not allow_snapshot:
+            continue
+        if value not in found:
+            found.append(value)
+    ordered = sorted(found, key=version_key, reverse=True)
+    stable = [v for v in ordered if "-" not in v]
+    return (stable[0] if stable else (ordered[0] if ordered else None)), ordered
 
 
 def version_key(value):

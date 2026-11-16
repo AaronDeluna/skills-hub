@@ -1,8 +1,7 @@
 # Правила кода (MR)
 
-Общий файл набора: источник - `shared/code-rules.md`, копии в `migration-step`, `autotest-gen` и `autotest-review`
-раскладывает `scripts/sync_shared.py`. Генерация автотестов (`autotest-gen`) берёт свой
-постоянный набор номеров - его выписывает `scripts/at_tools.py rules`.
+Действуют в скиллах `migration-step`, `autotest-gen` и `autotest-review`. Генерация автотестов
+(`autotest-gen`) берёт свой постоянный набор номеров - его выписывает `scripts/at_tools.py rules`.
 
 Правила про то, КАК писать код. ЧТО писать (какие классы и методы фрейма) - только из
 документации MCP.

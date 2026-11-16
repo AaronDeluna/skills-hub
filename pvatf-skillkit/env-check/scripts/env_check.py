@@ -6,6 +6,8 @@
   python3 <каталог скилла>/scripts/env_check.py --no-compile  - без компиляции (быстро)
   python3 <каталог скилла>/scripts/env_check.py --timeout 900 - свой предел времени компиляции, секунды
   python3 <каталог скилла>/scripts/env_check.py --json        - напечатать полный JSON вместо сводки
+  python3 <каталог скилла>/scripts/env_check.py --release-notes <файл> - ещё сравнить версию фрейма с самой новой
+      из ответа MCP get_pvat_release_notes (проблема FRAME_OUTDATED, severity info: статус не меняет)
 
 Печатает короткую сводку (СТАТУС, проверки E1-E6, проблемы) и пишет полный JSON в
 .gigacode/data/autotest/ENV.json.
@@ -42,17 +44,21 @@ def main():
     compile_on = True
     as_json = False
     timeout = DEFAULT_TIMEOUT
+    notes = None
     i = 0
     while i < len(args):
         if args[i] == "--no-compile":
             compile_on = False
         elif args[i] == "--json":
             as_json = True
+        elif args[i] == "--release-notes" and i + 1 < len(args):
+            notes = args[i + 1]
+            i += 1
         elif args[i] == "--timeout" and i + 1 < len(args) and args[i + 1].isdigit():
             timeout = int(args[i + 1])
             i += 1
         else:
-            print("Использование: env_check.py [--no-compile] [--timeout <секунды>] [--json]")
+            print("Использование: env_check.py [--no-compile] [--timeout <секунды>] [--json] [--release-notes <файл>]")
             return 2
         i += 1
 
@@ -86,10 +92,13 @@ def main():
 
     check_structure(report, test_roots)
     check_dependencies(report, build_text, tool)
+    check_tc_modules(report, build_text)
     check_configuration(report, root, java_files)
     check_plugins(report, build_text, tool)
     describe_tests(report, root, java_files, test_roots, build_text)
     report["frame_versions"] = frame_versions(root, build_files)
+    if notes is not None:
+        check_outdated(report, notes)
 
     command = compile_command(root, tool)
     report["project"]["compile_command"] = " ".join(command) if command else "-"
@@ -125,6 +134,8 @@ def summary(report):
                  project.get("build_tool", "-"), len(project.get("modules", [])), project.get("test_classes", "-"),
                  project.get("base_package", "-"), project.get("ui_lib", "-"), project.get("step_style", "-")),
              "КОМПИЛЯЦИЯ: " + project.get("compile_command", "-") + " -> " + report["compile"]["status"]]
+    if "latest_version" in report:
+        lines.append("САМАЯ НОВАЯ: " + report["latest_version"])
     for version in report["frame_versions"]:
         lines.append("ВЕРСИЯ: %s = %s (%s:%d)" % (version["name"], version["value"], version["file"], version["line"]))
     for item in report["checks"]:
@@ -172,6 +183,42 @@ def check_dependencies(report, build_text, tool):
         check(report, "E3", "зависимости фрейма", "warning", "нет рекомендуемых: " + ", ".join(missing_recommended))
     else:
         check(report, "E3", "зависимости фрейма", "ok", "обязательные и рекомендуемые найдены")
+
+
+def check_tc_modules(report, build_text):
+    """Раздел 8 «Окружение под ТК» незаконченных планов: технология со словами, которых нет в файлах сборки."""
+    low = build_text.lower()
+    missing = []
+    for plan in sorted(OUT_DIR.glob("*/PLAN.md")) if OUT_DIR.is_dir() else []:
+        text = read(plan)
+        if re.search(r"(?m)^plan_status:\s*checked", text):
+            continue
+        sect = re.search(r"(?ms)^## 8\. Окружение под ТК\s*\n(.*?)(?=^## |\Z)", text)
+        for line in (sect.group(1) if sect else "").split("\n"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) < 6 or cells[1] in ("Метка", "-") or set(cells[0]) <= set("-:") or cells[2] == "RECOMMENDED":
+                continue
+            words = [w.strip() for w in cells[4].split(",") if w.strip() not in ("", "-")]
+            if words and low and not any(w in low for w in words):
+                missing.append(plan.parent.name + ": " + cells[0])
+    report["project"]["tc_modules_missing"] = missing
+    if missing:
+        problem(report, "warning", "TC_MODULES_MISSING", "В сборке нет модулей фрейма под технологии тест-кейсов",
+                "; ".join(missing[:10]))
+
+
+def check_outdated(report, notes):
+    """Версия фрейма в сборке против самой новой из release notes. Отстаёт -> FRAME_OUTDATED (info)."""
+    latest, _ = frame_versions_module.newest(read(Path(notes)))
+    report["latest_version"] = latest or "-"
+    if not latest:
+        problem(report, "info", "RELEASE_NOTES_EMPTY", "В release notes нет номеров версий", notes)
+        return
+    current = [v["value"] for v in report["frame_versions"] if frame_versions_module.VERSION.match(str(v["value"]))]
+    old = sorted({v for v in current if frame_versions_module.version_key(v) < frame_versions_module.version_key(latest)})
+    if old:
+        problem(report, "info", "FRAME_OUTDATED", "Версия фрейма " + ", ".join(old) + ", самая новая " + latest,
+                "обновление - /orchestrator обнови окружение (env-update)")
 
 
 def check_configuration(report, root, java_files):

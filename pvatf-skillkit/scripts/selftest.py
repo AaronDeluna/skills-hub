@@ -115,6 +115,41 @@ status: todo
 MR-3
 """
 
+DEPS_ROOT = """<project><modelVersion>4.0.0</modelVersion><groupId>ru.demo</groupId><artifactId>root</artifactId><version>1.0</version>
+<packaging>pom</packaging><modules><module>core</module><module>tests</module></modules>
+<properties><pvat.version>3.4.1</pvat.version></properties>
+<repositories><repository><id>x</id><url>http://x</url></repository></repositories>
+</project>
+"""
+DEPS_CORE = """<project><parent><groupId>ru.demo</groupId><artifactId>root</artifactId><version>1.0</version></parent>
+<artifactId>core</artifactId><dependencies>
+<dependency><groupId>ru.demo</groupId><artifactId>tests</artifactId><version>1.0</version></dependency>
+<dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.15.2</version></dependency>
+<dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-core</artifactId><version>2.14.0</version></dependency>
+<dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-annotations</artifactId><version>2.15.2</version></dependency>
+<dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>[2.8,)</version></dependency>
+<dependency><groupId>ru.sber.qa</groupId><artifactId>environment-junit5</artifactId><version>3.4.1</version></dependency>
+<dependency><groupId>ru.sber.qa</groupId><artifactId>allure2</artifactId><version>3.3.0</version></dependency>
+</dependencies></project>
+"""
+DEPS_TESTS = """<project><parent><groupId>ru.demo</groupId><artifactId>root</artifactId><version>1.0</version></parent>
+<artifactId>tests</artifactId><dependencies>
+<dependency><groupId>ru.demo</groupId><artifactId>core</artifactId><version>1.0</version></dependency>
+<dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>2.13.0</version></dependency>
+<dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.10.0</version><scope>test</scope></dependency>
+<dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>5.10.0</version><scope>test</scope></dependency>
+<dependency><groupId>lib</groupId><artifactId>local</artifactId><version>1</version><scope>system</scope><systemPath>/x.jar</systemPath></dependency>
+</dependencies></project>
+"""
+DEPS_MVNW = """#!/bin/sh
+case "$*" in
+*tree*) echo "[INFO] --- maven-dependency-plugin:3.6.0:tree (default-cli) @ core ---"
+        echo "[INFO] |  \\- (com.fasterxml.jackson.core:jackson-core:jar:2.15.2:compile - omitted for conflict with 2.14.0)"
+        echo "[INFO] |  \\- (io.netty:netty-buffer:jar:4.1.94:compile - omitted for conflict with 4.1.95)" ;;
+*analyze*) echo "[INFO] BUILD SUCCESS" ;;
+esac
+"""
+
 
 def project(tmp, name):
     root = Path(tmp) / name
@@ -146,6 +181,20 @@ def main():
         expect("env_update versions", p, eu, ["versions"], 0, "ТЕКУЩАЯ: 3.4.1")
         write(p, "rn.md", "## 3.5.0\n## 3.6.0-SNAPSHOT\n## 3.4.1\n")
         expect("env_update latest", p, eu, ["latest", "rn.md"], 0, "САМАЯ НОВАЯ: 3.5.0")
+        ec = ".gigacode/skills/env-check/scripts/env_check.py"
+        expect("env_check: версия отстаёт", p, ec, ["--no-compile", "--release-notes", "rn.md"], 0,
+               "САМАЯ НОВАЯ: 3.5.0", "info · FRAME_OUTDATED · Версия фрейма 3.4.1")
+        run(p, ec)
+        ini = project(tmp, "init")
+        ei = ".gigacode/skills/env-check/scripts/env_init.py"
+        run(ini, na, "env", "init")  # первый запуск ставит агентов набора
+        expect("next_action: env init", ini, na, ["env", "init"], 0, "ДЕЙСТВИЕ: env-init")
+        expect("env_init defaults", ini, ei, ["defaults"], 0, "ПО УМОЛЧАНИЮ: groupId ru.autotests · artifactId init")
+        expect("env_init неверный пакет", ini, ei, ["create", "--package", "Ru.Bad"], 1, "НЕВЕРНО: пакет")
+        expect("env_init create", ini, ei, ["create", "--group", "ru.sber.demo", "--artifact", "demo-tests", "--package", "ru.sber.demo.tests"], 0,
+               "СОЗДАНО: pom.xml", "СОЗДАНО: src/test/java/ru/sber/demo/tests/")
+        expect("env_init повторно", ini, ei, ["create"], 1, "ПРОЕКТ УЖЕ ЕСТЬ")
+        expect("next_action: env init при pom", ini, na, ["env", "init"], 0, "ДЕЙСТВИЕ: env-setup")
         expect("env_update bump", p, eu, ["bump", "3.5.0"], 0, "ИЗМЕНЕНО: pom.xml:2 · pvat.version · 3.4.1 -> 3.5.0")
         expect("env_update bump повторно", p, eu, ["bump", "3.5.0"], 1, "УЖЕ:")
         expect("env_update rollback", p, eu, ["rollback"], 0, "ВОЗВРАЩЁН: pom.xml")
@@ -162,6 +211,37 @@ def main():
         write(p, "tc.json", json.dumps({"key": "JS-T2", "name": "Проверка записи заказа в базе", "testScript": {"steps": [
             {"description": "Выполнить SELECT status FROM orders", "expectedResult": "status = ACTIVE"}]}}, ensure_ascii=False))
         expect("tc_convert json", p, ap + "tc_convert.py", ["tc.json"], 0, "ТК: JS-T2")
+        write(p, "run.log", "10:00:01 INFO Running ru.demo.OrderTest\n10:00:02 DEBUG Request: POST https://h/api/v1/orders\n"
+                            "10:00:03 DEBUG Response: status code 201\n10:00:04 INFO Sending message to topic=order-events\n")
+        expect("tc_convert лог", p, ap + "tc_convert.py", ["run.log", "--key", "LOG-T1"], 0, "ШАГОВ: 2", "ИСТОЧНИК: log")
+        write(p, "old/PayTest.java", "import io.restassured.RestAssured;\nclass PayTest {\n@BeforeEach void up() { step(\"Подготовить пользователя\"); }\n"
+                                     "@Test @TmsLink(\"PAY-T12\") void pay() { given().post(\"/api/pay\").then().statusCode(200); }\n"
+                                     "@Test void other() { step(\"Другое\"); }\n}\n")
+        expect("tc_convert код: несколько тестов", p, ap + "tc_convert.py", ["old/PayTest.java"], 1, "ТЕСТОВ НЕСКОЛЬКО: pay, other")
+        expect("tc_convert код", p, ap + "tc_convert.py", ["old/PayTest.java", "--method", "pay"], 0, "ТК: PAY-T12", "ИСТОЧНИК: code")
+        write(p, "allure-results/a-result.json", json.dumps({"uuid": "1", "name": "Проверка баланса счёта клиента", "links": [{"name": "BAL-T3"}],
+                                                            "labels": [{"name": "layer", "value": "api"}],
+                                                            "steps": [{"name": "GET /api/balance", "parameters": [{"name": "user", "value": "u1"}]}]}, ensure_ascii=False))
+        expect("tc_convert allure-results", p, ap + "tc_convert.py", ["allure-results"], 0, "ТК: BAL-T3", "ИСТОЧНИК: allure")
+        expect("tc_check тэги TC-14", p, ap + "tc_check.py", ["PAY-T12"], 0, "TC-14 · тэги · нет тэгов: @TestLayer, @System")
+        write(p, "tags.md", "**Название:** Создание заказа через REST API\n**Ключ:** TAG-T1\n**Цель:** цель\n### Шаги выполнения\n"
+                            "| № | Описание шага | Ожидаемый результат |\n|---|---|---|\n| 1 | Отправить POST /api/orders | код 200 |\n"
+                            "### Тэги\n@TestLayer(\"rest\") @System(\"CI1\") @TestStage(\"ift\") @TestStage(\"st\")\n")
+        run(p, ap + "tc_convert.py", "tags.md")
+        expect("tc_check тэги TC-15", p, ap + "tc_check.py", ["TAG-T1"], 0, "СТАТУС: WARNING", "@TestStage с разными значениями", "это технология, а не слой")
+        write(p, "kafka.md", "**Название:** Отправка события заказа в шину\n**Ключ:** KAF-T1\n**Цель:** цель\n### Шаги выполнения\n"
+                             "| № | Описание шага | Ожидаемый результат |\n|---|---|---|\n| 1 | Отправить сообщение в топик Kafka order-events | сообщение отправлено, status = NEW |\n")
+        run(p, ap + "tc_convert.py", "kafka.md")
+        run(p, ap + "tc_check.py", "KAF-T1")
+        expect("tc_plan: окружение под ТК", p, ap + "tc_plan.py", ["build", "KAF-T1"], 0, "ОКРУЖЕНИЕ: нет в сборке: kafka")
+        expect("env_check: TC_MODULES_MISSING", p, ".gigacode/skills/env-check/scripts/env_check.py", ["--no-compile"], 0,
+               "TC_MODULES_MISSING", "KAF-T1: Работа с Kafka")
+        for extra in ("LOG-T1", "PAY-T12", "BAL-T3", "TAG-T1", "KAF-T1"):
+            for name in ("TC.md", "TC-CHECK.md", "PLAN.md"):
+                target = p / ".gigacode/data/autotest" / extra / name
+                if target.is_file():
+                    target.unlink()
+        run(p, ".gigacode/skills/env-check/scripts/env_check.py")
         expect("tc_check PASS/WARNING", p, ap + "tc_check.py", ["CMN-T120"], 0, "BLOCKING: false")
         write(p, "bad.md", "**Название:** Заказ\n**Ключ:** BAD-T1\n| № | Описание шага | Ожидаемый результат |\n|---|---|---|\n"
                            "| 1 | Отправить GET запрос | Ответ успешный |\n| 2 | Перейти в профиль из шага 5 | random |\n")
@@ -190,6 +270,29 @@ def main():
                         .replace("// Шаг 2: Проверить значение поля\nr.should(haveStatusCode(200));\n```\n\n## body", "```\n\n## body"), encoding="utf-8")
         run(p, at, "assemble", "CMN-T120")
         expect("at_tools check чисто", p, at, ["check", "CMN-T120"], 0, "ИТОГ: находок 0", "plan_status: checked")
+        write(p, "cl.md", "**Название:** Создание и удаление заказа через API\n**Ключ:** CLN-T1\n**Цель:** цель\n### Шаги выполнения\n"
+                          "| № | Описание шага | Ожидаемый результат |\n|---|---|---|\n| 1 | Подготовить клиента фикстурой | клиент создан |\n"
+                          "| 2 | Отправить POST /api/orders | код ответа 201 |\n| 3 | Удалить созданный заказ | - |\n")
+        run(p, ap + "tc_convert.py", "cl.md")
+        run(p, ap + "tc_check.py", "CLN-T1")
+        run(p, ap + "tc_plan.py", "build", "CLN-T1")
+        run(p, ap + "tc_plan.py", "validate", "CLN-T1")
+        empty = "- Статус: ok\n- Причина: -\n- Нужно из документации: -\n- Файлы шагов: -\n\n## imports\n```java\n```\n\n## fields\n```java\n```\n\n## body\n```java\n"
+        write(p, ".gigacode/data/autotest/CLN-T1/fragments/G-1.md", "# G-1 · x\n" + empty + "// Шаг 1: Подготовить клиента\nString clientId = ClientSteps.create();\n```\n")
+        write(p, ".gigacode/data/autotest/CLN-T1/fragments/G-2.md", "# G-2 · x\n" + empty + "// Шаг 2: Отправить POST\nString orderId = OrderSteps.create(clientId);\n"
+                                                                 "// Шаг 3: Удалить заказ\nif (orderId != null) { OrderSteps.delete(orderId); }\n```\n")
+        run(p, at, "mark", "CLN-T1", "G-1", "ok")
+        run(p, at, "mark", "CLN-T1", "G-2", "ok")
+        out = expect("at_tools assemble: @BeforeEach и @AfterEach", p, at, ["assemble", "CLN-T1"], 0, "МЕТОДЫ: @BeforeEach есть · @Test · @AfterEach есть")
+        built = next((p / "src/test/java").rglob("*CherezApiTest.java"), None) or next((f for f in (p / "src/test/java").rglob("*.java") if "CLN-T1" in f.read_text(encoding="utf-8")), None)
+        body = built.read_text(encoding="utf-8") if built else ""
+        if "private String clientId;" in body and "private String orderId;" in body and "@AfterEach" in body and "        clientId = ClientSteps.create();" in body:
+            print("ok   at_tools assemble: поля вместо локальных переменных")
+        else:
+            FAILED.append("at_tools assemble: поля")
+            print("FAIL at_tools assemble: поля\n" + body[:1500])
+        if built:
+            built.unlink()
         expect("next_action: финал", p, na, ["autotest", "CMN-T120"], 0, "ДЕЙСТВИЕ: финал CMN-T120")
         mk = ".gigacode/skills/migration-step/scripts/markup_keys.py"
         expect("markup_keys: новый тест с @TmsLink", p, mk, ["missing", "src/test/java"], 0, "итого: 0")
@@ -244,6 +347,47 @@ def main():
         if (r / test).read_text(encoding="utf-8") != REVIEW_TEST:
             FAILED.append("review rollback: файл не совпал с исходным")
             print("FAIL review rollback: файл не совпал с исходным")
+        # --- ревью зависимостей ---
+        d = project(tmp, "deps")
+        dr = ".gigacode/skills/dependency-review/scripts/deps.py"
+        expect("next_action: без файла сборки", d, na, ["deps"], 0, "ДЕЙСТВИЕ: агенты установлены")
+        expect("next_action: ревью зависимостей без сборки", d, na, ["deps"], 0, "ДЕЙСТВИЕ: нельзя")
+        expect("deps scan: нет сборки", d, dr, ["scan"], 1, "НЕТ СБОРКИ")
+        write(d, "pom.xml", DEPS_ROOT)
+        write(d, "core/pom.xml", DEPS_CORE)
+        write(d, "tests/pom.xml", DEPS_TESTS)
+        write(d, "mvnw", DEPS_MVNW)
+        os.chmod(str(d / "mvnw"), 0o755)
+        expect("next_action: ревью зависимостей", d, na, ["deps"], 0, "ДЕЙСТВИЕ: dependency-review", "новое ревью")
+        expect("deps scan", d, dr, ["scan"], 0, "СБОРКА: Maven", "мультимодуль", "ТИП: автотесты", "ФРЕЙМ: 3.3.0, 3.4.1")
+        rows = (d / ".gigacode/data/dependency/FINDINGS.md").read_text(encoding="utf-8")
+        for rid, word in (("D-01", "[2.8,)"), ("D-03", "scope system"), ("D-04", "jackson-databind"), ("D-06", "jackson-core:2.14.0"),
+                          ("D-07", "ещё раз"), ("D-08", "repositories"), ("D-09", "core -> tests -> core"), ("D-P1", "3.3.0"),
+                          ("D-P2", "pvatf-docs"), ("D-23", "gson, jackson-databind")):
+            if not any(("| " + rid + " |") in l and word in l for l in rows.splitlines()):
+                FAILED.append("deps scan: нет " + rid)
+                print("FAIL deps scan: нет строки " + rid + " с «" + word + "»")
+        expect("next_action: ревью не закончено", d, na, ["deps"], 0, "deps_status: scanned")
+        expect("deps tree", d, dr, ["tree"], 0, "опасных конфликтов 1", "ДАЛЬШЕ: deps.py next")
+        expect("deps report: не всё проверено", d, dr, ["report", "--summary", "x"], 1, "НЕ ПРОВЕРЕНО")
+        nxt = expect("deps next", d, dr, ["next"], 0, "СТРОКА: N-", "КАК ПРОВЕРИТЬ: references/rules.md, раздел D-")
+        for _ in range(12):
+            out = run(d, dr, "next")[1]
+            if "ВСЁ ПРОВЕРЕНО" in out:
+                break
+            row = out.split("СТРОКА: ")[1].split(" ")[0]
+            run(d, dr, "mark", row, "PASS", "--note", "selftest")
+        expect("deps mark: неверный уровень", d, dr, ["add", "D-20", "--where", "core/pom.xml:9", "--note", "x", "--level", "HIGH"], 2, "НЕВЕРНО")
+        expect("deps add", d, dr, ["add", "D-20", "--where", "core/pom.xml:9", "--note", "junit в compile", "--level", "INFO"], 0, "ДОБАВЛЕНО")
+        expect("deps report", d, dr, ["report", "--summary", "Версии разъехались."], 0, "ОТЧЁТ:", "НАХОДКИ: критично 5",
+               "ФРЕЙМ: D-P1, D-P2")
+        report = (d / ".gigacode/data/dependency/DEPENDENCY-ANALYSIS.md").read_text(encoding="utf-8")
+        for part in ("## Пересечения и конфликты зависимостей", "## 🔴 Критично", "## Требует внимания человека", "<details>",
+                     "транзитивно, из дерева"):
+            if part not in report:
+                FAILED.append("deps report: нет «" + part + "»")
+                print("FAIL deps report: нет «" + part + "»")
+        expect("next_action: после отчёта - новое ревью", d, na, ["deps"], 0, "новое ревью", "прошлое:")
     for kit_root in (KIT,):
         rc, out = subprocess.run([sys.executable, str(kit_root / "scripts" / "sync_shared.py"), "--check"], cwd=str(kit_root),
                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT).returncode, ""

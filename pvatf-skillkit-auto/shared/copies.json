@@ -39,18 +39,21 @@
     "env-update",
     "autotest-plan",
     "autotest-gen",
-    "autotest-review"
+    "autotest-review",
+    "dependency-review"
   ],
   "scripts/notes.py": [
     "migration-map",
     "migration-step",
     "env-check",
     "env-update",
-    "autotest-gen"
+    "autotest-gen",
+    "dependency-review"
   ],
   "scripts/frame_versions.py": [
     "env-check",
-    "env-update"
+    "env-update",
+    "dependency-review"
   ],
   "scripts/java_checks.py": [
     "autotest-gen",

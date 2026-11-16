@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Тест-кейс из TMS (md, xml, json) -> единый TC.md (скилл autotest-plan). Запуск из корня проекта:
+"""Тест-кейс или другой артефакт -> единый TC.md (скилл autotest-plan). Запуск из корня проекта:
 
-  python3 <скилл>/scripts/tc_convert.py <файл ТК> [--key <ключ>]
+  python3 <скилл>/scripts/tc_convert.py <файл или каталог> [--key <ключ>] [--method <тест-метод>] [--name <имя теста>]
 
-Понимает: Markdown по шаблону ТК (поля **Название:**, **Ключ:**, таблица «Шаги выполнения»),
-выгрузки Zephyr Scale / TestOps в XML и JSON (testCase, testScript/steps, step/description/
-testData/expectedResult), результат Allure (*-result.json: name, steps[].name). HTML в полях
-(<br>, <pre>, <p>) превращается в текст. Ключа в файле нет -> нужен --key.
-Пишет .gigacode/data/autotest/<ключ>/TC.md и печатает: ТК, ШАГОВ, ФАЙЛ.
+Понимает:
+- Markdown по шаблону ТК (поля **Название:**, **Ключ:**, таблица «Шаги выполнения», раздел «Тэги»);
+- выгрузки Zephyr Scale / TestOps в XML и JSON (testCase, testScript/steps, step/description/
+  testData/expectedResult), ответ Jira MCP zephyr_get_testcase;
+- Allure: файл *-result.json или каталог allure-results/ (один тест; несколько - нужен --name или --key);
+- лог прогона (.log, .txt): шаги из @Step / Allure-шагов, HTTP-запросов, SQL, топиков Kafka, ошибок проверок;
+- код автотеста на любом фреймворке (.java, .kt): шаги из Allure.step, методов @Step, вызовов
+  REST / SQL / Kafka, проверок; @BeforeEach / @BeforeAll - предусловия, @AfterEach / @AfterAll -
+  шаги очистки; импорты - строка «Технологии источника». Несколько тестов в файле - нужен --method.
+HTML в полях (<br>, <pre>, <p>) превращается в текст. Ключа нет -> нужен --key.
+Пишет .gigacode/data/autotest/<ключ>/TC.md и печатает: ТК, ШАГОВ, ИСТОЧНИК, ФАЙЛ.
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - записано, 1 - шагов нет или формат
 не распознан, 2 - неверные аргументы.
 """
@@ -22,7 +28,21 @@ DATA = Path(".gigacode") / "data" / "autotest"
 KEY = re.compile(r"\b[A-Z][A-Z0-9]*-T[0-9]+\b")
 FIELDS = [("title", "Название"), ("key", "Ключ"), ("system", "КЭ"), ("priority", "Приоритет"),
           ("status", "Статус"), ("folder", "Папка"), ("kind", "Вид теста"), ("objective", "Цель"),
-          ("precondition", "Предусловия"), ("test_data", "Требования к тестовым данным"), ("tags", "Тэги")]
+          ("precondition", "Предусловия"), ("test_data", "Требования к тестовым данным"), ("tags", "Тэги"),
+          ("source", "Источник"), ("source_tech", "Технологии источника")]
+TAG = re.compile(r"@[A-Za-z][\w]*(?:\([^)]*\))?")
+HTTP = re.compile(r"\b(GET|POST|PUT|PATCH|DELETE)\b[\s:]+[\"']?((?:https?://)?[\w.:\-]*/[\w/{}.\-?=&%]*)", re.I)
+SQL = re.compile(r"\b(SELECT\s+.+?\s+FROM\s+\S+|INSERT\s+INTO\s+\S+|UPDATE\s+\S+\s+SET|DELETE\s+FROM\s+\S+)", re.I)
+TOPIC = re.compile(r"(?:topic|топик)\s*[=:(]?\s*[\"']?([\w.\-]{3,})", re.I)
+STATUS = re.compile(r"(?:status(?:\s*code)?|statusCode|код ответа|response code|HTTP/\d(?:\.\d)?)\s*[:=(]?\s*([1-5]\d\d)\b", re.I)
+# импорт -> технология (строка «Технологии источника»; читает tc_plan.py, раздел «Окружение под ТК»)
+IMPORT_TECH = [("io.restassured", "rest"), ("okhttp", "rest"), ("org.apache.http", "rest"), ("java.net.http", "rest"),
+               ("org.springframework.web.client", "rest"), ("io.grpc", "grpc"), ("graphql", "graphql"),
+               ("websocket", "websocket"), ("java.sql", "db"), ("jdbc", "db"), ("javax.persistence", "db"),
+               ("org.opensearch", "opensearch"), ("elasticsearch", "opensearch"), ("kafka", "kafka"),
+               ("com.codeborne.selenide", "ui"), ("com.microsoft.playwright", "ui"), ("org.openqa.selenium", "ui"),
+               ("io.appium", "mobile"), ("org.testcontainers", "testcontainers"), ("wiremock", "sbermock"),
+               ("mockserver", "sbermock"), ("io.fabric8.kubernetes", "openshift"), ("io.fabric8.openshift", "openshift")]
 
 
 def text(value):
@@ -51,6 +71,9 @@ def from_markdown(source):
         m = re.search(r"(?m)^\s*(?:\*\*)?" + re.escape(label) + r"(?:\*\*)?\s*:\s*(?:\*\*)?\s*(.+?)\s*$", source)
         if m:
             tc[name] = text(m.group(1).strip("* "))
+    tags_sect = re.search(r"(?ms)^#{2,4}\s*Т[эе]ги[^\n]*\n(.*?)(?=^#{1,4}\s|\Z)", source)
+    if tags_sect and not tc.get("tags"):
+        tc["tags"] = text("; ".join(TAG.findall(tags_sect.group(1))))
     for name, label in (("objective", "Цель"), ("precondition", "Предусловия")):
         sect = re.search(r"(?ms)^#{2,4}\s*" + label + r"[^\n]*\n(.*?)(?=^#{1,4}\s|\Z)", source)
         if sect and not tc.get(name):
@@ -165,11 +188,175 @@ def from_json(source):
                 continue
             inline = item.get("inline") if isinstance(item.get("inline"), dict) else item
             action = first(inline, "description", "action", "name", "step")
-            tc["steps"].append(step(action, first(inline, "testData", "data"),
-                                    first(inline, "expectedResult", "expected", "result")))
+            params = item.get("parameters") if isinstance(item.get("parameters"), list) else []
+            data = first(inline, "testData", "data") or "; ".join(
+                "%s=%s" % (p.get("name", ""), p.get("value", "")) for p in params if isinstance(p, dict))
+            tc["steps"].append(step(action, data, first(inline, "expectedResult", "expected", "result")))
             if item.get("steps") and not first(inline, "expectedResult", "expected"):
                 walk(item["steps"])
     walk(find_steps(obj))
+    if "uuid" in obj or "historyId" in obj or "start" in obj:
+        tc["source"] = "allure"
+        layer = [l.get("value") for l in labels if isinstance(l, dict) and l.get("name") == "layer"]
+        if layer:
+            tc["tags"] = text("; ".join([t for t in tags if t] + ['@TestLayer("%s")' % layer[0]]))
+        if not tc["steps"] and tc["title"]:
+            tc["steps"].append(step(tc["title"]))
+    return tc
+
+
+def from_allure_dir(folder, key, name):
+    """Каталог allure-results/ -> один тест: по --key (ссылки, метки) или --name (часть имени)."""
+    found = []
+    for path in sorted(folder.glob("*-result.json")):
+        try:
+            obj = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        blob = json.dumps(obj.get("links", []), ensure_ascii=False) + json.dumps(obj.get("labels", []), ensure_ascii=False)
+        if key and key not in blob and key not in str(obj.get("name", "")):
+            continue
+        if name and name.lower() not in str(obj.get("name", "")).lower() and name.lower() not in str(obj.get("fullName", "")).lower():
+            continue
+        found.append((path, obj))
+    if not found:
+        raise ValueError("в каталоге нет подходящих *-result.json" + (" для " + (key or name) if key or name else ""))
+    names = sorted({str(o.get("fullName") or o.get("name")) for _, o in found})
+    if len(names) > 1:
+        raise LookupError("ТЕСТОВ НЕСКОЛЬКО: " + "; ".join(names[:20]) + " - запусти с --name <часть имени> или --key <ключ>")
+    path, obj = max(found, key=lambda f: f[1].get("stop", 0) or 0)  # последний прогон
+    return from_json(json.dumps(obj, ensure_ascii=False))
+
+
+# ---------- лог прогона ----------
+
+def from_log(source):
+    """Лог CI/консоли -> шаги. Действие: строка шага Allure/@Step, HTTP-запрос, SQL, топик Kafka.
+    Ожидаемый результат последнего шага: код ответа, AssertionError expected/but was."""
+    tc = {"steps": [], "source": "log"}
+    title = re.search(r"(?:Running|Test(?:ing)?|Тест)\s*[:=]?\s+([\w.$#]+(?:\(\))?)", source)
+    tc["title"] = title.group(1) if title else ""
+    seen = set()
+
+    def add(action, expected=""):
+        if action and action not in seen:
+            seen.add(action)
+            tc["steps"].append(step(action, "", expected))
+        elif expected and tc["steps"] and not tc["steps"][-1]["expected"]:
+            tc["steps"][-1]["expected"] = text(expected)
+
+    for line in source.split("\n"):
+        stripped = re.sub(r"^\S*\d{2}:\d{2}:\d{2}\S*\s+(?:\[[^\]]*\]\s*)*(?:\w+\s+)?", "", line.strip())
+        m = re.search(r"(?:@Step|Allure\.step|\bStep|\bШаг)\s*[(:\-]\s*[\"«]?([^\"»)]{3,200})", stripped, re.I)
+        if m:
+            add(m.group(1).strip())
+            continue
+        m = HTTP.search(stripped)
+        if m and re.search(r"request|запрос|sending|calling|-->|>>|curl|\b" + m.group(1) + r"\b\s", stripped, re.I):
+            add("Отправить " + m.group(1).upper() + " " + m.group(2))
+        m = SQL.search(stripped)
+        if m:
+            add("Выполнить SQL: " + stripped[stripped.find(m.group(1)):][:200])
+        m = TOPIC.search(stripped)
+        if m and re.search(r"send|produc|publish|отправ", stripped, re.I):
+            add("Отправить сообщение в топик " + m.group(1))
+        elif m and re.search(r"consum|receiv|poll|получ|прочит", stripped, re.I):
+            add("Прочитать сообщение из топика " + m.group(1))
+        m = STATUS.search(stripped)
+        if m and re.search(r"response|ответ|<--|<<|status", stripped, re.I) and tc["steps"]:
+            add("", "код ответа " + m.group(1))
+        m = re.search(r"expected:?\s*<?\[?([^>\]]{1,80})\]?>?\s*but was:?\s*<?\[?([^>\]]{1,80})", stripped, re.I)
+        if m and tc["steps"]:
+            add("", "значение = " + m.group(1).strip())
+    return tc
+
+
+# ---------- код автотеста (любой фреймворк) ----------
+
+def body_at(source, start):
+    """Тело метода: от первой «{» после start до парной «}»."""
+    open_at = source.find("{", start)
+    if open_at < 0:
+        return ""
+    depth = 0
+    for index in range(open_at, len(source)):
+        if source[index] == "{":
+            depth += 1
+        elif source[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[open_at + 1:index]
+    return source[open_at + 1:]
+
+
+METHOD = re.compile(r"((?:\s*@\w+(?:\.\w+)*(?:\((?:[^()]|\([^()]*\))*\))?)+)\s*(?:public\s+|protected\s+|private\s+|static\s+|final\s+)*"
+                    r"(?:fun\s+|void\s+|[\w<>\[\],\s]+?\s+)(\w+)\s*\(", re.S)
+
+
+def code_steps(body, step_names):
+    """Шаги из тела метода по порядку появления."""
+    events = []
+    for m in re.finditer(r"(?:Allure\.)?step\s*\(\s*\"([^\"]{3,200})\"", body):
+        events.append((m.start(), "action", m.group(1)))
+    for name, label in step_names.items():
+        for m in re.finditer(r"(?<![\w.])(?:\w+\.)?" + re.escape(name) + r"\s*\(", body):
+            events.append((m.start(), "action", label))
+    for m in re.finditer(r"\.(get|post|put|patch|delete)\s*\(\s*\"([^\"]+)\"", body, re.I):
+        events.append((m.start(), "action", "Отправить " + m.group(1).upper() + " " + m.group(2)))
+    for m in re.finditer(r"\"((?:SELECT|INSERT|UPDATE|DELETE)\b[^\"]{5,200})\"", body, re.I):
+        events.append((m.start(), "action", "Выполнить SQL: " + m.group(1)))
+    for m in re.finditer(r"\b(?:send|produce|publish)\w*\s*\(\s*\"([\w.\-]{3,})\"", body):
+        events.append((m.start(), "action", "Отправить сообщение в топик " + m.group(1)))
+    for m in re.finditer(r"\.(?:statusCode|status|code)\s*\(\s*([1-5]\d\d)\s*\)", body):
+        events.append((m.start(), "expected", "код ответа " + m.group(1)))
+    for m in re.finditer(r"\b(assert\w*\s*\((?:[^();]|\([^()]*\))*\)(?:\.\w+\((?:[^();]|\([^()]*\))*\))*|\.should\w*\s*\((?:[^();]|\([^()]*\))*\))", body):
+        events.append((m.start(), "expected", re.sub(r"\s+", " ", m.group(1))[:160]))
+    steps = []
+    for _, kind, value in sorted(events):
+        if kind == "action":
+            if not steps or steps[-1]["action"] != text(value):
+                steps.append(step(value))
+        elif steps:
+            steps[-1]["expected"] = text((steps[-1]["expected"].replace("<br>", "; ") + "; " if steps[-1]["expected"] else "") + value)
+        else:
+            steps.append(step("Проверить результат", "", value))
+    return steps
+
+
+def from_code(source, method):
+    tc = {"steps": [], "source": "code"}
+    techs = sorted({tech for prefix, tech in IMPORT_TECH for imp in re.findall(r"(?m)^\s*import\s+([\w.]+)", source) if prefix in imp})
+    tc["source_tech"] = ", ".join(techs)
+    step_names, tests, before, after = {}, [], [], []
+    for m in METHOD.finditer(source):
+        notes, name = m.group(1), m.group(2)
+        label = re.search(r"@Step\s*\(\s*(?:value\s*=\s*)?\"([^\"]+)\"", notes)
+        if label:
+            step_names[name] = label.group(1)
+        if re.search(r"@(Test|ParameterizedTest|RepeatedTest|TestFactory)\b", notes):
+            tests.append((name, notes, m.end()))
+        elif re.search(r"@(BeforeEach|BeforeAll|BeforeMethod|BeforeClass|Before)\b", notes):
+            before.append(m.end())
+        elif re.search(r"@(AfterEach|AfterAll|AfterMethod|AfterClass|After)\b", notes):
+            after.append(m.end())
+    if method:
+        tests = [t for t in tests if t[0] == method]
+    if not tests:
+        raise ValueError("в файле нет тест-метода" + (" " + method if method else " с @Test"))
+    if len(tests) > 1:
+        raise LookupError("ТЕСТОВ НЕСКОЛЬКО: " + ", ".join(t[0] for t in tests) + " - запусти с --method <имя метода>")
+    name, notes, end = tests[0]
+    shown = re.search(r"@DisplayName\s*\(\s*\"([^\"]+)\"", notes)
+    tms = re.search(r"@TmsLink\s*\(\s*\"([^\"]+)\"", notes)
+    tc["title"] = KEY.sub("", shown.group(1)).strip(" :-·") if shown else name
+    tc["key"] = tms.group(1) if tms else (KEY.search(shown.group(1)).group() if shown and KEY.search(shown.group(1)) else "")
+    tc["tags"] = text("; ".join(t for t in TAG.findall(notes) if not re.match(r"@(Test|DisplayName|TmsLink|Step|ParameterizedTest)\b", t)))
+    pre = [s["action"] for e in before for s in code_steps(body_at(source, e), step_names)]
+    tc["precondition"] = text("; ".join(pre))
+    tc["steps"] = code_steps(body_at(source, end), step_names)
+    for e in after:
+        for s in code_steps(body_at(source, e), step_names):
+            tc["steps"].append(step("Очистить после теста: " + s["action"].replace("<br>", " "), "", s["expected"]))
     return tc
 
 
@@ -184,28 +371,45 @@ def render(tc):
     return "\n".join(out) + "\n"
 
 
+def option(args, name):
+    return args[args.index(name) + 1] if name in args and args.index(name) + 1 < len(args) else ""
+
+
 def main(args):
     if not args or args[0].startswith("-"):
-        print("Использование: tc_convert.py <файл ТК: .md, .xml, .json> [--key <ключ>]")
+        print("Использование: tc_convert.py <файл ТК (.md .xml .json), лог (.log .txt), тест (.java .kt) или каталог allure-results> "
+              "[--key <ключ>] [--method <тест-метод>] [--name <имя теста>]")
         return 2
     path = Path(args[0])
+    key_arg, method, name = option(args, "--key"), option(args, "--method"), option(args, "--name")
+    suffix = path.suffix.lower()
     try:
-        source = path.read_text(encoding="utf-8-sig")
+        source = "" if path.is_dir() else path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as error:
         print("ФАЙЛ НЕ ЧИТАЕТСЯ: " + str(error))
         return 1
     try:
-        if path.suffix.lower() == ".xml" or source.lstrip().startswith("<"):
+        if path.is_dir():
+            tc = from_allure_dir(path, key_arg, name)
+        elif suffix in (".java", ".kt"):
+            tc = from_code(source, method)
+        elif suffix in (".log", ".txt", ".out"):
+            tc = from_log(source)
+        elif suffix == ".xml" or source.lstrip().startswith("<"):
             tc = from_xml(source)
-        elif path.suffix.lower() == ".json" or source.lstrip()[:1] in "[{":
+        elif suffix == ".json" or source.lstrip()[:1] in "[{":
             tc = from_json(source)
         else:
             tc = from_markdown(source)
+    except LookupError as error:
+        print(str(error))
+        return 1
     except (ET.ParseError, ValueError) as error:
         print("ФОРМАТ НЕ РАСПОЗНАН: " + str(error))
         return 1
-    if "--key" in args and args.index("--key") + 1 < len(args):
-        tc["key"] = args[args.index("--key") + 1]
+    tc.setdefault("source", "tms")
+    if key_arg:
+        tc["key"] = key_arg
     if not tc.get("key"):
         found = KEY.search(source)
         tc["key"] = found.group() if found else ""
@@ -223,6 +427,7 @@ def main(args):
     target.write_text(render(tc), encoding="utf-8")
     print("ТК: " + tc["key"] + " · " + (tc.get("title") or "-"))
     print("ШАГОВ: " + str(len(steps)))
+    print("ИСТОЧНИК: " + tc["source"] + (" - шаги восстановлены скриптом, сверь их с артефактом" if tc["source"] in ("log", "code") else ""))
     print("ФАЙЛ: " + str(target).replace("\\", "/"))
     return 0
 

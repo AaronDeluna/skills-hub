@@ -40,6 +40,65 @@ JAVA_NAME = re.compile(r"[A-Z][A-Za-z0-9]*")
 JAVA_PACKAGE = re.compile(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*")
 
 
+# Окружение под ТК (раздел 8 плана): метка -> слова, которые ищутся в файлах сборки (подсказка, не имя артефакта:
+# имя модуля берётся только из документации, его ставит env-check в режиме setup). Пустой список - модуль не ищется.
+BUILD_WORDS = {"rest": ["rest"], "grpc": ["grpc"], "graphql": ["graphql"], "websocket": ["websocket"],
+               "db": ["database", "datasource", "jdbc"], "opensearch": ["opensearch", "elastic"], "kafka": ["kafka"],
+               "ui": ["playwright", "selenide"], "mobile": ["appium", "mobile"], "audit": ["audit"], "journals": ["journal"],
+               "abyss": ["abyss"], "metrics": ["metric"], "sup": ["sup-", "-sup"], "fixtures": ["fixture"], "timeouts": [],
+               "testcontainers": ["testcontainers"], "sbermock": ["sbermock"], "openshift": ["openshift", "kubernetes"],
+               "dataconverter": ["converter"], "toggler": ["toggler"], "launcher": ["launcher"], "sessions": ["session"],
+               "value": [], "invocation": ["invocation"]}
+# маркер, который прямо называет технологию (EXPLICIT); остальные маркеры - по смыслу шага (IMPLIED)
+EXPLICIT = {"kafka", "кафк", "grpc", "graphql", "websocket", "opensearch", "elastic", "datasource", "sql", "select", "insert",
+            "update", "delete from", "postgres", "oracle", "appium", "android", "ios", "selenide", "playwright", "fixture",
+            "testcontainers", "sbermock", "openshift", "kubernetes", "toggler", "launcher", "thanos", "victoria",
+            "pvm-abyss", "abyss", "valueservice", "invocation", "rest", "http", "post", "get", "put", "patch", "delete",
+            "/api/", "аудит", "ефс", "ппрб", "суп", "dataconverter"}
+LABEL_TECH = {label: tech for _, techs in tcc.GROUPS for tech, label, _ in techs}
+ASYNC_GROUPS = {"kafka", "logs_metrics", "ui", "mobile"}
+
+
+def env_needs(tc, rows, env):
+    """-> строки раздела 8: (технология, метка, статус, шаги, слова, в сборке)."""
+    needs = {}
+    for r in rows:
+        if r["label"] in ("-", ""):
+            continue
+        markers = {m.strip() for m in r["why"].split(",")}
+        status = "EXPLICIT" if markers & EXPLICIT and not r["why"].startswith("унаследовано") else "IMPLIED"
+        item = needs.setdefault(r["label"], {"tech": r["tech"], "status": status, "steps": []})
+        item["steps"].append(r["id"])
+        if status == "EXPLICIT":
+            item["status"] = "EXPLICIT"
+    for label in [l.strip() for l in tc["fields"].get("Технологии источника", "").split(",") if l.strip() not in ("", "-")]:
+        item = needs.setdefault(label, {"tech": LABEL_TECH.get(label, label), "status": "EXPLICIT", "steps": []})
+        item["status"] = "EXPLICIT"
+        item["steps"].append("импорт")
+    groups = {r["group"] for r in rows}
+    if groups & ASYNC_GROUPS and "timeouts" not in needs:
+        needs["timeouts"] = {"tech": "Сервис для работы с Таймаутами", "status": "RECOMMENDED", "steps": ["ожидание асинхронного результата"]}
+    if (any(r["type"] == "SETUP" for r in rows) or tc["fields"].get("Предусловия", "-") not in ("", "-")) and "fixtures" not in needs:
+        needs["fixtures"] = {"tech": "Сервис для работы с Fixtures", "status": "RECOMMENDED", "steps": ["предусловия"]}
+    build = ""
+    for name in env.get("project", {}).get("build_files", []):
+        try:
+            build += Path(name).read_text(encoding="utf-8", errors="replace").lower()
+        except OSError:
+            pass
+    out = []
+    for label, item in needs.items():
+        words = BUILD_WORDS.get(label, [])
+        if not words or not build:
+            present = "-"
+        else:
+            hit = [w for w in words if w in build]
+            present = "да (" + hit[0] + ")" if hit else "нет"
+        out.append((item["tech"], label, item["status"], ", ".join(item["steps"]), ", ".join(words) or "-", present))
+    order = {"EXPLICIT": 0, "IMPLIED": 1, "RECOMMENDED": 2}
+    return sorted(out, key=lambda o: (order[o[2]], o[1]))
+
+
 def esc(value):
     return str(value).replace("|", "\\|").replace("\n", "<br>") or "-"
 
@@ -217,7 +276,7 @@ def class_name(tc):
 
 # ---------- запись ----------
 
-def render(tc, check, env, rows, groups, consts, vars_, index):
+def render(tc, check, env, rows, groups, consts, vars_, index, needs):
     project = env.get("project", {})
     package = project.get("base_package") or "-"
     roots = project.get("test_roots") or ["src/test/java"]
@@ -265,7 +324,14 @@ def render(tc, check, env, rows, groups, consts, vars_, index):
             out.append("- " + group + " · `" + path + "` · методы: " + (", ".join(methods) or "-"))
     if not index:
         out.append("- нет: в проекте не найдено классов шагов для технологий этого ТК")
-    out += ["", "## 7. Решения и блокеры", "", "- нет", "", "## 8. Журнал", "", "| Когда | Что |", "|-------|-----|",
+    out += ["", "## 7. Решения и блокеры", "", "- нет", "", "## 8. Окружение под ТК", "",
+            "| Технология | Метка | Статус | Шаги | Слова в сборке | В сборке |",
+            "|------------|-------|--------|------|----------------|----------|"]
+    for n in needs:
+        out.append("| %s | %s | %s | %s | %s | %s |" % n)
+    if not needs:
+        out.append("| - | - | - | - | - | - |")
+    out += ["", "## 9. Журнал", "", "| Когда | Что |", "|-------|-----|",
             "| build | черновик плана: шагов %d, G %d, констант %d |" % (len(rows), len(groups), len(consts))]
     return "\n".join(out) + "\n"
 
@@ -304,11 +370,14 @@ def build(key, force):
     consts = constants(rows)
     vars_ = variables(rows)
     index = class_index(env, {g["group"] for g in groups})
-    plan.write_text(render(tc, check, env, rows, groups, consts, vars_, index), encoding="utf-8")
+    needs = env_needs(tc, rows, env)
+    plan.write_text(render(tc, check, env, rows, groups, consts, vars_, index, needs), encoding="utf-8")
     low = [r["id"] for r in rows if r["conf"] == "LOW" or r["group"] == "UNKNOWN_GROUP" or r["type"] == "UNKNOWN_TYPE"]
     print("ФАЙЛ: " + str(plan).replace("\\", "/"))
     print("ШАГОВ: %d · G: %d · КОНСТАНТ: %d · ПЕРЕМЕННЫХ: %d" % (len(rows), len(groups), len(consts), len(vars_)))
     print("ПРОВЕРИТЬ: " + (", ".join(low) if low else "нет - все шаги с уверенностью HIGH или MEDIUM"))
+    missing = [n[1] + " (" + n[0] + ")" for n in needs if n[5] == "нет" and n[2] != "RECOMMENDED"]
+    print("ОКРУЖЕНИЕ: " + ("нет в сборке: " + ", ".join(missing) if missing else "все технологии ТК найдены в сборке или не проверяются"))
     if env == {}:
         print("ЗАМЕТКА: нет ENV.json - пакет, базовый класс и библиотека UI не определены (env-check не запускался)")
     return 0

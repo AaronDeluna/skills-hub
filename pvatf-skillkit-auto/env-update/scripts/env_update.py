@@ -74,19 +74,12 @@ def cmd_latest(args):
     if not text:
         print("Файл пуст или не читается: " + args[0])
         return 1
-    found = OrderedDict()
-    for m in re.finditer(r"(?<![\w.])v?([0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?:-[0-9A-Za-z.]+)?)(?![\w.])", text):
-        value = m.group(1)
-        if "SNAPSHOT" in value.upper() and "--allow-snapshot" not in args:
-            continue
-        found.setdefault(value, 0)
-        found[value] += 1
-    if not found:
+    latest, ordered = fv.newest(text, "--allow-snapshot" in args)
+    if not latest:
         print("ВЕРСИЙ НЕТ: в файле нет номеров версий вида 3.5.0")
         return 1
-    ordered = sorted(found, key=fv.version_key, reverse=True)
     stable = [v for v in ordered if "-" not in v]
-    print("САМАЯ НОВАЯ: " + (stable[0] if stable else ordered[0]))
+    print("САМАЯ НОВАЯ: " + latest)
     if stable and ordered[0] != stable[0]:
         print("ЗАМЕТКА: есть предварительная " + ordered[0] + " - берём стабильную " + stable[0])
     print("ВСЕ (по убыванию): " + ", ".join(ordered[:15]))

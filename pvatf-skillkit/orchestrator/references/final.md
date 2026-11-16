@@ -7,6 +7,7 @@
    предложи запустить `migration-map` (обновление карты), чтобы превратить их в юниты.
 3. Назови отчёты: `.gigacode/data/migration/MIGRATION-REVIEW.md` и
    `.gigacode/data/migration/review/*.md`.
+   Предложи: «Напишите: `/orchestrator проверь зависимости` - после миграции в сборке часто остаются старые библиотеки и разные версии одной библиотеки».
 4. **Служебная папка.** Спроси одним вопросом: «Миграция завершена. Удалить служебные файлы
    миграции `.gigacode/data/migration/`? да / нет». Только после ответа «да»:
    `git rm -r --cached .gigacode/data/migration 2>/dev/null; rm -r .gigacode/data/migration`.

@@ -9,6 +9,10 @@
 | агентов нет в `.gigacode/agents/` | `/orchestrator Проверь окружение` | `env check` | `агенты установлены` | никакой, просьба перезапустить GigaCode |
 | `ENV.json` нет | `/orchestrator Сгенерируй автотест по ТК tc.md` | `autotest tc.md` | `env-check` | `env-check`, режим check |
 | `ENV.json` ok | `/orchestrator Сгенерируй автотест по ТК tc.md` | `autotest tc.md` | `autotest-plan` | `autotest-plan` с файлом `tc.md` |
+| пустой каталог | `/orchestrator Создай проект автотестов` | `env init` | `env-init` | `env-check`, режим init: env_init.py, потом setup |
+| `ENV.json` ok, ТК `CMN-T120` нет | `/orchestrator Сгенерируй автотест по ТК CMN-T120` | `autotest CMN-T120` | `autotest-plan CMN-T120` | `autotest-plan`: загрузка ТК из Zephyr (`zephyr_get_testcase`), разбор, проверка, план |
+| `ENV.json` ok | `/orchestrator Сгенерируй автотест по логу logs/run.log` | `autotest logs/run.log` | `autotest-plan` | `autotest-plan`: шаги из лога, вопрос «Шаги восстановлены верно?» |
+| `ENV.json` ok | `/orchestrator Сгенерируй автотест по тесту old/src/test/java/PayTest.java` | `autotest old/src/test/java/PayTest.java` | `autotest-plan` | `autotest-plan`: шаги из кода, несколько тестов - вопрос «Какой тест взять?» |
 | `ENV.json` ok | `/orchestrator Проверь тест-кейс tc.md` | `autotest tc.md` | `autotest-plan` | `autotest-plan`, шаги 1-3 |
 | `PLAN.md` planned | `/orchestrator Продолжи генерацию CMN-T120` | `autotest CMN-T120` | `autotest-gen CMN-T120` | `autotest-gen` |
 | `PLAN.md` checked | `/orchestrator Продолжи генерацию CMN-T120` | `autotest CMN-T120` | `финал CMN-T120` | никакой, итог из `CHECK.md` |
@@ -16,6 +20,10 @@
 | `ENV.json` ok | `/orchestrator Проверь автотест src/test/java/ru/demo/tests/PayTest.java` | `review src/test/java/ru/demo/tests/PayTest.java` | `autotest-review src/test/java/ru/demo/tests/PayTest.java` | `autotest-review`, шаги 1-8, вопрос о выборе правок |
 | `REVIEW-PLAN.md` fixing | `/orchestrator Продолжи проверку автотеста` | `review` | `autotest-review <файл>` | `autotest-review` с шага 4 |
 | `ENV.json` ok | `/orchestrator Оптимизируй тест` | `review` | `autotest-review` | никакой, вопрос о пути к тест-классу |
+| нет файла сборки | `/orchestrator Проверь зависимости` | `deps` | `нельзя` | никакой, совет «создай проект автотестов» |
+| есть `pom.xml` | `/orchestrator Проверь зависимости` | `deps` | `dependency-review` | `dependency-review`, шаги 1-6 |
+| `FINDINGS.md` tree-done | `/orchestrator Продолжи ревью зависимостей` | `deps` | `dependency-review` | `dependency-review` с шага 3 |
+| есть `pom.xml` | `/orchestrator Проверь зависимости, сборку не запускай` | `deps` | `dependency-review` | `dependency-review`, шаг 2 с `--no-build` |
 | любое | `/orchestrator Настрой окружение` | `env setup` | `env-setup` | `env-check`, режим setup |
 | компиляция ok | `/orchestrator Обнови окружение` | `env update` | `env-update` | `env-update`, этапы 1-9 |
 | `ENV-UPDATE.md` in-progress | `/orchestrator Продолжи обновление` | `env update` | `env-update` | `env-update` с этапа `update_stage` |

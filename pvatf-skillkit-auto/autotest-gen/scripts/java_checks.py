@@ -2,7 +2,6 @@
 """Общие проверки Java-кода и компиляция проекта для скиллов autotest-gen и autotest-review.
 
 Модуль, а не команда: его импортируют at_tools.py и review.py из той же папки scripts/.
-Источник - shared/scripts/java_checks.py набора, копии раскладывает scripts/sync_shared.py.
 Python 3.8+, только стандартная библиотека.
 """
 import json
