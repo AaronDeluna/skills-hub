@@ -30,3 +30,11 @@ docs/
 
 # Промежуточные файлы аудитов (отчёты, промпты, переаудиты) - не коммитить
 audit/
+
+# Инструменты разработчиков наборов (селфтест, синхронизация общих файлов, золотые промпты) - потребителю не нужны
+pvatf-skillkit/scripts/
+pvatf-skillkit/shared/
+pvatf-skillkit/tests/
+pvatf-skillkit-auto/scripts/
+pvatf-skillkit-auto/shared/
+pvatf-skillkit-auto/tests/
