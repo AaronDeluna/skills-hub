@@ -6,6 +6,12 @@
   python3 <скилл>/scripts/at_tools.py mark <ключ ТК> <G-n> <статус> - статус G в плане: ok / stub / blocked / todo
   python3 <скилл>/scripts/at_tools.py assemble <ключ ТК>           - собрать тест-класс из фрагментов
   python3 <скилл>/scripts/at_tools.py check <ключ ТК> [--no-compile] - самопроверка кода, покрытие шагов, компиляция
+  python3 <скилл>/scripts/at_tools.py run <ключ ТК> [--dry-run | --report-only] - запуск тест-класса, разбор отчёта JUnit
+
+run: команда - из команды компиляции ENV.json (Maven: test -Dtest=<класс>, Gradle: test --tests <класс>),
+таймаут 1500 секунд; падения делит на СТЕНД (сеть, доступ), ПРОВЕРКА (ассерты), КОД (остальное);
+--dry-run - только печать команды, --report-only - разобрать отчёт прогона, который запускал человек.
+Пишет RUN.md, run.log и run_status в шапку PLAN.md.
 
 Файлы - в .gigacode/data/autotest/<ключ>/: PLAN.md (план), fragments/G-<n>.md (фрагменты от
 агента), rules-now.md, docs-now.md, CHECK.md (итог проверки). Повторный запуск любой команды
@@ -382,14 +388,162 @@ def cmd_check(key, compile_on):
     return 0 if not findings and status in ("ok", "skipped") else 1
 
 
+# ---------- run / report ----------
+
+RUN_TIMEOUT = 1500
+STAND = re.compile(r"ConnectException|Connection refused|Connection reset|UnknownHost|NoRouteToHost|No route to host|"
+                   r"SocketTimeout|Read timed out|connect timed out|SSLHandshake|PKIX path|"
+                   r"\b(?:status|code|статус)\D{0,12}(?:401|403|502|503|504)\b", re.I)
+CHECK_FAIL = re.compile(r"AssertionError|AssertionFailedError|ComparisonFailure|MultipleFailuresError|SoftAssert", re.I)
+
+
+def set_or_add_head(text, name, value):
+    if re.search(r"(?m)^" + name + r":", text.split("\n---", 1)[0] if text.startswith("---") else ""):
+        return set_head(text, name, value)
+    return re.sub(r"(?m)^(plan_status:[^\n]*)$", r"\1\n" + name + ": " + value, text, count=1)
+
+
+def module_of(test_file):
+    """Каталог модуля сборки: часть пути тест-класса до src/. Корень проекта -> ''."""
+    parts = Path(test_file).parts
+    if "src" not in parts:
+        return ""
+    return "/".join(parts[:parts.index("src")])
+
+
+def run_argv(env, head):
+    """Команда запуска одного тест-класса из команды компиляции ENV.json. Возвращает (argv, отчёты) или (None, причина)."""
+    project = env.get("project", {})
+    base = project.get("compile_argv") or project.get("compile_command", "-").split()
+    if not base or base == ["-"]:
+        return None, "нет команды компиляции в ENV.json - запусти env-check"
+    tool = Path(base[0]).name.lower()
+    module = module_of(head.get("test_file", ""))
+    fqn = (head.get("package", "-") + "." if head.get("package", "-") != "-" else "") + head.get("class", "")
+    root = Path(module) if module else Path(".")
+    if "mvn" in tool:
+        argv = [base[0], "-B"] + (["-pl", module, "-am"] if module else []) + [
+            "test", "-Dtest=" + head.get("class", ""), "-Dsurefire.failIfNoSpecifiedTests=false", "-DfailIfNoTests=false"]
+        return argv, [root / "target" / "surefire-reports" / ("TEST-" + fqn + ".xml")]
+    if "gradle" in tool:
+        task = (":" + module.replace("/", ":") + ":test") if module else "test"
+        return [base[0], task, "--tests", fqn], [root / "build" / "test-results" / "test" / ("TEST-" + fqn + ".xml")]
+    return None, "сборка не Maven и не Gradle (" + base[0] + ") - команду запуска даст человек"
+
+
+def kind_of(text):
+    if STAND.search(text):
+        return "СТЕНД"
+    if CHECK_FAIL.search(text):
+        return "ПРОВЕРКА"
+    return "КОД"
+
+
+def parse_report(path):
+    """JUnit XML -> (счётчики, падения [(метод, вид, сообщение)])."""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.parse(str(path)).getroot()
+    except (OSError, ET.ParseError):
+        return None, []
+    suites = [root] if root.tag == "testsuite" else root.findall("testsuite")
+    counts = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+    falls = []
+    for suite in suites:
+        for name in counts:
+            try:
+                counts[name] += int(suite.get(name, "0"))
+            except ValueError:
+                pass
+        for case in suite.iter("testcase"):
+            for bad in list(case.findall("failure")) + list(case.findall("error")):
+                body = (bad.get("type", "") + ": " + (bad.get("message") or "") + "\n" + (bad.text or "")).strip()
+                first = next((l.strip() for l in body.splitlines() if l.strip()), "-")
+                falls.append((case.get("name", "-"), kind_of(body), first[:300]))
+    return counts, falls
+
+
+def report_result(key, path, text, head, reports, since, run_status, command, tail):
+    found = [r for r in reports if r.is_file() and r.stat().st_mtime >= since]
+    counts, falls = (None, [])
+    if found:
+        counts, falls = parse_report(found[0])
+    if counts is None:
+        status = run_status if run_status != "ok" else "no-report"
+    else:
+        status = "passed" if not falls and counts["tests"] > counts["skipped"] else ("failed" if falls else "no-tests")
+    lines = ["# Запуск автотеста " + key, "", "- Тест-класс: " + head.get("test_file", "-"),
+             "- Команда: " + command, "- Результат: " + status]
+    if counts:
+        lines.append("- Тестов: %d · упало: %d · пропущено: %d" % (counts["tests"], counts["failures"] + counts["errors"], counts["skipped"]))
+    lines += ["", "| Тест-метод | Вид | Сообщение |", "|------------|-----|-----------|"]
+    lines += ["| %s | %s | %s |" % (m, k, s.replace("|", "\\|")) for m, k, s in falls] or ["| нет | - | - |"]
+    if status in ("no-report", "timeout", "error") and tail:
+        lines += ["", "Последние строки вывода:", "", "```"] + tail + ["```"]
+    (folder(key) / "RUN.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text(journal(set_or_add_head(text, "run_status", status), "run -> " + status), encoding="utf-8")
+    print("ЗАПУСК: " + command)
+    if counts:
+        print("РЕЗУЛЬТАТ: %s · тестов %d · упало %d · пропущено %d" % (status, counts["tests"], counts["failures"] + counts["errors"], counts["skipped"]))
+    else:
+        print("РЕЗУЛЬТАТ: " + status + " - отчёта " + str(reports[0]) + " нет")
+        for line in tail[-15:]:
+            print("  " + line)
+    for m, k, s in falls:
+        print("ПАДЕНИЕ " + m + " " + k + ": " + s)
+    print("ОТЧЁТ: " + str(folder(key) / "RUN.md").replace("\\", "/"))
+    return 0 if status == "passed" else 1
+
+
+def cmd_run(key, args):
+    import json
+    import subprocess
+    import time
+    path, text, head = plan(key)
+    if text is None:
+        return fail("НЕТ PLAN.md")
+    if head.get("plan_status") != "checked":
+        return fail("СНАЧАЛА check: plan_status " + head.get("plan_status", "-") + " - запуск только после чистой проверки", 1)
+    if not Path(head.get("test_file", "-")).is_file():
+        return fail("НЕТ ТЕСТ-КЛАССА " + head.get("test_file", "-"))
+    try:
+        env = json.loads(read(DATA / "ENV.json") or "{}")
+    except ValueError:
+        env = {}
+    argv, reports = run_argv(env, head)
+    if argv is None:
+        return fail("НЕЛЬЗЯ ЗАПУСТИТЬ: " + reports, 1)
+    command = " ".join(argv)
+    if "--dry-run" in args:
+        print("КОМАНДА: " + command)
+        print("ОТЧЁТ СБОРКИ: " + str(reports[0]).replace("\\", "/"))
+        return 0
+    if "--report-only" in args:
+        return report_result(key, path, text, head, reports, 0, "no-report", command + " (запускал человек)", [])
+    since = time.time() - 1
+    try:
+        result = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=RUN_TIMEOUT)
+        output = result.stdout.decode("utf-8", "replace").splitlines()
+        run_status = "ok" if result.returncode == 0 else "error"
+    except subprocess.TimeoutExpired:
+        output, run_status = ["таймаут " + str(RUN_TIMEOUT) + " с"], "timeout"
+    except OSError as error:
+        output, run_status = [str(error)], "error"
+    (folder(key) / "run.log").write_text("\n".join(output[-400:]) + "\n", encoding="utf-8")
+    tail = [l for l in output if re.search(r"\bERROR\b|error:|FAILED|Exception", l)][:20] or output[-20:]
+    return report_result(key, path, text, head, reports, since, run_status, command, tail)
+
+
 def main(args):
-    if len(args) < 2 or args[0] not in ("rules", "next", "mark", "assemble", "check"):
-        print("Использование: at_tools.py rules|next|assemble|check <ключ ТК> | mark <ключ ТК> <G-n> <статус>")
+    if len(args) < 2 or args[0] not in ("rules", "next", "mark", "assemble", "check", "run"):
+        print("Использование: at_tools.py rules|next|assemble|check|run <ключ ТК> | mark <ключ ТК> <G-n> <статус>")
         return 2
     if args[0] == "mark":
         return cmd_mark(args[1], args[2], args[3]) if len(args) >= 4 else fail("mark <ключ ТК> <G-n> <статус>")
     if args[0] == "check":
         return cmd_check(args[1], "--no-compile" not in args)
+    if args[0] == "run":
+        return cmd_run(args[1], args[2:])
     return {"rules": cmd_rules, "next": cmd_next, "assemble": cmd_assemble}[args[0]](args[1])
 
 

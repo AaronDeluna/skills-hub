@@ -6,11 +6,13 @@
   python3 <каталог скилла>/scripts/next_action.py M-001..M-005 - миграция: пачка (или список через запятую)
   python3 <каталог скилла>/scripts/next_action.py autotest     - генерация автотестов: что делать дальше
   python3 <каталог скилла>/scripts/next_action.py autotest TC-123 - генерация: состояние этого тест-кейса
+  python3 <каталог скилла>/scripts/next_action.py autotest queue - очередь ТК: следующий пункт (QUEUE.md)
+  python3 <каталог скилла>/scripts/next_action.py autotest run TC-123 - запуск сгенерированного тест-класса
   python3 <каталог скилла>/scripts/next_action.py env [check|setup|update|init] - окружение: что делать дальше
   python3 <каталог скилла>/scripts/next_action.py review [файл теста] - проверка существующего автотеста
 
 Печатает строку «ДЕЙСТВИЕ: ...» и строку «ПОЧЕМУ: ...», иногда «ЗАМЕТКА: ...». Файлы процессов не
-меняет. Единственное, что пишет, - агенты набора: копирует <каталог скилла>/agents/*.md в
+меняет (QUEUE.md пишет autotest_queue.py). Единственное, что пишет, - агенты набора: копирует <каталог скилла>/agents/*.md в
 .gigacode/agents/ проекта, если их там нет или они отличаются.
 Python 3.8+, только стандартная библиотека. Код выхода: 0 всегда, кроме неверных аргументов (2).
 """
@@ -18,6 +20,9 @@ import json
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import autotest_queue as queue  # noqa: E402 - очередь ТК, тот же каталог
 
 # interactive - pvatf-skillkit (вопросы человеку), auto - pvatf-skillkit-auto (решения без человека)
 KIT_MODE = "interactive"
@@ -433,6 +438,16 @@ def autotest(args):
         say("env-check", why + " - генерация не запускается, пока проверка не вернёт ok или warning")
         return
     want = args[0] if args else None
+    if want == "run":
+        run(args[1] if len(args) > 1 else None)
+        return
+    if want == "queue":
+        queue_next(explicit=True)
+        return
+    if want and Path(want).is_dir() and not any(Path(want).glob("*-result.json")):
+        say("очередь " + want, "каталог тест-кейсов - добавить в очередь (autotest_queue.py add " + want
+            + "), потом снова next_action.py autotest queue")
+        return
     if want and ("/" in want or "\\" in want or re.search(r"\.(md|xml|json|log|txt|java|kt)$", want) or Path(want).is_dir()):
         say("autotest-plan", "новый тест-кейс из артефакта " + want + " - разбор, проверка, план")
         return
@@ -452,6 +467,8 @@ def autotest(args):
             say("autotest-plan " + want, "тест-кейса " + want + " в проекте нет - загрузить из Zephyr по ключу"
                 " (MCP zephyr_get_testcase), потом разбор, проверка, план")
         return
+    if queue.load() and queue_next(explicit=False):
+        return
     for tc, status, tc_status in rows:
         if status != "checked" and tc_status != "FAIL":
             say(*autotest_step(tc, status, tc_status))
@@ -459,6 +476,57 @@ def autotest(args):
     failed = [tc for tc, _, tc_status in rows if tc_status == "FAIL"]
     note = "; тест-кейсы с FAIL ждут исправления: " + ", ".join(failed) if failed else ""
     say("autotest-plan", "незаконченных тест-кейсов нет - нужен новый: попроси путь к файлу ТК (md, xml или json) или ключ ТК в Zephyr" + note)
+
+
+def queue_next(explicit):
+    """Следующий пункт очереди. explicit - человек прямо просил очередь. Возвращает True, если что-то сказал."""
+    rows = queue.sync(queue.load())
+    if not rows:
+        if explicit:
+            say("нечего делать", "очереди нет - добавить: «/orchestrator сгенерируй автотесты по каталогу <путь>»"
+                " или «по ключам CODE-T1, CODE-T2»")
+        return explicit
+    item = queue.current(rows)
+    if item is None:
+        if not explicit:
+            return False
+        blocked = [r["n"] + " " + (r["key"] if r["key"] != "-" else r["source"]) for r in rows if r["status"] == "blocked"]
+        say("очередь пройдена", queue.summary(rows) + ("; заблокированы: " + ", ".join(blocked) if blocked else ""))
+        return True
+    where = "пункт %s из %d (%s)" % (item["n"], len(rows), queue.summary(rows))
+    if item["key"] == "-":
+        say("autotest-plan " + item["source"], "очередь, " + where + " - новый тест-кейс из артефакта, разбор, проверка, план")
+    else:
+        head = front_matter(read(AUTOTEST / item["key"] / "PLAN.md") or "")
+        if head:
+            action, why = autotest_step(item["key"], head.get("plan_status", "-"), head.get("tc_status", "-"))
+        elif (AUTOTEST / item["key"] / "TC.md").is_file():
+            action, why = "autotest-plan " + item["key"], "тест-кейс разобран, плана нет - проверка, план"
+        else:
+            action, why = "autotest-plan " + item["key"], "загрузить ТК из Zephyr по ключу, потом разбор, проверка, план"
+        say(action, "очередь, " + where + " - " + why)
+    print("ЗАМЕТКА: очередь ТК - после итога скажи: «Откройте новый чат и напишите: /orchestrator продолжи очередь»")
+    return True
+
+
+def run(key):
+    """Запуск сгенерированного тест-класса: только после чистой проверки."""
+    if not key:
+        checked = [p.parent.name for p in sorted(AUTOTEST.glob("*/PLAN.md")) if AUTOTEST.is_dir()
+                   and front_matter(read(p) or "").get("plan_status") == "checked"]
+        say("нельзя", "не назван ключ ТК - запусти: «/orchestrator запусти автотест <ключ>»"
+            + ("; проверены: " + ", ".join(checked[:10]) if checked else ""))
+        return
+    head = front_matter(read(AUTOTEST / key / "PLAN.md") or "")
+    if not head:
+        say("нельзя", "плана " + key + " нет - сначала «/orchestrator сгенерируй автотест по ТК " + key + "»")
+        return
+    if head.get("plan_status") != "checked":
+        action, why = autotest_step(key, head.get("plan_status", "-"), head.get("tc_status", "-"))
+        say(action, "запуск только после чистой проверки; сейчас plan_status " + head.get("plan_status", "-") + " - " + why)
+        return
+    say("autotest-gen " + key + " запуск", "тест-класс прошёл проверку - запустить тест и разобрать падения"
+        + ("; прошлый запуск: " + head["run_status"] if head.get("run_status") else ""))
 
 
 def autotest_step(tc, status, tc_status):
@@ -543,7 +611,7 @@ def main(args):
     elif args and args[0] == "check-migration":
         say("migration-review", "проверка миграции по просьбе человека; карта не обязательна")
     elif args and args[0].startswith("-"):
-        print("Использование: next_action.py [M-<n> | M-<a>..M-<b> | autotest [ключ ТК] | env [check|setup|update|init] | review [файл теста] | deps | check-migration | update-map]")
+        print("Использование: next_action.py [M-<n> | M-<a>..M-<b> | autotest [ключ ТК | queue | run <ключ ТК>] | env [check|setup|update|init] | review [файл теста] | deps | check-migration | update-map]")
         return 2
     else:
         migration(args)

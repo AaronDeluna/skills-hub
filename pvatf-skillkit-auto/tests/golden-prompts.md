@@ -16,6 +16,11 @@
 | `ENV.json` ok | `/orchestrator Проверь тест-кейс tc.md` | `autotest tc.md` | `autotest-plan` | `autotest-plan`, шаги 1-3 |
 | `PLAN.md` planned | `/orchestrator Продолжи генерацию CMN-T120` | `autotest CMN-T120` | `autotest-gen CMN-T120` | `autotest-gen` |
 | `PLAN.md` checked | `/orchestrator Продолжи генерацию CMN-T120` | `autotest CMN-T120` | `финал CMN-T120` | никакой, итог из `CHECK.md` |
+| `PLAN.md` checked | `/orchestrator Запусти автотест CMN-T120` | `autotest run CMN-T120` | `autotest-gen CMN-T120 запуск` | `autotest-gen`, шаги 7-9: `run`, разбор падений |
+| `PLAN.md` planned | `/orchestrator Запусти автотест CMN-T120` | `autotest run CMN-T120` | `autotest-gen CMN-T120` | `autotest-gen`: сначала генерация, запуск - после check |
+| `ENV.json` ok, каталог `tc/` с ТК | `/orchestrator Сгенерируй автотесты по каталогу tc/` | `autotest queue` (после `autotest_queue.py add tc/`) | `autotest-plan <первый файл>` | `autotest-plan` на первый пункт, в итоге «/orchestrator продолжи очередь» |
+| `QUEUE.md`: пункт 1 `done`, пункт 2 `todo` | `/orchestrator Продолжи очередь` | `autotest queue` | `autotest-plan <источник пункта 2>` | `autotest-plan` |
+| `QUEUE.md`: все пункты `done`, `blocked` или `skipped` | `/orchestrator Продолжи очередь` | `autotest queue` | `очередь пройдена` | никакой, сводка и заблокированные |
 | `TC-CHECK.md` FAIL, `PLAN.md` нет | `/orchestrator Продолжи генерацию BAD-T1` | `autotest BAD-T1` | `autotest-plan BAD-T1` | `autotest-plan`: показать находки, план не строить |
 | `ENV.json` ok | `/orchestrator Проверь автотест src/test/java/ru/demo/tests/PayTest.java` | `review src/test/java/ru/demo/tests/PayTest.java` | `autotest-review src/test/java/ru/demo/tests/PayTest.java` | `autotest-review`, шаги 1-8, `approve all --target-only` без вопросов |
 | `REVIEW-PLAN.md` fixing | `/orchestrator Продолжи проверку автотеста` | `review` | `autotest-review <файл>` | `autotest-review` с шага 4 |

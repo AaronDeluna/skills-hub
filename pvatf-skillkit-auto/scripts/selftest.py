@@ -10,6 +10,7 @@ Python 3.8+, только стандартная библиотека.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -294,6 +295,37 @@ def main():
         if built:
             built.unlink()
         expect("next_action: финал", p, na, ["autotest", "CMN-T120"], 0, "ДЕЙСТВИЕ: финал CMN-T120")
+        # --- запуск сгенерированного теста ---
+        expect("next_action: запуск после проверки", p, na, ["autotest", "run", "CMN-T120"], 0, "ДЕЙСТВИЕ: autotest-gen CMN-T120 запуск")
+        expect("next_action: запуск без плана", p, na, ["autotest", "run", "NONE-T1"], 0, "ДЕЙСТВИЕ: нельзя")
+        expect("at_tools run --dry-run: Maven", p, at, ["run", "CMN-T120", "--dry-run"], 0, "КОМАНДА: ./mvnw -B test -Dtest=", "surefire-reports/TEST-")
+        head = dict(re.findall(r"(?m)^(\w+): *(.*)$", (p / ".gigacode/data/autotest/CMN-T120/PLAN.md").read_text(encoding="utf-8").split("\n---", 1)[0]))
+        fqn = head.get("package", "") + "." + head.get("class", "")
+        write(p, "target/surefire-reports/TEST-" + fqn + ".xml",
+              '<testsuite tests="3" failures="1" errors="1" skipped="0"><testcase name="ok"/>'
+              '<testcase name="pay"><failure type="org.opentest4j.AssertionFailedError" message="expected: 200 but was: 400"/></testcase>'
+              '<testcase name="db"><error type="java.net.ConnectException" message="Connection refused"/></testcase></testsuite>')
+        expect("at_tools run --report-only: падения по видам", p, at, ["run", "CMN-T120", "--report-only"], 1,
+               "РЕЗУЛЬТАТ: failed · тестов 3 · упало 2", "ПАДЕНИЕ pay ПРОВЕРКА", "ПАДЕНИЕ db СТЕНД")
+        if "run_status: failed" not in (p / ".gigacode/data/autotest/CMN-T120/PLAN.md").read_text(encoding="utf-8"):
+            FAILED.append("at_tools run: run_status в шапке")
+            print("FAIL at_tools run: run_status в шапке")
+        # --- очередь ТК ---
+        aq = ".gigacode/skills/orchestrator/scripts/autotest_queue.py"
+        write(p, "tcs/new.md", TC.replace("CMN-T120", "NEW-T1"))
+        write(p, "tcs/keys.txt", "NEW-T7\nNEW-T8\n")
+        expect("next_action: каталог ТК -> очередь", p, na, ["autotest", "tcs"], 0, "ДЕЙСТВИЕ: очередь tcs")
+        expect("autotest_queue add", p, aq, ["add", "tcs", "tc.md"], 0, "ДОБАВЛЕНО: 4 · УЖЕ БЫЛО: 0 · ВСЕГО: 4")
+        expect("autotest_queue add: без дублей", p, aq, ["add", "tcs"], 1, "ДОБАВЛЕНО: 0")
+        expect("autotest_queue status: ключ по файлу источника", p, aq, ["status"], 0, "готово 1 из 4")
+        expect("next_action: очередь - первый пункт", p, na, ["autotest", "queue"], 0, "ДЕЙСТВИЕ: autotest-plan NEW-T7", "ЗАМЕТКА: очередь")
+        expect("autotest_queue block", p, aq, ["block", "1", "ТК не найден в Zephyr"], 0, "ЗАБЛОКИРОВАН: 1")
+        expect("next_action: очередь - после блока", p, na, ["autotest", "queue"], 0, "ДЕЙСТВИЕ: autotest-plan NEW-T8")
+        expect("autotest_queue skip", p, aq, ["skip", "NEW-T8", "нет", "доступа"], 0, "ПРОПУЩЕН: 2")
+        expect("next_action: очередь - файл ТК", p, na, ["autotest", "queue"], 0, "ДЕЙСТВИЕ: autotest-plan tcs/new.md")
+        expect("autotest_queue skip по номеру", p, aq, ["skip", "3"], 0, "ПРОПУЩЕН: 3")
+        expect("next_action: очередь пройдена", p, na, ["autotest", "queue"], 0, "ДЕЙСТВИЕ: очередь пройдена", "заблокированы: 1 NEW-T7")
+        expect("autotest_queue clear", p, aq, ["clear"], 0, "ОЧЕРЕДЬ УДАЛЕНА: пунктов было 4")
         mk = ".gigacode/skills/migration-step/scripts/markup_keys.py"
         expect("markup_keys: новый тест с @TmsLink", p, mk, ["missing", "src/test/java"], 0, "итого: 0")
         # --- миграция ---

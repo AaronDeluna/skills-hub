@@ -29,7 +29,7 @@ KEY = re.compile(r"\b[A-Z][A-Z0-9]*-T[0-9]+\b")
 FIELDS = [("title", "Название"), ("key", "Ключ"), ("system", "КЭ"), ("priority", "Приоритет"),
           ("status", "Статус"), ("folder", "Папка"), ("kind", "Вид теста"), ("objective", "Цель"),
           ("precondition", "Предусловия"), ("test_data", "Требования к тестовым данным"), ("tags", "Тэги"),
-          ("source", "Источник"), ("source_tech", "Технологии источника")]
+          ("source", "Источник"), ("source_tech", "Технологии источника"), ("origin", "Файл источника")]
 TAG = re.compile(r"@[A-Za-z][\w]*(?:\([^)]*\))?")
 HTTP = re.compile(r"\b(GET|POST|PUT|PATCH|DELETE)\b[\s:]+[\"']?((?:https?://)?[\w.:\-]*/[\w/{}.\-?=&%]*)", re.I)
 SQL = re.compile(r"\b(SELECT\s+.+?\s+FROM\s+\S+|INSERT\s+INTO\s+\S+|UPDATE\s+\S+\s+SET|DELETE\s+FROM\s+\S+)", re.I)
@@ -408,6 +408,7 @@ def main(args):
         print("ФОРМАТ НЕ РАСПОЗНАН: " + str(error))
         return 1
     tc.setdefault("source", "tms")
+    tc["origin"] = path.as_posix().rstrip("/")  # по нему очередь генерации находит ключ ТК
     if key_arg:
         tc["key"] = key_arg
     if not tc.get("key"):
