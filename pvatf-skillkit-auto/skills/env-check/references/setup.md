@@ -38,10 +38,9 @@ python3 .gigacode/skills/env-check/scripts/notes.py find env <2-4 слова в�
 Остальные вопросы (не больше 5 за один вызов) - агенту `pvatf-docs` по шаблону
 `references/autotest-rules.md`, правило 3, технология `env`.
 
-Каждый блок ответа допиши в `.gigacode/data/doc-notes/env.md` записью `## D-env-<n> · <вопрос>`
-(поля - как в ответе агента, файла нет - создай). ID - следующий свободный, его печатает
-`python3 .gigacode/skills/env-check/scripts/notes.py next env`. Словарь «Ключевые слова
-документации» из ответа замени в конце файла целиком.
+Ответ агент пишет в файл сам, в конспект `.gigacode/data/doc-notes/env.md` его переносит
+`notes.py merge env doc-notes` - порядок в `references/autotest-rules.md`, правило 2. Сам
+конспект не правишь.
 
 ## 3. Правки
 

@@ -5,7 +5,7 @@
   python3 <каталог скилла>/scripts/deps.py scan
       - система сборки, модули, тип проекта, проверки правил D-* по файлам сборки;
         пишет .gigacode/data/dependency/DEPS.json и FINDINGS.md (deps_status: scanned)
-  python3 <каталог скилла>/scripts/deps.py tree [--timeout 900] [--no-build]
+  python3 <каталог скилла>/scripts/deps.py tree [--timeout 540] [--no-build]
       - дерево зависимостей сборщиком (Maven: dependency:tree и dependency:analyze, Gradle: dependencies),
         транзитивные конфликты -> строки D-10 и D-22 (deps_status: tree-done)
   python3 <каталог скилла>/scripts/deps.py next
@@ -24,6 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -567,8 +568,8 @@ def major(v):
 
 def cmd_tree(args):
     meta, rows = load()
-    timeout = int(args[args.index("--timeout") + 1]) if "--timeout" in args else 900
-    rows = [r for r in rows if r["id"] not in ("D-10", "D-22") or r["status"] not in ("TODO",)]
+    timeout = int(args[args.index("--timeout") + 1]) if "--timeout" in args else 540
+    rows = [r for r in rows if r["id"] not in ("D-10", "D-22")]  # строки D-10 и D-22 ставит только tree: повтор не дублирует
     added = []
 
     def add(rid, status, where, note, level=None):
@@ -586,9 +587,11 @@ def cmd_tree(args):
             add("D-22", "TODO", "-", "дерева нет: проверь по references/rules.md, раздел D-22, по файлам")
             meta["tree"] = "не построено: mvn не найден"
         else:
+            started = time.time()
             code, out = run(mvn + ["-B", "dependency:tree", "-Dverbose"], timeout)
             tree_rows(code, out, timeout, add, meta, maven_conflicts)
-            code2, out2 = run(mvn + ["-B", "dependency:analyze", "-DignoreNonCompile=true"], timeout)
+            left = int(timeout - (time.time() - started))
+            code2, out2 = run(mvn + ["-B", "dependency:analyze", "-DignoreNonCompile=true"], left) if code is not None and left >= 30 else (None, "")
             analyze_rows(code2, out2, add)
     else:
         gradle = ["./gradlew"] if Path("gradlew").is_file() else ([shutil.which("gradle")] if shutil.which("gradle") else None)
@@ -607,6 +610,8 @@ def cmd_tree(args):
         r["n"] = "N-%d" % i
     meta["deps_status"] = "tree-done"
     save(meta, rows)
+    if "таймаут" in meta["tree"]:
+        print("ТАЙМАУТ: сборщик не уложился в %d секунд - повтори ту же команду (не больше 2 раз), он продолжит со скачанного" % timeout)
     print("ДЕРЕВО: " + meta["tree"])
     summary(rows)
     print("ДАЛЬШЕ: deps.py next")
@@ -672,27 +677,57 @@ def gradle_conflicts(out):
     return found, minor
 
 
+# Объявлены, но кодом не импортируются - это нормально: грузятся по имени (D-22, п. 1 правил)
+LOADED_BY_NAME = [
+    "postgresql", "ojdbc", "mysql-connector", "mariadb-java-client", "mssql-jdbc", "h2", "hsqldb", "clickhouse-jdbc",
+    "slf4j-simple", "slf4j-log4j12", "slf4j-reload4j", "logback-classic", "log4j-slf4j", "log4j-core", "log4j:log4j",
+    "allure-", "aspectjweaver", "junit-platform-", "junit-jupiter-engine", "junit-vintage-engine",
+    "byte-buddy-agent", "selenium-", "webdrivermanager",
+]
+
+
+def loaded_by_name(coords):
+    return (frame_versions.has_marker(coords) or coords.endswith(":junit-jupiter")
+            or any(part in coords for part in LOADED_BY_NAME))
+
+
 def analyze_rows(code, out, add):
     if code is None or code != 0:
         add("D-22", "TODO", "-", "dependency:analyze не отработал: проверь по references/rules.md, раздел D-22, по файлам")
         return
-    used, unused, mode = [], [], None
+    modules, module, mode = {}, "-", None
     for line in out.splitlines():
+        head = re.search(r"--- (?:maven-)?dependency(?:-plugin)?:[\d.]+:analyze .*@ ([\w.\-]+) ---", line)
+        if head:
+            module, mode = head.group(1), None
+            modules.setdefault(module, {"used": [], "unused": []})
+            continue
         if "Used undeclared dependencies found" in line:
-            mode = used
+            mode = "used"
         elif "Unused declared dependencies found" in line:
-            mode = unused
+            mode = "unused"
         elif mode is not None:
             m = re.search(r"\]\s+([\w.\-]+:[\w.\-]+):\w+:[\w.\-]+", line)
-            if m:
-                mode.append(m.group(1))
-            elif "WARNING" not in line:
+            if m and " found:" not in line:
+                modules.setdefault(module, {"used": [], "unused": []})[mode].append(m.group(1))
+            else:
                 mode = None
-    if not used and not unused:
+    found = 0
+    for module in sorted(modules):
+        used = sorted(set(modules[module]["used"]))
+        unused = sorted(set(modules[module]["unused"]))
+        if used:
+            found += 1
+            add("D-22", "VIOLATION", "модуль " + module, "используются без объявления (dependency:analyze): "
+                + ", ".join(used) + " - объявить явно", level="WARNING")
+        dead = [c for c in unused if not loaded_by_name(c)]
+        skipped = [c for c in unused if loaded_by_name(c)]
+        if dead:
+            found += 1
+            add("D-22", "NEEDS-HUMAN", "модуль " + module, "объявлены и не импортируются кодом (dependency:analyze): "
+                + ", ".join(dead) + " - удалить?" + (" Не считаются (грузятся по имени): " + ", ".join(skipped) if skipped else ""))
+    if not found:
         add("D-22", "PASS", "-", "dependency:analyze: замечаний нет")
-        return
-    add("D-22", "CANDIDATE", "-", "используются без объявления: %s; объявлены и не используются: %s"
-        % (", ".join(sorted(set(used))[:10]) or "нет", ", ".join(sorted(set(unused))[:10]) or "нет"))
 
 
 # ---------- next / mark / add / report ----------
@@ -832,7 +867,7 @@ def main(args):
     commands = {"scan": lambda: cmd_scan("."), "tree": lambda: cmd_tree(args[1:]), "next": cmd_next,
                 "mark": lambda: cmd_mark(args[1:]), "add": lambda: cmd_add(args[1:]), "report": lambda: cmd_report(args[1:])}
     if not args or args[0] not in commands:
-        print("Использование: deps.py scan | tree [--timeout 900] [--no-build] | next | mark <N-n> <статус> --note ... | "
+        print("Использование: deps.py scan | tree [--timeout 540] [--no-build] | next | mark <N-n> <статус> --note ... | "
               "add <D-id> --where ... --note ... | report --summary ...")
         return 2
     return commands[args[0]]()

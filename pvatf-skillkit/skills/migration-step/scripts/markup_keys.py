@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Ключи тест-кейсов (<КОД>-T<цифры>) в тест-методах - для разметки (markup-rules.md, разделы 2а и 6).
 
-python3 markup_keys.py missing <каталог тестов>...  - ключ есть, @TmsLink нет
+python3 markup_keys.py missing <каталог тестов>...  - ключ есть, @TmsLink нет; у метода без ключа -
+    значения вида <КОД>-<цифры> без T (CLI-1244): "похоже на ключ без T, решить человеку"
 python3 markup_keys.py dup <каталог тестов>...      - один ключ у разных тест-методов
 python3 markup_keys.py count <каталог тестов>...    - сколько тест-методов и сколько с @TmsLink
 python3 markup_keys.py classes [--need stage,layer,system,team,regress,story] <каталог тестов>...
@@ -23,6 +24,7 @@ import sys
 from pathlib import Path
 
 KEY = re.compile(r"[A-Z][A-Z0-9]*-T[0-9]+")
+NEAR_KEY = re.compile(r"(?<![A-Za-z0-9_-])[A-Z][A-Z0-9]*-[0-9]+(?![0-9A-Za-z_])")
 NAME_ARG = re.compile(r"\bname\s*=", re.ASCII)
 NAMED = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=")
 SKIP = re.compile(r".*Sources?|Disabled.*|Link|Links|Issue|Issues|Story|Stories|SuppressWarnings")
@@ -161,6 +163,7 @@ class Method:
     def __init__(self, place, name, keys, all_keys, has_link, test, unknown, sources):
         self.place, self.name, self.keys, self.all = place, name, keys, all_keys
         self.has_link, self.test, self.unknown, self.sources = has_link, test, unknown, sources
+        self.near = []
 
 
 class Pending:
@@ -172,6 +175,7 @@ class Pending:
         self.keys = []
         self.sources = []
         self.link_keys = []
+        self.near = []
 
     @staticmethod
     def _add(target, value):
@@ -234,6 +238,7 @@ class Pending:
             self._add(all_keys, key)
         if all_keys or self.test or self.unknown:
             result.append(Method(place, method, self.keys, all_keys, self.has_link, self.test, self.unknown, self.sources))
+            result[-1].near = self.near
 
     def value(self, source, args, code):
         """Значение единственного аргумента (или value = ...) аннотации."""
@@ -290,6 +295,8 @@ class Pending:
         for key in KEY.findall(text):
             self._add(self.keys, key)
             self._add(self.sources, source)
+        for key in NEAR_KEY.findall(text):
+            self._add(self.near, key)
 
 
 def declare_class(path, text, code, after_word, pending):
@@ -496,6 +503,9 @@ def main(args):
                 found += 1
             elif m.test and m.keys and not m.has_link:
                 print(m.place + ": " + m.name + " - " + " ".join(m.keys) + " - нет @TmsLink (из " + ", ".join(m.sources) + ")")
+                found += 1
+            elif m.test and not m.keys and m.near and not m.has_link:
+                print(m.place + ": " + m.name + " - " + " ".join(m.near) + " - похоже на ключ без T, решить человеку")
                 found += 1
     elif args[0] == "dup":
         by_key = {}

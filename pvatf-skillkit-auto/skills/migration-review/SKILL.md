@@ -145,7 +145,7 @@ git diff --name-only <основная ветка из паспорта>...<ве
 | P1 | Старые импорты | Для каждой строки `G` с решением «заменить»: `grep -rln "import <старый пакет>" --include=*.java --include=*.kt <src> \| grep -v "/target/\\|/build/"` | список не пуст (кроме технологий `keep`) |
 | P2 | Legacy не удалено | Для каждой строки `L`: класс/файл - `find . -name "<Имя>.java" -not -path "*/target/*"`; зависимость/плагин - `grep -rn "<artifactId>" --include=pom.xml --include=*.gradle --include=*.kts --include=*.toml --include=gradle.properties .` | что-то нашлось |
 | P3 | Ссылки на удалённое | Для каждого класса из `L` и из «Чего НЕ будет» блоков `T`: `grep -rln "\\b<Имя>\\b" --include=*.java --include=*.kt <src>` | список не пуст |
-| P4 | Компиляция | команда компиляции из паспорта, таймаут 900 секунд; таймаут -> прерви, пункт `не проверено: таймаут компиляции` | не компилируется |
+| P4 | Компиляция | команда компиляции из паспорта, таймаут 600 секунд; таймаут -> прерви, пункт `не проверено: таймаут компиляции` | не компилируется |
 | P5 | Тесты не пропали | `grep -rE "^\\s*@Test\\b" --include=*.java --include=*.kt <src> \| wc -l` и сравни с суммой «Тестов» из `inventory/*.md`; `grep -rnE "@Disabled\|@Ignore\|enabled *= *false" --include=*.java --include=*.kt <src>` | тестов стало меньше; появились отключённые |
 | P6 | Конфигурация фрейма в `config` | `grep -rlE "class [A-Za-z0-9_]*(EnvironmentConfiguration\|ServiceConfiguration)" --include=*.java <src>` | файл лежит не в каталоге `config` |
 | P7 | Версия Java | команда из паспорта (grep версии в сборке) | где-то осталась версия ниже 17 |

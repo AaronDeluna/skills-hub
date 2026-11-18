@@ -4,7 +4,7 @@
 
   python3 <каталог скилла>/scripts/env_check.py               - полная проверка с компиляцией
   python3 <каталог скилла>/scripts/env_check.py --no-compile  - без компиляции (быстро)
-  python3 <каталог скилла>/scripts/env_check.py --timeout 900 - свой предел времени компиляции, секунды
+  python3 <каталог скилла>/scripts/env_check.py --timeout 540 - свой предел времени компиляции, секунды
   python3 <каталог скилла>/scripts/env_check.py --json        - напечатать полный JSON вместо сводки
   python3 <каталог скилла>/scripts/env_check.py --release-notes <файл> - ещё сравнить версию фрейма с самой новой
       из ответа MCP get_pvat_release_notes (проблема FRAME_OUTDATED, severity info: статус не меняет)
@@ -36,7 +36,7 @@ MANDATORY_DEPS = ["environment-junit5", "allure2"]
 RECOMMENDED_DEPS = ["slf4j-api", "slf4j-simple", "allure-junit5", "aspectjweaver"]
 RECOMMENDED_PLUGINS = ["maven-surefire-plugin", "allure-maven", "maven-resources-plugin"]
 REQUIRED_PROPERTY_KEY = "perfeccionista.attachment.dir"
-DEFAULT_TIMEOUT = 900
+DEFAULT_TIMEOUT = 540
 
 
 def main():
@@ -309,7 +309,7 @@ def run_compile(report, command, timeout):
     except subprocess.TimeoutExpired:
         info.update({"executed": True, "status": "failed"})
         problem(report, "critical", "COMPILE_TIMEOUT", "Компиляция не уложилась в %d секунд" % timeout,
-                "Запусти с --timeout <больше секунд> или проверь доступ к репозиторию зависимостей")
+                "Повтори ту же команду (не больше 2 раз): сборка продолжит со скачанного; снова таймаут - проверь доступ к репозиторию зависимостей")
         check(report, "E6", "компиляция тестов", "failed", "таймаут %d c" % timeout)
         return
     except OSError as error:

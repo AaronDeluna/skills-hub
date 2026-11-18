@@ -9,7 +9,7 @@
   python3 <скилл>/scripts/at_tools.py run <ключ ТК> [--dry-run | --report-only] - запуск тест-класса, разбор отчёта JUnit
 
 run: команда - из команды компиляции ENV.json (Maven: test -Dtest=<класс>, Gradle: test --tests <класс>),
-таймаут 1500 секунд; падения делит на СТЕНД (сеть, доступ), ПРОВЕРКА (ассерты), КОД (остальное);
+таймаут 540 секунд; падения делит на СТЕНД (сеть, доступ), ПРОВЕРКА (ассерты), КОД (остальное);
 --dry-run - только печать команды, --report-only - разобрать отчёт прогона, который запускал человек.
 Пишет RUN.md, run.log и run_status в шапку PLAN.md.
 
@@ -371,7 +371,7 @@ def cmd_check(key, compile_on):
     for row in section_rows(text, "2. Шаги"):
         if not re.search(r"//\s*Шаг\s+" + re.escape(row[0]) + r"(?=\s|:|$)", body, re.M):
             findings.append("ПОКРЫТИЕ шаг %s - в тест-методе нет комментария «// Шаг %s: ...»: шаг не сгенерирован" % (row[0], row[0]))
-    status, details = ("skipped", ["--no-compile"]) if not compile_on else compile_project(900)
+    status, details = ("skipped", ["--no-compile"]) if not compile_on else compile_project(540)
     if status == "failed":
         findings += ["КОМПИЛЯЦИЯ " + d for d in details]
     report = ["# Проверка автотеста " + key, "", "- Тест-класс: " + str(target), "- Компиляция: " + status,
@@ -390,7 +390,7 @@ def cmd_check(key, compile_on):
 
 # ---------- run / report ----------
 
-RUN_TIMEOUT = 1500
+RUN_TIMEOUT = 540
 STAND = re.compile(r"ConnectException|Connection refused|Connection reset|UnknownHost|NoRouteToHost|No route to host|"
                    r"SocketTimeout|Read timed out|connect timed out|SSLHandshake|PKIX path|"
                    r"\b(?:status|code|статус)\D{0,12}(?:401|403|502|503|504)\b", re.I)

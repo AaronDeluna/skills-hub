@@ -31,7 +31,7 @@ REVIEW_STATUSES = ("found", "approved", "fixing", "checked", "rolled-back")
 ITEM_STATUSES = ("todo", "approved", "skipped", "done", "failed", "blocked")
 DUP_LINES = 5            # MR-39: блок из 5 и более строк
 SHARED_FILES = 2         # литерал ещё в 2 и более других тестах -> общий класс констант
-COMPILE_TIMEOUT = 900
+COMPILE_TIMEOUT = 540
 MAX_ROUNDS = 3           # кругов check -> исправление; после - rollback
 # правила кода для агента при правках (выписывает start в rules-now.md)
 REVIEW_RULES = ["MR-1", "MR-2", "MR-4", "MR-5", "MR-7", "MR-9", "MR-10", "MR-11", "MR-12", "MR-13", "MR-14", "MR-15",

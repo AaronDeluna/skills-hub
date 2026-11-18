@@ -2,11 +2,16 @@
 """Механическая проверка карточек юнитов (скилл migration-map). Запуск из корня проекта:
 
   python3 <каталог скилла>/scripts/card.py M-007   - одна карточка
-  python3 <каталог скилла>/scripts/card.py all     - все карточки todo
+  python3 <каталог скилла>/scripts/card.py all     - все карточки todo + у каждого юнита раздела 4 карты есть карточка
+  python3 <каталог скилла>/scripts/card.py new M-003 <tech> [--depends M-001,M-002] [--core-mode new|in-place]
+      - заготовка карточки юнита tech: шапка, «Данные подключения» из CONNECTIONS.md, команды поиска и
+        потребители из inventory/analysis-<tech>.md, подшаг S-01. Остальное заполняет составитель.
 
 Проверяет то, что можно проверить без модели: поля подшагов, пустые слова, лимиты,
 покрытие потребителей, legacy, записи конспекта, «создал - подключи», число строк.
 Смысл шагов не проверяет - это работа сабагента «проверяющий карточки».
+Файл, которого нет в проекте, - не находка, если его создаёт («создать») юнит выше по таблице
+раздела 4 или подшаг выше в этой же карточке.
 Python 3.8+, только стандартная библиотека. Код выхода 0 - чисто, 1 - есть находки, 2 - неверные аргументы.
 """
 import re
@@ -23,6 +28,7 @@ LIMITS = {"env": 6, "core": 6, "usage": 3, "cleanup": 15, "review": 15}
 problems = []
 _rule_table = {}
 flow_style = False
+created_earlier = set()   # файлы «создать» из юнитов выше по таблице и из подшагов выше в карточке
 
 
 def read(path):
@@ -129,9 +135,9 @@ def check_tech(text, map_text):
         bodies[sid] = body
         files[sid] = file_table(body)
         check_title(sid, step[2])
-        if kind in ("разбор", "review"):
-            continue
-        check_step(sid, kind, core_mode, body, files[sid])
+        if kind not in ("разбор", "review"):
+            check_step(sid, kind, core_mode, body, files[sid])
+        created_earlier.update(f for f, a in files[sid].items() if "создать" in a)
     check_consumers(parts.get("Разбор технологии", ""), steps, files)
     check_created_are_used(steps, files, bodies, front(text, "tech"))
     check_legacy(text, map_text, front(text, "tech"))
@@ -184,7 +190,9 @@ def check_step(sid, kind, core_mode, body, step_files):
                 problems.append(sid + ": " + name + " помечен «создать», но уже есть")
             continue
         if not path.exists():
-            problems.append(sid + ": " + name + " - файла нет в проекте")
+            if name not in created_earlier:
+                problems.append(sid + ": " + name + " - файла нет в проекте, и его не создаёт ни юнит выше по таблице, "
+                                "ни подшаг выше")
             continue
         declared = parse_int(line_count(body, name))
         try:
@@ -330,34 +338,173 @@ def check_doc_refs(text):
             problems.append("ссылка " + ref.group() + " - такой записи нет в doc-notes/" + tech + ".md")
 
 
+def unit_order(map_text):
+    """ID юнитов раздела 4 карты сверху вниз."""
+    m = re.search(r"(?m)^## 4\.[^\n]*\n", map_text)
+    if not m:
+        return []
+    body = map_text[m.end():]
+    nxt = re.search(r"(?m)^## ", body)
+    body = body[:nxt.start()] if nxt else body
+    return [row[0] for row in (cells(l) for l in body.split("\n")) if len(row) >= 8 and re.fullmatch(r"M-[0-9]+", row[0])]
+
+
+def created_by(text):
+    """Файлы с действием «создать» во всех таблицах карточки."""
+    out = set()
+    for line in text.split("\n"):
+        row = cells(line)
+        if len(row) >= 3 and "создать" in row[2]:
+            out.add(row[0].replace("`", "").strip())
+    return out
+
+
+def template_placeholders():
+    """Заглушки <...> из шаблона карточки: остались в карточке как есть - поле не заполнено."""
+    if "ph" not in _rule_table:
+        block = re.search(r"```markdown\n(.*?)\n```", read(SKILL_DIR / "references" / "tech-unit-template.md"), re.S)
+        found = re.findall(r"<[^<>]{3,}>", block.group(1)) if block else []
+        _rule_table["ph"] = [x for x in dict.fromkeys(found) if re.search(r"[А-Яа-яё]|S-nn", x)
+                             and x not in ("<ветка>", "<файл>", "<Имя>")]
+    return _rule_table["ph"]
+
+
+def check_placeholders(text):
+    for ph in template_placeholders():
+        if ph in text:
+            problems.append("не заполнено поле шаблона " + ph.split("\n")[0][:60] + " - подставь значение из источников")
+            return
+
+
+def table_after(text, marker):
+    """Строки первой таблицы после строки с marker."""
+    idx = text.find(marker)
+    if idx < 0:
+        return []
+    rows, started = [], False
+    for line in text[idx:].split("\n")[1:]:
+        if line.strip().startswith("|"):
+            started = True
+            rows.append(line)
+        elif started:
+            break
+    return rows
+
+
+def cmd_new(args):
+    if len(args) < 3 or not re.fullmatch(r"M-[0-9]+", args[1]):
+        print("Использование: card.py new M-<nnn> <tech> [--depends M-001,M-002] [--core-mode new|in-place]")
+        return 2
+    uid, tech = args[1], args[2]
+    opts = {"--depends": "", "--core-mode": "new"}
+    for i in range(3, len(args) - 1):
+        if args[i] in opts:
+            opts[args[i]] = args[i + 1]
+    target = MIGRATION / "units" / (uid + ".md")
+    if target.exists():
+        print("ОШИБКА: " + target.as_posix() + " уже есть - заготовку поверх карточки не пишу")
+        return 1
+    template = read(SKILL_DIR / "references" / "tech-unit-template.md")
+    m = re.search(r"```markdown\n(.*?)\n```", template, re.S)
+    if not m:
+        print("ОШИБКА: в references/tech-unit-template.md нет блока ```markdown")
+        return 1
+    card = m.group(1)
+    map_text = read(MIGRATION / "MIGRATION-MAP.md")
+    analysis = read(MIGRATION / "inventory" / ("analysis-" + tech + ".md"))
+    conn = read(MIGRATION / "CONNECTIONS.md")
+    missing = []
+    covers = [row[0] for row in (cells(l) for l in map_text.split("\n"))
+              if len(row) >= 3 and re.fullmatch(r"[GL]-[0-9]+", row[0]) and row[1].strip("`") == tech]
+    depends = [d.strip() for d in opts["--depends"].split(",") if d.strip()]
+    card = re.sub(r"(?m)^id: .*$", "id: " + uid, card, count=1)
+    card = re.sub(r"(?m)^core_mode: .*$", "core_mode: " + opts["--core-mode"], card, count=1)
+    card = re.sub(r"(?m)^tech: .*$", "tech: " + tech, card, count=1)
+    card = re.sub(r"(?m)^depends_on: .*$", "depends_on: [" + ", ".join(depends) + "]", card, count=1)
+    card = re.sub(r"(?m)^covers: .*$", "covers: [" + ", ".join(covers) + "]", card, count=1)
+    card = card.replace("# M-<nnn> · Миграция технологии <tech>", "# " + uid + " · Миграция технологии " + tech)
+    card = card.replace("Блок: `T-<tech>`", "Блок: `T-" + tech + "`")
+    # данные подключения
+    sec = re.search(r"(?ms)^## " + re.escape(tech) + r"\s*\n(.*?)(?=^## |\Z)", conn)
+    rows = table_after(sec.group(1), "Перенос в фрейм") if sec else []
+    data = [r for r in rows[2:] if cells(r)]
+    if data:
+        lines = ["| " + " | ".join(cells(r)[:4]) + " |" for r in data]
+        card = re.sub(r"(?m)^\| <src/test/resources/\.\.\.properties> \|.*$", "\n".join(lines).replace("\\", "\\\\"),
+                      card, count=1)
+    else:
+        missing.append("в CONNECTIONS.md нет таблицы «Перенос в фрейм» в разделе ## " + tech)
+    # команды поиска и потребители
+    old_cmd = re.search(r"(?m)^- старое: (`[^`]*`)", analysis)
+    frame_cmd = re.search(r"(?m)^- фрейм напрямую: (`[^`]*`|-)", analysis)
+    if analysis:
+        card = card.replace("`<точная команда grep>`", old_cmd.group(1) if old_cmd else "`-`")
+        card = card.replace("`<точная команда grep; обращений нет - \"-\">`", frame_cmd.group(1) if frame_cmd else "-")
+        consumers = []
+        for r in table_after(analysis, "## Потребители")[2:]:
+            c = cells(r)
+            if len(c) >= 6 and c[0] != "-":
+                consumers.append("| " + " | ".join([c[0], c[1], c[4], c[5], "<метод класса шагов>", "<S-nn>"]) + " |")
+        if consumers:
+            card = re.sub(r"(?m)^\| <путь> \| <n> \| старая библиотека .*$", "\n".join(consumers).replace("\\", "\\\\"),
+                          card, count=1)
+    else:
+        missing.append("нет inventory/analysis-" + tech + ".md - сначала analyze.py (card-subagents.md, 5.1)")
+    if missing:
+        for x in missing:
+            print("ОШИБКА: " + x)
+        return 1
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(card + "\n", encoding="utf-8")
+    left = sum(card.count(ph) for ph in template_placeholders())
+    print("ОК: заготовка " + target.as_posix() + " · covers " + str(len(covers)) + " · подключений " + str(len(data))
+          + " · потребителей " + str(card.count("<метод класса шагов>")) + " · осталось заполнить мест <...>: " + str(left))
+    return 0
+
+
 def main(args):
     if not args:
-        print("Использование: card.py <M-nnn | all>")
+        print("Использование: card.py <M-nnn | all> | new M-<nnn> <tech> [--depends ...] [--core-mode ...]")
         return 2
+    if args[0] == "new":
+        return cmd_new(args)
     map_text = read(MIGRATION / "MIGRATION-MAP.md")
     units = MIGRATION / "units"
+    order = unit_order(map_text)
+    total = 0
     if args[0] == "all":
-        if not units.is_dir():
+        if not units.is_dir() and not order:
             print("Карточек нет: папки " + str(units) + " нет. Запускай из корня проекта, где лежит .gigacode/")
             return 1
-        cards = sorted(p for p in units.iterdir() if re.fullmatch(r"M-[0-9]+\.md", p.name))
+        cards = sorted(p for p in units.iterdir() if re.fullmatch(r"M-[0-9]+\.md", p.name)) if units.is_dir() else []
+        have = {p.stem for p in cards}
+        for uid in order:
+            if uid not in have:
+                print(uid + ": в разделе 4 карты юнит есть, карточки units/" + uid + ".md нет")
+                total += 1
+        rank = {u: i for i, u in enumerate(order)}
+        cards.sort(key=lambda p: rank.get(p.stem, len(rank)))
     else:
         cards = [units / (args[0] + ".md")]
-    total = 0
     for path in cards:
         text = read(path)
         if not text:
             print(str(path) + ": карточки нет")
             total += 1
             continue
+        del problems[:]
+        created_earlier.clear()
+        pos = order.index(path.stem) if path.stem in order else len(order)
+        for uid in order[:pos]:
+            created_earlier.update(created_by(read(units / (uid + ".md"))))
         if args[0] == "all" and front(text, "status") != "todo":
             continue
-        del problems[:]
         if front(text, "type") == "tech":
             check_tech(text, map_text)
         else:
             check_plain(text)
         check_doc_refs(text)
+        check_placeholders(text)
         print(front(text, "id") + ": " + ("чисто" if not problems else "находок " + str(len(problems))))
         for problem in problems:
             print("  - " + problem)

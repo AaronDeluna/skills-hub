@@ -28,7 +28,7 @@ REST, Kafka, базы данных, OpenShift и другие технологи
 ## Предусловия
 
 - Запуск из корня мигрируемого проекта (там, где `.gigacode/`), рабочее дерево git.
-- Python 3.8+ - для скриптов `card.py`, `notes.py`.
+- Python 3.8+ - для скриптов `map.py`, `analyze.py`, `card.py`, `notes.py`.
 - Агенты `pvatf-docs`, `pvatf-examples` в `.gigacode/agents/` (ставит orchestrator); MCP документации фрейма.
 
 ## Шаги
@@ -54,7 +54,9 @@ REST, Kafka, базы данных, OpenShift и другие технологи
 | Этап 5 - карточка юнита `tech` (разбор, составитель, проверка) | `references/card-subagents.md` |
 | Этап 6 - показать карту человеку, обновление карты | `references/stage-6.md` |
 | Хочешь задать вопрос человеку | `references/questions-filter.md` - сначала фильтр |
-| Нужен сабагент | `references/subagents.md`, его раздел |
+| Нужен сабагент документации; список всех сабагентов карты | `references/subagents.md` |
+| Этап 2 - сабагенты инвентаризации и технологий проекта | `references/inventory-subagents.md` |
+| Документации не хватило (Этапы 3-4) | `references/sources-ladder.md` |
 
 **Скрипты этого скилла лежат в `.gigacode/skills/migration-map/scripts/`.** Команды ниже - готовые:
 копируй и запускай как есть, из корня мигрируемого проекта (там, где `.gigacode/`); нужен
@@ -111,6 +113,12 @@ ls .gigacode/data/migration/
 
 ## Контракт «вход -> выход»
 
+Перед итоговой сводкой запиши одну строку журнала карты (раздел 7) скриптом, сам
+карту ради журнала не правишь:
+```
+python3 .gigacode/skills/migration-map/scripts/map.py log "Этап 3 для rest, db: конспекты, G-1..G-4, L-1..L-9"
+```
+
 Вход: просьба человека и ответы на вопросы (через orchestrator). Выход: файлы карты в
 `.gigacode/data/migration/` (`MIGRATION-MAP.md`, `ARCHITECTURE.md`, `CONNECTIONS.md`,
 `doc-notes/`, `units/`, `inventory/`). Итоговая сводка в чате:
@@ -137,7 +145,8 @@ ls .gigacode/data/migration/
 
 ## Чек-лист проверки
 
-- [ ] Сделанные этапы отмечены `[x]` в разделе 0, `map_stage` совпадает с текущим этапом.
+- [ ] Каждый сделанный этап закрыт `map.py done <этап>` с кодом 0 (вручную этапы не отмечаются).
+- [ ] Перед итоговой сводкой - строка журнала: `map.py log "<что сделано в этом чате>"`.
 - [ ] У каждой замены в карте есть `D-<tech>-<n>` или строка «Документация молчит».
 - [ ] Этап 5: `python3 .gigacode/skills/migration-map/scripts/card.py all` -> `ИТОГ: находок 0`.
 - [ ] Код проекта не менялся (`git status --short` - только `.gigacode/`).
