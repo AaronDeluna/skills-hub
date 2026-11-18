@@ -8,6 +8,8 @@
   python3 <каталог скилла>/scripts/env_check.py --json        - напечатать полный JSON вместо сводки
   python3 <каталог скилла>/scripts/env_check.py --release-notes <файл> - ещё сравнить версию фрейма с самой новой
       из ответа MCP get_pvat_release_notes (проблема FRAME_OUTDATED, severity info: статус не меняет)
+  python3 <каталог скилла>/scripts/env_check.py --notes-fresh <файл> - нужен ли новый запрос release notes:
+      файл записан сегодня и в нём есть номера версий -> «СВЕЖИЕ», код 0; иначе «НУЖЕН ЗАПРОС», код 1
 
 Печатает короткую сводку (СТАТУС, проверки E1-E6, проблемы) и пишет полный JSON в
 .gigacode/data/autotest/ENV.json.
@@ -41,6 +43,8 @@ DEFAULT_TIMEOUT = 540
 
 def main():
     args = sys.argv[1:]
+    if args and args[0] == "--notes-fresh":
+        return notes_fresh(args[1:])
     compile_on = True
     as_json = False
     timeout = DEFAULT_TIMEOUT
@@ -126,6 +130,24 @@ def main():
     return 1 if report["status"] == "failed" else 0
 
 
+def notes_fresh(args):
+    """Сохранённые заголовки release notes годятся без нового запроса MCP: записаны сегодня, есть номера версий."""
+    if len(args) != 1:
+        print("Использование: env_check.py --notes-fresh <файл>")
+        return 2
+    path = Path(args[0])
+    if not path.is_file():
+        print("RELEASE NOTES: НУЖЕН ЗАПРОС - файла " + args[0] + " нет")
+        return 1
+    day = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
+    latest, _ = frame_versions_module.newest(read(path))
+    if day != datetime.now().strftime("%Y-%m-%d") or not latest:
+        print("RELEASE NOTES: НУЖЕН ЗАПРОС - файл от " + day + ("" if latest else ", номеров версий нет"))
+        return 1
+    print("RELEASE NOTES: СВЕЖИЕ - файл от " + day + ", самая новая " + latest + "; MCP не вызывай")
+    return 0
+
+
 def summary(report):
     project = report["project"]
     lines = ["СТАТУС: " + report["status"],
@@ -209,12 +231,19 @@ def check_tc_modules(report, build_text):
 
 def check_outdated(report, notes):
     """Версия фрейма в сборке против самой новой из release notes. Отстаёт -> FRAME_OUTDATED (info)."""
-    latest, _ = frame_versions_module.newest(read(Path(notes)))
+    latest, known = frame_versions_module.newest(read(Path(notes)), allow_snapshot=True)
+    stable, _ = frame_versions_module.newest(read(Path(notes)))
+    latest = stable or latest
     report["latest_version"] = latest or "-"
     if not latest:
         problem(report, "info", "RELEASE_NOTES_EMPTY", "В release notes нет номеров версий", notes)
         return
     current = [v["value"] for v in report["frame_versions"] if frame_versions_module.VERSION.match(str(v["value"]))]
+    key = frame_versions_module.version_key
+    unknown = sorted({v for v in current if v not in known and key(v) > key(latest)})
+    if unknown:
+        problem(report, "warning", "FRAME_VERSION_UNKNOWN", "Версии фрейма " + ", ".join(unknown)
+                + " нет в release notes, она новее самой новой " + latest, "поставь самую новую из release notes: " + latest)
     old = sorted({v for v in current if frame_versions_module.version_key(v) < frame_versions_module.version_key(latest)})
     if old:
         problem(report, "info", "FRAME_OUTDATED", "Версия фрейма " + ", ".join(old) + ", самая новая " + latest,

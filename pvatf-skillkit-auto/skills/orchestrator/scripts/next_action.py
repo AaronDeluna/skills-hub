@@ -17,6 +17,7 @@
 Python 3.8+, только стандартная библиотека. Код выхода: 0 всегда, кроме неверных аргументов (2).
 """
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -405,11 +406,21 @@ PLAN_STATUSES = ["draft", "planned", "generating", "assembled", "checked"]
 def autotest(args):
     """Генерация автотестов: сначала окружение, потом незаконченный план или новый тест-кейс.
     Аргумент - ключ ТК (CODE-T123) или путь к файлу ТК (новый тест-кейс)."""
+    foreign = foreign_tests()
+    if foreign:
+        say("нужна миграция", "проект не на фрейме PVATF: в сборке нет зависимостей фрейма (environment-junit5), а тест-классов "
+            + str(foreign[0]) + " на других инструментах (" + (", ".join(foreign[1]) or "не распознаны") + ")"
+            " - генерировать тест на фрейме в такой проект нельзя, сначала миграция")
+        return
     state = env_state()
     if state is None or state.get("status") == "failed":
+        if not any(Path(name).is_file() for name in ("pom.xml", "build.gradle", "build.gradle.kts")):
+            say("env-init", "файла сборки нет - сначала каркас проекта и настройка окружения по документации,"
+                " потом генерация")
+            return
         codes = [p.get("code", "-") for p in (state or {}).get("problems", []) if p.get("severity") == "critical"]
         why = "окружение не проверено" if state is None else "проверка окружения failed: " + ", ".join(codes[:3])
-        say("env-check", why + " - генерация не запускается, пока проверка не вернёт ok или warning")
+        say("env-setup", why + " - сначала настроить окружение (зависимости, конфигурация), потом генерация")
         return
     want = args[0] if args else None
     if want == "run":
@@ -503,12 +514,52 @@ def run(key):
         + ("; прошлый запуск: " + head["run_status"] if head.get("run_status") else ""))
 
 
+# импорт в тест-классе -> инструмент (для сообщения «нужна миграция»)
+FOREIGN_TOOLS = [("io.restassured", "RestAssured"), ("okhttp3", "OkHttp"), ("org.apache.http", "Apache HttpClient"),
+                 ("retrofit2", "Retrofit"), ("feign", "Feign"), ("org.springframework", "Spring"), ("java.sql", "JDBC"),
+                 ("org.apache.kafka", "Kafka client"), ("com.codeborne.selenide", "Selenide"),
+                 ("org.openqa.selenium", "Selenium"), ("com.microsoft.playwright", "Playwright"), ("org.testng", "TestNG"),
+                 ("io.cucumber", "Cucumber")]
+SKIP_DIRS = {".git", ".gigacode", ".idea", ".gradle", "target", "build", "out", "node_modules"}
+
+
+def foreign_tests():
+    """Проект с тестами, но без фрейма: (число тест-классов, [инструменты]) или None.
+    Фрейм есть - environment-junit5 в файлах сборки. Тестов нет (пустой проект, только каркас) - None."""
+    builds, tests = [], []
+    for current, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for name in files:
+            path = Path(current) / name
+            if name in ("pom.xml", "build.gradle", "build.gradle.kts", "libs.versions.toml"):
+                builds.append(read(path) or "")
+            elif name.endswith((".java", ".kt")) and "test" in path.parts:
+                text = read(path) or ""
+                if re.search(r"@(Test|ParameterizedTest)\b", text):
+                    tests.append(text)
+    if not tests or "environment-junit5" in "\n".join(builds):
+        return None
+    joined = "\n".join(tests)
+    if "ru.sber.pvat" in joined or "PerfeccionistaExtension" in joined:
+        return None
+    tools = [tool for prefix, tool in FOREIGN_TOOLS if re.search(r"import\s+(static\s+)?" + re.escape(prefix) + r"\b", joined)]
+    return (len(tests), tools)
+
+
+def env_tc_ready(tc):
+    """Окружение под ТК проверено env_tc.py и готово: ENV-TC.md с env_tc: ready."""
+    return front_matter(read(AUTOTEST / tc / "ENV-TC.md") or "").get("env_tc") == "ready"
+
+
 def autotest_step(tc, status, tc_status):
     if tc_status == "FAIL":
         return ("заблокировано", tc + ": проверка тест-кейса FAIL - покажи находки из .gigacode/data/autotest/" + tc
                 + "/TC-CHECK.md, нужен исправленный ТК")
     if status not in PLAN_STATUSES or status == "draft":
         return ("autotest-plan " + tc, "plan_status: " + status + " - план не утверждён, достроить и проверить")
+    if status in ("planned", "generating") and not env_tc_ready(tc):
+        return ("env-setup " + tc, "окружение под ТК не готово (нет " + str(AUTOTEST / tc / "ENV-TC.md").replace("\\", "/")
+                + " с env_tc: ready) - модули фрейма, драйвер, сервисы и подключения по документации, потом генерация")
     if status == "planned":
         return ("autotest-gen " + tc, "план готов - сгенерировать шаги и собрать тест-класс")
     if status == "generating":

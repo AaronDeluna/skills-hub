@@ -175,10 +175,22 @@ def declarations(root):
     return sorted(found.values(), key=lambda d: (d["file"], d["line"]))
 
 
+# дата 20.10.2025 / 20.1.25 - не версия
+DATE = re.compile(r"(?<![\w.])[0-9]{1,2}\.[0-9]{1,2}\.(?:[0-9]{4}|[0-9]{2})(?![\w.])")
+# строка-заголовок релиза: markdown-заголовок, жирный текст или слово «версия / version / релиз / release»
+HEADING = re.compile(r"^\s*(#{1,6}\s|[-*]?\s*\*\*|(версия|version|релиз|release)\b)", re.I)
+
+
 def newest(text, allow_snapshot=False):
-    """Номера версий в тексте release notes -> (самая новая стабильная или предварительная, все по убыванию)."""
+    """Номера версий в тексте release notes -> (самая новая стабильная или предварительная, все по убыванию).
+    Даты (20.10.2025) не версии. Есть версии в строках-заголовках релизов -> берутся только они: номера из текста
+    описаний (версии библиотек, Java, стендов) самой новой версией фрейма не становятся."""
+    text = DATE.sub(" ", text or "")
+    heads = "\n".join(line for line in text.split("\n") if HEADING.match(line))
+    if re.search(r"[0-9]+\.[0-9]+", heads):
+        text = heads
     found = []
-    for m in re.finditer(r"(?<![\w.])v?([0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?:-[0-9A-Za-z.]+)?)(?![\w.])", text or ""):
+    for m in re.finditer(r"(?<![\w.])v?([0-9]+\.[0-9]+(?:\.[0-9]+){0,2}(?:-[0-9A-Za-z.]+)?)(?![\w.])", text):
         value = m.group(1)
         if "SNAPSHOT" in value.upper() and not allow_snapshot:
             continue

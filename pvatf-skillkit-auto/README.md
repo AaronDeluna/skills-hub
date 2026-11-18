@@ -182,7 +182,8 @@ PVATF-QUESTIONS>>>
   | `migration-map/scripts/analyze.py` | разбор технологии для карточки юнита `tech`: потребители, уровни, действия, проверки, DTO - за один запуск, без чтения файлов моделью |
   | `migration-map/scripts/card.py` | механическая проверка карточек (поля, лимиты, пустые слова, покрытие потребителей, `L`, записи конспекта, юнит без карточки) и заготовка карточки `new` |
   | `scripts/notes.py` (в скиллах миграции, окружения и генерации) | поиск по конспекту документации: `list`, `find`, `show`, `next` (следующий свободный ID). Запускается перед каждым сабагентом документации |
-  | `env-check/scripts/env_check.py` | проверка окружения E1-E6: сборка, каталог тестов, зависимости фрейма, конфигурация, плагины, компиляция; пишет `ENV.json` |
+  | `env-check/scripts/env_check.py` | проверка окружения E1-E6: сборка, каталог тестов, зависимости фрейма, конфигурация, плагины, компиляция; пишет `ENV.json`; `--notes-fresh` - release notes сегодня уже запрошены, MCP не вызывать |
+  | `env-check/scripts/env_tc.py` | окружение под ТК перед генерацией: модули фрейма, драйвер JDBC, allure-junit5, регистрации в `services()`, значения подключения из ТК в настройках, компиляция; пишет `<ключ>/ENV-TC.md` (`env_tc: ready` - можно генерировать) |
   | `env-update/scripts/env_update.py` | `versions` - где объявлена версия фрейма; `latest` - новейшая версия из release notes; `bump` - замена версии с копией файлов; `rollback`; `usages` - где в коде имена из changelog; `errors` - ошибки компиляции по файлам |
   | `autotest-plan/scripts/tc_convert.py` | тест-кейс из TMS (md, xml, json Zephyr / TestOps / Allure) -> единый `TC.md` |
   | `autotest-plan/scripts/tc_check.py` | оценка ТК по правилам TC-0..TC-13: PASS / WARNING / FAIL |

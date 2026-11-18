@@ -24,6 +24,10 @@ description: 'Генерация кода автотеста на фрейме P
 
 - `.gigacode/data/autotest/<ключ>/PLAN.md` с `plan_status` из таблицы выше.
 - `.gigacode/data/autotest/ENV.json` (команда компиляции) - от `env-check`.
+- `.gigacode/data/autotest/<ключ>/ENV-TC.md` с `env_tc: ready` - окружение под ТК настроено
+  (`env-check`, режим setup с ключом). Нет файла или `env_tc: missing` -> не генерируй: закончи
+  строкой «Окружение под ТК не готово - /orchestrator продолжи генерацию <ключ>» (оркестратор
+  сначала настроит окружение). Модули и конфигурацию сам не правишь.
 - Агенты `pvatf-generator`, `pvatf-docs` в `.gigacode/agents/` (из папки `agents/` набора).
 - Python 3.8+ (команды `python3 ...`; на Windows, где нет `python3`, - `python ...` или `py -3 ...`).
 
