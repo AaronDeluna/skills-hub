@@ -38,3 +38,5 @@ pvatf-skillkit/tests/
 pvatf-skillkit-auto/scripts/
 pvatf-skillkit-auto/shared/
 pvatf-skillkit-auto/tests/
+__pycache__/
+*.pyc
