@@ -20,11 +20,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-MIGRATION = Path(".gigacode") / "data" / "migration"
-MAP = MIGRATION / "MIGRATION-MAP.md"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+MIGRATION = pp.migration_dir()
+MAP = pp.map_file()
 SKILL_DIR = Path(__file__).resolve().parent.parent
 CODE_EXT = (".java", ".kt", ".groovy")
-SKIP_DIRS = {".git", ".gigacode", ".qwen", ".claude", ".idea", "target", "build", "out", "node_modules", ".gradle", ".mvn"}
+SKIP_DIRS = {".git", ".gigacode", "openspec", ".qwen", ".claude", ".idea", "target", "build", "out", "node_modules", ".gradle", ".mvn"}
 LIMIT_FILES, LIMIT_LINES, LIMIT_MODULES = 150, 10000, 5
 STOP_AFTER = (2, 3, 4)
 STAGE_NAMES = {1: "обзор фрейма", 2: "паспорт и инвентаризация", 3: "документация и матрица",
@@ -132,7 +134,7 @@ NEGATIVE = re.compile(r"не найден|не нашл|не описан|нет
 def notes_text():
     """Конспект без строк о неудачных запросах: имя из «Чего не хватило» и «пусто» - не основание."""
     out = []
-    folder = MIGRATION / "doc-notes"
+    folder = pp.migration_notes()
     for path in sorted(folder.glob("*.md")) if folder.is_dir() else []:
         for line in read(path).split("\n"):
             s = line.strip()
@@ -204,7 +206,7 @@ def open_questions(text):
 
 def gate(stage, text):
     p = []
-    notes = MIGRATION / "doc-notes"
+    notes = pp.migration_notes()
     if stage == 1:
         if not re.search(r"(?m)^#{2,3} D-common-[0-9]+", read(notes / "common.md")):
             p.append("в doc-notes/common.md нет записей D-common-<n> (Этап 1, п.2-3: агент pvatf-docs и notes.py merge)")

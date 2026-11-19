@@ -22,11 +22,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
-AUTOTEST = Path(".gigacode") / "data" / "autotest"
-QUEUE = AUTOTEST / "QUEUE.md"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+
+QUEUE = pp.env_dir() / "QUEUE.md"
 KEY = re.compile(r"[A-Z][A-Z0-9]*-T[0-9]+")
 SUFFIXES = {".md", ".xml", ".json", ".log", ".txt", ".java", ".kt"}
-SKIP_DIRS = {".git", ".gigacode", ".idea", ".gradle", "target", "build", "out", "node_modules"}
+SKIP_DIRS = {".git", ".gigacode", "openspec", ".idea", ".gradle", "target", "build", "out", "node_modules"}
 HEADER = "| № | Источник | Ключ | Статус | Примечание |"
 
 
@@ -79,17 +81,17 @@ def save(rows):
 def origins():
     """Файл источника из TC.md -> ключ ТК."""
     found = {}
-    for tc in sorted(AUTOTEST.glob("*/TC.md")) if AUTOTEST.is_dir() else []:
-        m = re.search(r"(?m)^- Файл источника:\s*(.+?)\s*$", read(tc))
+    for key in pp.autotest_keys():
+        m = re.search(r"(?m)^- Файл источника:\s*(.+?)\s*$", read(pp.autotest_dir(key, create=False) / "TC.md"))
         if m and m.group(1) != "-":
-            found[norm(m.group(1))] = tc.parent.name
+            found[norm(m.group(1))] = key
     return found
 
 
 def state_of(key):
     """Статус и примечание пункта по файлам генерации ключа."""
-    folder = AUTOTEST / key
-    head = head_of(read(folder / "PLAN.md"))
+    folder = pp.autotest_dir(key, create=False)
+    head = head_of(read(pp.plan_file(key, create=False)))
     check = read(folder / "TC-CHECK.md")
     if head.get("tc_status") == "FAIL" or re.search(r"(?m)^\W*СТАТУС:\s*FAIL", check):
         return "blocked", "проверка ТК FAIL - нужен исправленный ТК (TC-CHECK.md)"

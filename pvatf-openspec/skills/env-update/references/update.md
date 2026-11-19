@@ -4,7 +4,7 @@
 
 Пути: `E=.gigacode/skills/env-update/scripts/env_update.py`,
 `C=.gigacode/skills/env-check/scripts/env_check.py`, рабочая папка
-`W=.gigacode/data/autotest/env-update`. Ниже команды даны полностью - копируй их.
+`W=openspec/pvatf/env/env-update`. Ниже команды даны полностью - копируй их.
 
 ## Этап 1 - проверка до обновления
 
@@ -28,7 +28,7 @@ python3 .gigacode/skills/env-update/scripts/env_update.py versions
 2. Вызови его (таймаут 120 секунд; таймаут или ошибка -> повтори 1 раз, снова -> строка «MCP-инструмент не
    найден или ошибка» раздела «Обработка ошибок» SKILL.md). Параметр «версия» или «с какой версии» есть ->
    передай `from` из шапки.
-3. В файл `.gigacode/data/autotest/env-update/release-notes.md` запиши только строки-заголовки релизов - строки, где стоит номер версии
+3. В файл `openspec/pvatf/env/env-update/release-notes.md` запиши только строки-заголовки релизов - строки, где стоит номер версии
    (`## <версия>`, «Версия <версия> от <дата>»), дословно, по строке на релиз, не больше 30 строк.
    Описания изменений не переписывай: из файла скрипт берёт только номера версий. Нельзя:
    переписать ответ целиком. Нельзя: написать номер версии от себя - только строки из ответа.
@@ -39,7 +39,7 @@ python3 .gigacode/skills/env-update/scripts/env_update.py versions
 
 Человек назвал версию -> бери её. Иначе:
 ```
-python3 .gigacode/skills/env-update/scripts/env_update.py latest .gigacode/data/autotest/env-update/release-notes.md
+python3 .gigacode/skills/env-update/scripts/env_update.py latest openspec/pvatf/env/env-update/release-notes.md
 ```
 В шапку: `to` - значение `САМАЯ НОВАЯ`. `to` равна `from` или старше -> `update_status: done`,
 «уже последняя версия», этапы 5-9 не нужны.
@@ -48,17 +48,17 @@ python3 .gigacode/skills/env-update/scripts/env_update.py latest .gigacode/data/
 
 1. Прочитай описание MCP-инструмента `get_pvat_changelog` и его параметры. Вызови его на
    диапазон `from` -> `to` (параметров диапазона нет - на версию `to`). Ответ сохрани
-   дословно в `.gigacode/data/autotest/env-update/changelog.md`.
+   дословно в `openspec/pvatf/env/env-update/changelog.md`.
 2. Выпиши из changelog в раздел «Изменения» отчёта только то, что может сломать код или
    настройки проекта: удалено, переименовано, изменена сигнатура, deprecated, новый
    обязательный ключ настроек, новая обязательная зависимость. Строка:
    `| <имя как в changelog> | <удалено / переименовано в X / сигнатура / deprecated / ключ / зависимость> | <версия> |`.
    Нельзя: «улучшена работа Kafka». Нужно: «`KafkaService.consumerClient()` | переименовано в
    `kafkaConsumerClient()` | <версия из changelog>».
-3. Имена из первой колонки - по одному на строку - в `.gigacode/data/autotest/env-update/names.txt`.
+3. Имена из первой колонки - по одному на строку - в `openspec/pvatf/env/env-update/names.txt`.
 4. Где они в проекте:
    ```
-   python3 .gigacode/skills/env-update/scripts/env_update.py usages .gigacode/data/autotest/env-update/names.txt
+   python3 .gigacode/skills/env-update/scripts/env_update.py usages openspec/pvatf/env/env-update/names.txt
    ```
    Число мест по каждому имени допиши в таблицу «Изменения» (колонка «Мест в проекте»).
 
@@ -90,7 +90,7 @@ python3 .gigacode/skills/env-check/scripts/env_check.py
    - конспект: `python3 .gigacode/skills/env-check/scripts/notes.py find <tech> <имя>`;
    - агент `pvatf-docs`, задание по шаблону `references/autotest-rules.md`, правило 3 (не
      больше 5 вопросов), вопрос: «Чем заменить `<имя>` в версии <to>: класс, метод, пример
-     вызова». Ответ в конспект `.gigacode/data/doc-notes/<tech>.md` переносит `notes.py merge
+     вызова». Ответ в конспект `openspec/pvatf/doc-notes/<tech>.md` переносит `notes.py merge
      <tech> doc-notes` (порядок - `references/autotest-rules.md`, правило 2).
 3. Замены нет ни в одном источнике -> место не трогай, строка в «Осталось человеку».
 4. Правь только файлы из вывода `errors` и `usages`. Меняй только то, что назвал источник:

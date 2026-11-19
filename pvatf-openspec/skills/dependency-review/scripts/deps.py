@@ -31,7 +31,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import frame_versions  # noqa: E402
 
-DATA = Path(".gigacode") / "data" / "dependency"
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+DATA = pp.kind_dir("deps-review", "dependency")
 STATE = DATA / "DEPS.json"
 FINDINGS = DATA / "FINDINGS.md"
 REPORT = DATA / "DEPENDENCY-ANALYSIS.md"

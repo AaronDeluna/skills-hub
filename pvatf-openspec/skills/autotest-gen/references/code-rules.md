@@ -8,7 +8,7 @@
 
 **Этот файл целиком не читай.** Каждому подшагу (юниту) нужны 5-15 правил - их номера стоят
 в поле «Правила подшага» карточки. Их текст вместе с блоком «добавлено человеком» кладёт в
-`.gigacode/data/migration/tmp/rules-now.md` скрипт `scripts/unit.py rules`
+`openspec/changes/<имя>/outputs/tmp/rules-now.md` скрипт `scripts/unit.py rules`
 (`references/work.md`, Шаг 5, п.1).
 
 **Какие правила какому подшагу** - таблица в `references/substep-rules.md` (одна на весь набор).

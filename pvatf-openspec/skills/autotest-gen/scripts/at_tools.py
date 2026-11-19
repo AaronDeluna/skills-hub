@@ -11,9 +11,9 @@
 run: команда - из команды компиляции ENV.json (Maven: test -Dtest=<класс>, Gradle: test --tests <класс>),
 таймаут 540 секунд; падения делит на СТЕНД (сеть, доступ), ПРОВЕРКА (ассерты), КОД (остальное);
 --dry-run - только печать команды, --report-only - разобрать отчёт прогона, который запускал человек.
-Пишет RUN.md, run.log и run_status в шапку PLAN.md.
+Пишет RUN.md, run.log и run_status в шапку плана (design.md изменения).
 
-Файлы - в .gigacode/data/autotest/<ключ>/: PLAN.md (план), fragments/G-<n>.md (фрагменты от
+Файлы - в openspec/changes/<имя>/: design.md (план), outputs/: fragments/G-<n>.md (фрагменты от
 агента), rules-now.md, docs-now.md, CHECK.md (итог проверки). Повторный запуск любой команды
 ничего не ломает: assemble переписывает только файл, который сам создал (есть строка-метка).
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - выполнено / чисто, 1 - есть
@@ -26,17 +26,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from java_checks import CHECKS, TEST_ONLY, compile_project, scan  # noqa: E402 - общий модуль набора
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
 
 DATA = Path(".gigacode") / "data" / "autotest"
 SKILL = Path(__file__).resolve().parent.parent
-NOTE_DIRS = [Path(".gigacode") / "data" / "doc-notes", Path(".gigacode") / "data" / "migration" / "doc-notes"]
+NOTE_DIRS = [pp.root() / "doc-notes", pp.migration_notes()]
 MARK = "// Сгенерировано autotest-gen по тест-кейсу "
 GEN_RULES = ["MR-1", "MR-2", "MR-3", "MR-4", "MR-5", "MR-8", "MR-12", "MR-13", "MR-14", "MR-15", "MR-19", "MR-20",
              "MR-21", "MR-22", "MR-29", "MR-48", "MR-41", "MR-43", "MR-42", "MR-30", "MR-49", "MR-50", "MR-33", "MR-34",
              "MR-35", "MR-46", "MR-47", "MR-37", "MR-38", "MR-39", "MR-40", "MR-45"]
 STATUSES = ("todo", "ok", "stub", "blocked")
 GLOSSARY = """Правила общие с миграцией. При генерации автотеста слова в них значат:
-- «карточка», «юнит», «подшаг» - задание агенту на один G и план PLAN.md;
+- «карточка», «юнит», «подшаг» - задание агенту на один G и план design.md;
 - «Файлы юнита», «файлы подшага» - файлы, которые ты создаёшь или меняешь в этом G (классы шагов,
   страниц, файлы данных); существующие методы проекта не меняешь, только добавляешь новые;
 - «Таблица подтверждений», «конспект» - docs-now.md (записи D-<tech>-<n>);
@@ -52,7 +53,11 @@ def fail(message, code=2):
 
 
 def folder(key):
-    return DATA / key
+    return pp.autotest_dir(key, create=False)
+
+
+def plan_path(key):
+    return pp.plan_file(key, create=False)
 
 
 def read(path):
@@ -85,7 +90,7 @@ def journal(text, what):
 
 
 def plan(key):
-    path = folder(key) / "PLAN.md"
+    path = plan_path(key)
     text = read(path)
     if not text:
         return None, None, None
@@ -98,7 +103,7 @@ def plan(key):
 def cmd_rules(key):
     path, text, head = plan(key)
     if text is None:
-        return fail("НЕТ PLAN.md: сначала autotest-plan")
+        return fail("НЕТ ПЛАНА (design.md изменения): сначала артефакт design / autotest-plan")
     source = read(SKILL / "references" / "code-rules.md")
     if not source:
         return fail("НЕТ references/code-rules.md в скилле autotest-gen - переустанови набор")
@@ -142,7 +147,7 @@ def cmd_rules(key):
 def cmd_next(key):
     path, text, head = plan(key)
     if text is None:
-        return fail("НЕТ PLAN.md: сначала autotest-plan")
+        return fail("НЕТ ПЛАНА (design.md изменения): сначала артефакт design / autotest-plan")
     if head.get("plan_status") not in ("planned", "generating"):
         return fail("plan_status " + head.get("plan_status", "-") + " - генерация только по плану planned или generating", 1)
     gens = section_rows(text, "3. Порядок генерации")
@@ -191,7 +196,7 @@ def cmd_next(key):
 def cmd_mark(key, gid, status):
     path, text, head = plan(key)
     if text is None:
-        return fail("НЕТ PLAN.md")
+        return fail("НЕТ ПЛАНА (design.md изменения)")
     if status not in STATUSES:
         return fail("статус - один из: " + ", ".join(STATUSES))
     pattern = re.compile(r"(?m)^(\| " + re.escape(gid) + r" \|(?:[^|\n]*\|){6}) *\w+ *\|$")
@@ -281,7 +286,7 @@ def lift_shared(phases):
 def cmd_assemble(key):
     path, text, head = plan(key)
     if text is None:
-        return fail("НЕТ PLAN.md")
+        return fail("НЕТ ПЛАНА (design.md изменения)")
     gens = section_rows(text, "3. Порядок генерации")
     not_ready = [g[0] + " " + g[7] for g in gens if len(g) >= 8 and g[7] not in ("ok", "stub", "blocked")]
     if not_ready:
@@ -353,7 +358,7 @@ def cmd_assemble(key):
 def cmd_check(key, compile_on):
     path, text, head = plan(key)
     if text is None:
-        return fail("НЕТ PLAN.md")
+        return fail("НЕТ ПЛАНА (design.md изменения)")
     target = Path(head.get("test_file", "-"))
     if not target.is_file():
         return fail("НЕТ ТЕСТ-КЛАССА " + str(target) + " - сначала assemble")
@@ -511,13 +516,13 @@ def cmd_run(key, args):
     import time
     path, text, head = plan(key)
     if text is None:
-        return fail("НЕТ PLAN.md")
+        return fail("НЕТ ПЛАНА (design.md изменения)")
     if head.get("plan_status") != "checked":
         return fail("СНАЧАЛА check: plan_status " + head.get("plan_status", "-") + " - запуск только после чистой проверки", 1)
     if not Path(head.get("test_file", "-")).is_file():
         return fail("НЕТ ТЕСТ-КЛАССА " + head.get("test_file", "-"))
     try:
-        env = json.loads(read(DATA / "ENV.json") or "{}")
+        env = json.loads(read(pp.env_dir() / "ENV.json") or "{}")
     except ValueError:
         env = {}
     argv, reports = run_argv(env, head)

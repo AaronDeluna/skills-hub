@@ -77,3 +77,15 @@ python3 .gigacode/skills/orchestrator/scripts/os_work.py next
 | «продолжи» | следующее действие по активному изменению |
 
 Код задачи в просьбе («по задаче ABCDE-123») попадает в имя изменения: `abcde-123-autotest-cmn-t120`.
+
+## Где что лежит
+
+| Что | Где |
+|-----|-----|
+| Работа (автотест, миграция, окружение, ...) | `openspec/changes/<имя>/`: `proposal.md`, `design.md`, `tasks.md`, рабочие файлы скиллов - `outputs/` |
+| План автотеста по ТК | `design.md` изменения `autotest-<ключ>`; ТК и его проверка - `tc/<ключ>.md` |
+| Карта миграции | `design.md` изменения `migration`; юниты - группы `tasks.md`; карточки юнитов - `outputs/units/` |
+| Общее для проекта | `openspec/pvatf/`: конспект документации фрейма (`doc-notes/`, `migration/doc-notes/`), паспорт окружения `env/ENV.json`, `env/release-notes.md` |
+| Готовые работы | `openspec/changes/archive/<дата>-<имя>/` после архива |
+
+Каталога `.gigacode/data/` в режиме OpenSpec нет.

@@ -21,7 +21,7 @@ from pathlib import Path
 
 FRAME_MARKERS = ["pvat", "pv-at", "platform-v-at", "perfeccionista", "sbt-at", "ru.sber.qa"]
 BUILD_NAMES = {"pom.xml", "build.gradle", "build.gradle.kts", "gradle.properties", "libs.versions.toml", "settings.gradle", "settings.gradle.kts"}
-SKIP_DIRS = {".git", ".gigacode", ".idea", ".gradle", "target", "build", "out", "node_modules"}
+SKIP_DIRS = {".git", ".gigacode", "openspec", ".idea", ".gradle", "target", "build", "out", "node_modules"}
 VERSION = re.compile(r"^[0-9]+(\.[0-9A-Za-z\-]+)*$")
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """План генерации автотеста по тест-кейсу (скилл autotest-plan). Запуск из корня проекта:
 
-  python3 <скилл>/scripts/tc_plan.py build <ключ ТК> [--force]  - черновик PLAN.md (plan_status: draft)
+  python3 <скилл>/scripts/tc_plan.py build <ключ ТК> [--force]  - черновик плана design.md (plan_status: draft)
   python3 <скилл>/scripts/tc_plan.py validate <ключ ТК>         - проверка плана; всё сошлось -> plan_status: planned
 
 build: шаги TC.md делятся на подшаги (два действия в одном шаге), каждому - тип, группа,
@@ -109,7 +109,7 @@ def esc(value):
 
 def load_env():
     try:
-        return json.loads((tcc.DATA / "ENV.json").read_text(encoding="utf-8"))
+        return json.loads((tcc.pp.env_dir() / "ENV.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -354,11 +354,11 @@ def read_check(folder):
 
 
 def build(key, force):
-    folder = tcc.DATA / key
+    folder = tcc.pp.autotest_dir(key)
     if not (folder / "TC.md").is_file():
         print("НЕТ TC.md: " + str(folder / "TC.md") + " - сначала tc_convert.py")
         return 2
-    plan = folder / "PLAN.md"
+    plan = tcc.pp.plan_file(key)
     if plan.is_file() and not force:
         status = re.search(r"(?m)^plan_status:\s*(\S+)", plan.read_text(encoding="utf-8"))
         if status and status.group(1) != "draft":
@@ -402,9 +402,9 @@ def table(text, title):
 
 
 def validate(key):
-    plan = tcc.DATA / key / "PLAN.md"
+    plan = tcc.pp.plan_file(key, create=False)
     if not plan.is_file():
-        print("НЕТ PLAN.md: сначала tc_plan.py build " + key)
+        print("НЕТ ПЛАНА " + str(plan).replace("\\", "/") + ": сначала tc_plan.py build " + key)
         return 2
     text = plan.read_text(encoding="utf-8")
     head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))

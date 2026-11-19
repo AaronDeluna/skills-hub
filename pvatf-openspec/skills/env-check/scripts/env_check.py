@@ -30,10 +30,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import frame_versions as frame_versions_module  # noqa: E402
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
 
-OUT_DIR = Path(".gigacode") / "data" / "autotest"
+OUT_DIR = pp.env_dir()
 OUT_FILE = OUT_DIR / "ENV.json"
-SKIP_DIRS = {".git", ".gigacode", ".idea", ".gradle", "target", "build", "out", "node_modules"}
+SKIP_DIRS = {".git", ".gigacode", "openspec", ".idea", ".gradle", "target", "build", "out", "node_modules"}
 
 # Что ищем в файлах сборки. Список - из пакета генерации автотестов; имя ищется как подстрока.
 MANDATORY_DEPS = ["environment-junit5", "allure2"]
@@ -227,7 +228,7 @@ def check_tc_modules(report, build_text):
     """Раздел 8 «Окружение под ТК» незаконченных планов: технология, слов которой нет в artifactId зависимостей фрейма."""
     low = frame_versions_module.framework_artifacts(build_text)
     missing = []
-    for plan in sorted(OUT_DIR.glob("*/PLAN.md")) if OUT_DIR.is_dir() else []:
+    for plan_key, plan in pp.plan_files():
         text = read(plan)
         if re.search(r"(?m)^plan_status:\s*checked", text):
             continue
@@ -238,7 +239,7 @@ def check_tc_modules(report, build_text):
                 continue
             words = [w.strip() for w in cells[4].split(",") if w.strip() not in ("", "-")]
             if words and build_text.strip() and not any(w in low for w in words):
-                missing.append(plan.parent.name + ": " + cells[0])
+                missing.append(plan_key + ": " + cells[0])
     report["project"]["tc_modules_missing"] = missing
     if missing:
         problem(report, "warning", "TC_MODULES_MISSING", "В сборке нет модулей фрейма под технологии тест-кейсов",

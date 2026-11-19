@@ -24,6 +24,8 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
 DATA = Path(".gigacode") / "data" / "autotest"
 KEY = re.compile(r"\b[A-Z][A-Z0-9]*-T[0-9]+\b")
 FIELDS = [("title", "Название"), ("key", "Ключ"), ("system", "КЭ"), ("priority", "Приоритет"),
@@ -423,7 +425,7 @@ def main(args):
     if not steps:
         print("ШАГОВ НЕТ: в файле не найдено ни одного шага (таблица «Шаги выполнения», steps, testScript)")
         return 1
-    target = DATA / tc["key"] / "TC.md"
+    target = pp.autotest_dir(tc["key"]) / "TC.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(render(tc), encoding="utf-8")
     print("ТК: " + tc["key"] + " · " + (tc.get("title") or "-"))

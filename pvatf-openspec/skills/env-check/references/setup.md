@@ -33,7 +33,7 @@
 
 ## 2. Спроси документацию
 
-Сначала конспект (общий для окружения и генерации, `.gigacode/data/doc-notes/`):
+Сначала конспект (общий для окружения и генерации, `openspec/pvatf/doc-notes/`):
 ```
 python3 .gigacode/skills/env-check/scripts/notes.py find env <2-4 слова вопроса>
 ```
@@ -42,7 +42,7 @@ python3 .gigacode/skills/env-check/scripts/notes.py find env <2-4 слова в�
 Остальные вопросы (не больше 5 за один вызов) - агенту `pvatf-docs` по шаблону
 `references/autotest-rules.md`, правило 3, технология `env`.
 
-Ответ агент пишет в файл сам, в конспект `.gigacode/data/doc-notes/env.md` его переносит
+Ответ агент пишет в файл сам, в конспект `openspec/pvatf/doc-notes/env.md` его переносит
 `notes.py merge env doc-notes` - порядок в `references/autotest-rules.md`, правило 2. Сам
 конспект не правишь.
 
@@ -153,7 +153,7 @@ public class Allure2RestServiceConfiguration extends DefaultRestServiceConfigura
 
 ## 4. Отчёт ENV-SETUP.md
 
-Файл `.gigacode/data/autotest/ENV-SETUP.md`, шаблон дословно (новый запуск дописывает блок в конец):
+Файл `openspec/pvatf/env/ENV-SETUP.md`, шаблон дословно (новый запуск дописывает блок в конец):
 
 ```markdown
 ## Настройка <дата время>
@@ -227,7 +227,7 @@ public @NotNull ServiceConfigurationManager getServiceConfigurations() {
 ## Новый проект
 
 Только режим init, после раздела 1-3 этого файла. `<пакет>` ниже - строка «Корень пакетов» в
-`.gigacode/data/autotest/ENV-INIT.md` (тест-классы потом идут в «Пакет тестов» = `<корень>.tests`).
+`openspec/pvatf/env/ENV-INIT.md` (тест-классы потом идут в «Пакет тестов» = `<корень>.tests`).
 
 1. Базовый тест-класс. Вопрос агенту `pvatf-docs` (технология `env`): «Какие аннотации подключают
    фрейм и класс конфигурации окружения к тест-классу JUnit 5». Создай `<пакет>.BaseTest`: только эти

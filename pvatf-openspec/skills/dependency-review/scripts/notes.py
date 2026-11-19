@@ -27,10 +27,12 @@ import re
 import sys
 from pathlib import Path
 
-DATA = Path(".gigacode") / "data"
-NOTE_DIRS = [DATA / "doc-notes", DATA / "migration" / "doc-notes"]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+DATA = pp.root()
+NOTE_DIRS = [DATA / "doc-notes", pp.migration_notes()]
 HEAD = re.compile(r"^#{2,3} D-[A-Za-z0-9-]+-[0-9]+\b")
-DIRS = {"doc-notes": DATA / "doc-notes", "migration/doc-notes": DATA / "migration" / "doc-notes"}
+DIRS = {"doc-notes": DATA / "doc-notes", "migration/doc-notes": pp.migration_notes()}
 STATUSES = ("найден", "найден частично", "НЕТ В ДОКЕ")
 FIELDS = ("Статус", "Что использовать", "Формулировки запросов")
 DICT_HEAD = "### Ключевые слова документации"

@@ -18,7 +18,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-OUT = Path(".gigacode") / "data" / "autotest" / "ENV-INIT.md"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+
+OUT = pp.env_dir() / "ENV-INIT.md"
 BUILD = ["pom.xml", "build.gradle", "build.gradle.kts"]
 GROUP = re.compile(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+")
 ARTIFACT = re.compile(r"[a-z][a-z0-9\-]*")

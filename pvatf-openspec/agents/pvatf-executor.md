@@ -24,7 +24,7 @@ approvalMode: auto-edit
 - Показательный тест: команда или «-»
 
 Правила кода - прочитай целиком ДО правок:
-<Проект>/.gigacode/data/migration/tmp/rules-now.md
+<Проект>/openspec/changes/<имя>/outputs/tmp/rules-now.md
 
 Порядок:
 1. Прочитай файлы из списка (только их) и образец, если он дан.

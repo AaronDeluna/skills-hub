@@ -18,7 +18,9 @@ import re
 import sys
 from pathlib import Path
 
-MIGRATION = Path(".gigacode") / "data" / "migration"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+MIGRATION = pp.migration_dir()
 SKILL_DIR = Path(__file__).resolve().parent.parent
 EMPTY_WORDS = re.compile(
     r"\b(мигрировать|адаптировать|привести в порядок|при необходимости|и так далее|соответствующ\S*|доработать)\b",
@@ -333,7 +335,7 @@ def check_doc_refs(text):
         seen.add(ref.group())
         tech = ref.group(1)
         if tech not in notes:
-            notes[tech] = read(MIGRATION / "doc-notes" / (tech + ".md"))
+            notes[tech] = read(pp.migration_notes() / (tech + ".md"))
         if not re.search(r"(?m)^#{2,3} " + re.escape(ref.group()) + r"\b", notes[tech] or ""):
             problems.append("ссылка " + ref.group() + " - такой записи нет в doc-notes/" + tech + ".md")
 
@@ -410,7 +412,7 @@ def cmd_new(args):
         print("ОШИБКА: в references/tech-unit-template.md нет блока ```markdown")
         return 1
     card = m.group(1)
-    map_text = read(MIGRATION / "MIGRATION-MAP.md")
+    map_text = read(pp.map_file())
     analysis = read(MIGRATION / "inventory" / ("analysis-" + tech + ".md"))
     conn = read(MIGRATION / "CONNECTIONS.md")
     missing = []
@@ -468,7 +470,7 @@ def main(args):
         return 2
     if args[0] == "new":
         return cmd_new(args)
-    map_text = read(MIGRATION / "MIGRATION-MAP.md")
+    map_text = read(pp.map_file())
     units = MIGRATION / "units"
     order = unit_order(map_text)
     total = 0

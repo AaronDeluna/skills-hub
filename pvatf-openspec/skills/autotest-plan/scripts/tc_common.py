@@ -1,8 +1,13 @@
 """Общий разбор TC.md и словари маркеров для скриптов скилла autotest-plan. Сам не запускается.
 Python 3.8+, только стандартная библиотека."""
 import re
+import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+
+# Обычный режим: .gigacode/data/autotest; OpenSpec: см. pvatf_paths (каталог изменения)
 DATA = Path(".gigacode") / "data" / "autotest"
 
 # Глаголы действий (основа слова) -> тип шага. Порядок проверки типов - PRIORITY.

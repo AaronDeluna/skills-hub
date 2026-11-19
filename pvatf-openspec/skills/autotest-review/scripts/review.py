@@ -9,7 +9,7 @@
   python3 <скилл>/scripts/review.py check <файл> [--no-compile]       - проверка после правок, компиляция, REVIEW.md
   python3 <скилл>/scripts/review.py rollback <файл>                   - вернуть все файлы к копии до правок
 
-Файлы - в .gigacode/data/autotest-review/<имя класса>/: REVIEW-PLAN.md (план и статусы),
+Файлы - в openspec/changes/<имя>/outputs/: REVIEW-PLAN.md (план и статусы),
 backup/ (копия исходников до правок), rules-now.md, docs-now.md, REVIEW.md (итог).
 Повторный запуск любой команды ничего не ломает. Python 3.8+, только стандартная библиотека.
 Код выхода: 0 - выполнено, 1 - есть находки или нельзя по состоянию, 2 - неверные аргументы.
@@ -23,10 +23,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from java_checks import CHECKS, TEST_ONLY, compile_project, read, scan_items  # noqa: E402 - общий модуль набора
 
-DATA = Path(".gigacode") / "data" / "autotest-review"
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+DATA = Path(".gigacode") / "data" / "autotest-review"  # обычный режим; OpenSpec - pp.review_dir
 SKILL = Path(__file__).resolve().parent.parent
-NOTE_DIRS = [Path(".gigacode") / "data" / "doc-notes", Path(".gigacode") / "data" / "migration" / "doc-notes"]
-SKIP_DIRS = {".git", ".gigacode", ".idea", "target", "build", "out", "node_modules", ".gradle"}
+NOTE_DIRS = [pp.root() / "doc-notes", pp.migration_notes()]
+SKIP_DIRS = {".git", ".gigacode", "openspec", ".idea", "target", "build", "out", "node_modules", ".gradle"}
 REVIEW_STATUSES = ("found", "approved", "fixing", "checked", "rolled-back")
 ITEM_STATUSES = ("todo", "approved", "skipped", "done", "failed", "blocked")
 DUP_LINES = 5            # MR-39: блок из 5 и более строк
@@ -92,7 +93,7 @@ def norm(path):
 
 
 def folder(target):
-    return DATA / Path(target).stem
+    return pp.review_dir(target)
 
 
 def head_of(text):

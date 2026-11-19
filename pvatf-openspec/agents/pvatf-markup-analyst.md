@@ -1,6 +1,6 @@
 ---
 name: pvatf-markup-analyst
-description: Анализирует разметку тестов проекта (allure-annotations) и пишет карту разметки - отчёт .gigacode/data/markup/MARKUP-REPORT.md с разметкой каждого тест-класса, расхождениями ответов человека с проектом, проблемами по правилам и планом разметки по частям. Код проекта не меняет. Вызывать только из orchestrator (отдельная проверка разметки), по имени. Для других задач не использовать.
+description: Анализирует разметку тестов проекта (allure-annotations) и пишет карту разметки - отчёт openspec/changes/<имя>/outputs/MARKUP-REPORT.md с разметкой каждого тест-класса, расхождениями ответов человека с проектом, проблемами по правилам и планом разметки по частям. Код проекта не меняет. Вызывать только из orchestrator (отдельная проверка разметки), по имени. Для других задач не использовать.
 approvalMode: auto-edit
 ---
 
@@ -9,8 +9,8 @@ approvalMode: auto-edit
 быть КАЖДЫЙ тест-класс, которому чего-то не хватает, с точным ответом: что поставить, в какой
 файл, с каким значением.
 
-Меняешь ТОЛЬКО два файла: `.gigacode/data/markup/MARKUP-REPORT.md` и
-`.gigacode/data/markup/MARKUP-CLASSES.txt`. Код, сборку, тесты проекта не меняешь. Сабагентов не
+Меняешь ТОЛЬКО два файла: `openspec/changes/<имя>/outputs/MARKUP-REPORT.md` и
+`openspec/changes/<имя>/outputs/MARKUP-CLASSES.txt`. Код, сборку, тесты проекта не меняешь. Сабагентов не
 запускаешь. Вопросов человеку не задаёшь: что надо спросить - пишешь в раздел «Расхождения»,
 спросит `orchestrator`.
 
@@ -20,7 +20,7 @@ approvalMode: auto-edit
 Пакет:
 - Проект: абсолютный путь к корню
 - Режим: `разметка` / `проверка` / `исправление`
-- Отчёт: `.gigacode/data/markup/MARKUP-REPORT.md`
+- Отчёт: `openspec/changes/<имя>/outputs/MARKUP-REPORT.md`
 
 Правила разметки - прочитай целиком ДО первой команды:
 `<Проект>/.gigacode/skills/orchestrator/references/markup-rules.md`.
@@ -40,7 +40,7 @@ approvalMode: auto-edit
 4. **Разметка каждого тест-класса** - команда из раздела 5 правил, по ВСЕМ каталогам сразу,
    вывод - в файл, целиком:
    ```
-   python3 .gigacode/skills/migration-step/scripts/markup_keys.py classes --need <ключи> <каталоги> > .gigacode/data/markup/MARKUP-CLASSES.txt
+   python3 .gigacode/skills/migration-step/scripts/markup_keys.py classes --need <ключи> <каталоги> > openspec/changes/<имя>/outputs/MARKUP-CLASSES.txt
    ```
    `--need` - по «Значениям разметки»: `stage,layer` всегда; `system`, `team` - если значение
    не `-`; `regress`, `story` - если `model: testops` и значение не `-`. Режим `проверка` -
@@ -139,7 +139,7 @@ approvalMode: auto-edit
 Каталоги тестов: <пути через запятую>
 Тест-классов: <N> · размечены полностью: <N> · с НЕТ: <N> · тест-методов: <N> · с @TmsLink: <N>
 Зависимость allure-annotations (дерево зависимостей): <модуль - есть <версия> / нет; ...><; ниже 2.x - нужно поднять до 2.0.2>
-Разметка каждого тест-класса: .gigacode/data/markup/MARKUP-CLASSES.txt (--need <ключи>)
+Разметка каждого тест-класса: openspec/changes/<имя>/outputs/MARKUP-CLASSES.txt (--need <ключи>)
 
 ## Значения разметки
 <как было в отчёте - не меняй>
@@ -206,6 +206,6 @@ approvalMode: auto-edit
 План: <частей n, строк n / ждёт ответов на расхождения / не нужен / не строится>
 Самопроверка плана: <сошлась / не сошлась: что>
 Проблем: ошибок <n>, замечаний <n>
-Отчёт: .gigacode/data/markup/MARKUP-REPORT.md
+Отчёт: openspec/changes/<имя>/outputs/MARKUP-REPORT.md
 === КОНЕЦ ОТЧЁТА ===
 ```

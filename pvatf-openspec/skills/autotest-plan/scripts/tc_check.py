@@ -81,7 +81,7 @@ def main(args):
     if not args:
         print("Использование: tc_check.py <ключ ТК>")
         return 2
-    path = tcc.DATA / args[0] / "TC.md"
+    path = tcc.pp.autotest_dir(args[0], create=False) / "TC.md"
     if not path.is_file():
         print("НЕТ TC.md: " + str(path) + " - сначала tc_convert.py")
         return 2

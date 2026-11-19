@@ -5,7 +5,7 @@
 расхождении прав этот файл.
 
 1. **О фрейме знаешь только то, что есть в документации.** Источники по порядку: конспект
-   `.gigacode/data/doc-notes/` -> документация MCP через агента `pvatf-docs` -> проект-пример
+   `openspec/pvatf/doc-notes/` -> документация MCP через агента `pvatf-docs` -> проект-пример
    через агента `pvatf-examples` (только если человек дал путь) -> код самого проекта
    (как там уже сделано) -> место не делается и записывается в отчёт. `get_pv_at_doc` сам не
    вызываешь. `get_pvat_release_notes`, `get_pvat_changelog` и Jira `zephyr_get_testcase` вызываешь сам (таймаут 120
@@ -21,7 +21,7 @@
    1. До запуска агента: `python3 .gigacode/skills/<скилл>/scripts/notes.py task <tech> doc-notes` -
       две строки вывода впиши в конец задания (правило 3) дословно.
    2. Агент вернул `ЗАПИСАНО: ...` -> `python3 .gigacode/skills/<скилл>/scripts/notes.py merge <tech> doc-notes`
-      (таймаут 60 секунд). Код 0, строка `ОК: ...` - записи в `.gigacode/data/doc-notes/<tech>.md`,
+      (таймаут 60 секунд). Код 0, строка `ОК: ...` - записи в `openspec/pvatf/doc-notes/<tech>.md`,
       ID и статусы в этой строке; текст записи - `notes.py show <ID>`. Код 1 - запусти агента
       ещё раз с тем же заданием и строкой `- Прошлый файл не прошёл проверку: <строки ошибок>`,
       снова `merge`; снова 1 -> вопросы считай `НЕТ В ДОКЕ`.
@@ -45,7 +45,7 @@
    ```
    Артефакт - текст, по которому агент ищет документацию напрямую (`retrieve_doc_by_*`), не больше 40
    строк: `env-update` - строки ошибок компиляции (`Лог:`); `autotest-gen` - строки шагов этого G
-   из раздела 2 `PLAN.md` (`ТК:`); `autotest-review` - метод теста с находкой (`Код:`). Остальные - «нет».
+   из раздела 2 `design.md` (`ТК:`); `autotest-review` - метод теста с находкой (`Код:`). Остальные - «нет».
    Якорь - класс, который уже встречался в примерах генерации набора; не знаешь - «нет»
    (агент тогда начнёт с названия раздела).
 
@@ -64,8 +64,8 @@
    | `fixtures` / `testcontainers` / `sbermock` / `toggler` / `launcher` | Сервис для работы с Fixtures / Работа с TestContainers / Работа с SberMock / Работа с Toggler / Работа с Launcher | FixtureService / ContainerService / SberMockService / TogglerService / LauncherService |
    | `timeouts` / `openshift` / `dataconverter` | Сервис для работы с Таймаутами / Работа с OpenShift и Kubernetes / Работа с DataConverter | нет / нет / DataConverterService |
    | `value` / `sessions` / `invocation` | ValueService / Работа с Сессиями / Работа с Invocation | ValueService / нет / нет |
-4. **Память - это файлы, а не чат.** Состояние окружения - `.gigacode/data/autotest/ENV*.md`,
-   `ENV.json`; генерации - `.gigacode/data/autotest/<ID ТК>/`. Результат этапа сразу пиши в
+4. **Память - это файлы, а не чат.** Состояние окружения - `openspec/pvatf/env/ENV*.md`,
+   `ENV.json`; генерации - `openspec/changes/<имя>/outputs/`. Результат этапа сразу пиши в
    файл, потом следующий этап. Сомневаешься, где ты, - файл главнее памяти.
 5. **Делаешь только своё.** Меняешь только файлы, которые называет этап. Увидел другое, что
    надо поправить, - строка в отчёт («Осталось человеку»), не правка.

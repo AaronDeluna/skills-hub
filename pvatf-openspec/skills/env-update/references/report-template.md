@@ -1,6 +1,6 @@
 # Шаблон ENV-UPDATE.md
 
-Часть скилла `env-update`. Путь: `.gigacode/data/autotest/ENV-UPDATE.md`. Шаблон - дословно,
+Часть скилла `env-update`. Путь: `openspec/pvatf/env/ENV-UPDATE.md`. Шаблон - дословно,
 заполняются только `<...>`. Повторное обновление - файл переписывается заново (старый
 переименуй в `ENV-UPDATE-<from>-<to>.md`, потом `env_update.py reset` - SKILL.md, шаг 1).
 

@@ -5,9 +5,9 @@
 Машиночитаемые значения (`building`/`review`/`approved`, `todo`/`in-progress`/`done`/
 `blocked`, ID) - латиницей, не переводи.
 
-## Шаблон MIGRATION-MAP.md
+## Шаблон design.md
 
-Путь: `.gigacode/data/migration/MIGRATION-MAP.md`
+Путь: `openspec/changes/<имя>/design.md`
 
 ```markdown
 ---
@@ -164,7 +164,7 @@ updated: <ГГГГ-ММ-ДД>
 
 ## Шаблон CONNECTIONS.md
 
-Путь: `.gigacode/data/migration/CONNECTIONS.md`. Создаётся на Этапе 2 (шаг 1а), таблицы
+Путь: `openspec/changes/<имя>/outputs/CONNECTIONS.md`. Создаётся на Этапе 2 (шаг 1а), таблицы
 «Перенос в фрейм» дописываются на Этапе 3.
 
 ```markdown
@@ -216,7 +216,7 @@ updated: <ГГГГ-ММ-ДД>
 
 ## Конспект документации (doc-notes/)
 
-Папка: `.gigacode/data/migration/doc-notes/`, по файлу на технологию: `<метка>.md`
+Папка: `openspec/pvatf/migration/doc-notes/`, по файлу на технологию: `<метка>.md`
 (`rest.md`, `kafka.md`, `db.md` ...), общее про фрейм - `common.md`.
 
 Шаблон записи `D-<tech>-<n>` и правила работы с конспектом - в `references/subagents.md`,

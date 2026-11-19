@@ -15,7 +15,7 @@
 Шаг 7 (`references/close.md`).
 
 1. Прочитай `references/doc-subagent.md` целиком - там правила, задание агенту и шаблон записи.
-2. Записи конспекта подшага уже лежат в `.gigacode/data/migration/tmp/docs-now.md` - их
+2. Записи конспекта подшага уже лежат в `openspec/changes/<имя>/outputs/tmp/docs-now.md` - их
    кладёт `unit.py rules` (Шаг 5, п.1; запусти его сейчас, если ещё не запускал). Прочитай
    файл целиком. Весь файл конспекта не читай.
 3. Пройди по шагам «Что сделать» карточки. Для каждого шага спроси себя: «каждое имя из
@@ -68,7 +68,7 @@
    ```
    python3 .gigacode/skills/migration-step/scripts/unit.py rules M-<nnn> S-<nn>
    ```
-   Прочитай `.gigacode/data/migration/tmp/rules-now.md` целиком. Скрипт написал
+   Прочитай `openspec/changes/<имя>/outputs/tmp/rules-now.md` целиком. Скрипт написал
    `ОШИБКА: не найдены в code-rules.md` - номер в карточке с ошибкой, поправь карточку и запусти снова. Весь
    `references/code-rules.md` не читай. Файл `rules-now.md` нужен ещё проверяющему (Шаг 6,
    п.9), его не удаляй и не коммить. В обычном юните (не `tech`) номер подшага не пиши.

@@ -8,9 +8,13 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
-ENV_JSON = Path(".gigacode") / "data" / "autotest" / "ENV.json"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+
+ENV_JSON = pp.env_dir() / "ENV.json"
 
 # (правило, регулярное выражение, что не так) - одна строка кода, комментарии не проверяются
 CHECKS = [

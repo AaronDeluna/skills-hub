@@ -14,7 +14,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-MIGRATION = Path(".gigacode") / "data" / "migration"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+MIGRATION = pp.migration_dir()
 SKILL_DIR = Path(__file__).resolve().parent.parent
 DOC_REF = re.compile(r"\bD-[a-z0-9-]+?-[0-9]+\b")
 
@@ -142,7 +144,7 @@ def one_line(text):
 
 
 def flow_style():
-    map_file = MIGRATION / "MIGRATION-MAP.md"
+    map_file = pp.map_file()
     return map_file.is_file() and re.search(r"(?m)^- Стиль шагов: flow", read(map_file)) is not None
 
 
@@ -221,7 +223,7 @@ def write_docs(card, step):
     out = ["# Записи конспекта подшага " + card.id + " " + step.id + "\n\n"]
     found = 0
     for rid in ids:
-        notes_file = MIGRATION / "doc-notes" / (rid[2:rid.rindex("-")] + ".md")
+        notes_file = pp.migration_notes() / (rid[2:rid.rindex("-")] + ".md")
         rec = record(read(notes_file), rid) if notes_file.is_file() else None
         if rec is None:
             out.append("## " + rid + " - НЕТ В КОНСПЕКТЕ (ссылка в карточке есть, записи нет)\n\n")
@@ -265,7 +267,7 @@ def rules(card, step):
     if missing:
         print("ОШИБКА: не найдены в code-rules.md: " + ", ".join(missing)
               + " - исправь номера в карточке (таблица - references/substep-rules.md), потом запусти снова")
-    print("Записи конспекта подшага: " + str(docs) + " - в .gigacode/data/migration/tmp/docs-now.md")
+    print("Записи конспекта подшага: " + str(docs) + " - в " + str(MIGRATION / "tmp" / "docs-now.md").replace("\\", "/"))
     print("Прочитай оба файла целиком перед правками. Нужного имени фрейма там нет -> сначала notes.py find, потом сабагент документации.")
     return 0 if not missing else 1
 

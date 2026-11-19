@@ -6,7 +6,7 @@ description: 'Обновление фрейма PVATF в проекте авто
 # Обновление фрейма PVATF
 
 Скилл запускает `orchestrator`. Работа идёт по этапам 1-9, состояние - в
-`.gigacode/data/autotest/ENV-UPDATE.md`: оборвался чат - следующий продолжает с этапа из шапки.
+`openspec/pvatf/env/ENV-UPDATE.md`: оборвался чат - следующий продолжает с этапа из шапки.
 Сначала прочитай `references/autotest-rules.md`, потом `references/update.md` - там этапы.
 
 ## Когда использовать / когда не использовать
@@ -20,6 +20,10 @@ description: 'Обновление фрейма PVATF в проекте авто
 
 ## Предусловия
 
+- Файлы работы - в каталоге изменения OpenSpec `openspec/changes/<имя>/` (`<имя>` - строка
+  `ИЗМЕНЕНИЕ:` из `os_work.py next` оркестратора): артефакты `proposal.md`, `design.md`,
+  `tasks.md` и рабочие файлы `outputs/`. Общее для проекта (конспект документации, `ENV.json`) -
+  `openspec/pvatf/`. Пути в командах скриптов определяются сами - подставлять их не нужно.
 - Запуск из корня проекта; рабочее дерево git без незакоммиченных правок
   (`git status --porcelain -- . ':!.gigacode'` пусто). Откат возвращает файлы командой
   `git checkout`, поэтому чужие незакоммиченные правки он бы стёр.
@@ -34,7 +38,7 @@ description: 'Обновление фрейма PVATF в проекте авто
 
 ## Шаги
 
-1. Прочитай шапку `.gigacode/data/autotest/ENV-UPDATE.md`. Файла нет -> создай по шаблону
+1. Прочитай шапку `openspec/pvatf/env/ENV-UPDATE.md`. Файла нет -> создай по шаблону
    `references/report-template.md`, `update_stage: 1`. Есть и `update_status: in-progress` ->
    продолжай с этапа `update_stage`. Просят откатить и статус `in-progress`, `done` или
    `failed` -> не продолжай этапы: сразу этап 9, ветка «откат», `reset` не запускай. Иначе статус другой (`done`, `failed`, `rolled-back`) ->
@@ -52,8 +56,8 @@ description: 'Обновление фрейма PVATF в проекте авто
 
 Выход:
 - изменённые файлы сборки (версия фрейма) и исправленный код - в рабочем дереве, без коммита;
-- `.gigacode/data/autotest/ENV-UPDATE.md` по шаблону, `update_status: done | failed | rolled-back`;
-- `.gigacode/data/autotest/env-update/` - заголовки релизов из release notes, changelog диапазона, список имён, копии файлов сборки;
+- `openspec/pvatf/env/ENV-UPDATE.md` по шаблону, `update_status: done | failed | rolled-back`;
+- `openspec/pvatf/env/env-update/` - заголовки релизов из release notes, changelog диапазона, список имён, копии файлов сборки;
 - ответ в чате строго по шаблону:
 
 ```

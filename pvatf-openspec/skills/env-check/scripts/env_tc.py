@@ -5,7 +5,7 @@
   python3 <каталог скилла>/scripts/env_tc.py <ключ ТК>               - проверка с компиляцией
   python3 <каталог скилла>/scripts/env_tc.py <ключ ТК> --no-compile  - без компиляции
 
-Читает .gigacode/data/autotest/<ключ>/PLAN.md (раздел 8 «Окружение под ТК») и TC.md (колонки
+Читает план автотеста - design.md изменения (раздел 8 «Окружение под ТК») и TC.md (колонки
 «Действие» и «Тестовые данные») и сверяет с проектом:
 - модуль фрейма под каждую технологию ТК есть в файлах сборки (слова из раздела 8 ищутся в artifactId
   зависимостей фрейма, groupId с маркером фрейма; файлов сборки нет -> проверка не делается, как в
@@ -64,7 +64,7 @@ def main(args):
         print("Использование: env_tc.py <ключ ТК> [--no-compile]")
         return 2
     key = keys[0]
-    plan_file = OUT_DIR / key / "PLAN.md"
+    plan_file = env_check.pp.plan_file(key, create=False)
     if not plan_file.is_file():
         print("НЕТ ПЛАНА: " + str(plan_file).replace("\\", "/") + " - сначала autotest-plan")
         return 2
@@ -77,7 +77,7 @@ def main(args):
     for tech, _, words in techs:
         if words and raw_build.strip() and not any(w in frame_artifacts for w in words):
             need.append(("модуль", tech, "слова в artifactId фрейма: " + ", ".join(words)))
-    data = tc_data(env_check.read(OUT_DIR / key / "TC.md"))
+    data = tc_data(env_check.read(env_check.pp.autotest_dir(key, create=False) / "TC.md"))
     for vendor in sorted({d["vendor"] for d in data["db"]}):
         word = DRIVER_WORDS.get(vendor, vendor)
         if word not in build_text:
@@ -110,7 +110,7 @@ def main(args):
         if compile_status != "ok":
             need.append(("компиляция", compile_status, "тесты не компилируются"))
     ready = not need
-    out_file = OUT_DIR / key / "ENV-TC.md"
+    out_file = env_check.pp.autotest_dir(key, create=False) / "ENV-TC.md"
     written = write_report(out_file, key, ready, need, compile_status)
     lines = ["ТК: " + key]
     lines += ["НУЖНО: %s · %s · %s" % item for item in need]

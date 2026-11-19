@@ -14,4 +14,6 @@ proposal -> (tc) -> design -> tasks -> apply -> архив. Артефакты �
 | Артефакты автотеста | `skills/autotest-plan/scripts/os_artifacts.py` |
 | Точка входа | скилл `orchestrator`, Шаг 0 (режим OpenSpec) |
 
+Всё по работе лежит в `openspec/changes/<имя>/` (план автотеста и карта миграции - это `design.md` изменения,
+рабочие файлы - `outputs/`), общее для проекта - в `openspec/pvatf/`. Пути считает `skills/*/scripts/pvatf_paths.py`.
 В проекте без `openspec/config.yaml` набор работает как pvatf-skillkit (файлы в `.gigacode/data/`).

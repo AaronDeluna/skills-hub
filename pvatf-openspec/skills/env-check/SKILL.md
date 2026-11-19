@@ -23,6 +23,10 @@ description: 'Проверка, настройка и создание с нул
 
 ## Предусловия
 
+- Файлы работы - в каталоге изменения OpenSpec `openspec/changes/<имя>/` (`<имя>` - строка
+  `ИЗМЕНЕНИЕ:` из `os_work.py next` оркестратора): артефакты `proposal.md`, `design.md`,
+  `tasks.md` и рабочие файлы `outputs/`. Общее для проекта (конспект документации, `ENV.json`) -
+  `openspec/pvatf/`. Пути в командах скриптов определяются сами - подставлять их не нужно.
 - Запуск из корня проекта автотестов (там, где `pom.xml` / `build.gradle(.kts)` и `.gigacode/`);
   режим `init` - из пустого каталога будущего проекта.
 - Python 3.8+ (команды `python3 ...`; на Windows, где нет `python3`, - `python ...` или `py -3 ...`).
@@ -39,11 +43,11 @@ description: 'Проверка, настройка и создание с нул
 
 1. Версии фрейма. Сначала проверь, нужен ли запрос:
    ```
-   python3 .gigacode/skills/env-check/scripts/env_check.py --notes-fresh .gigacode/data/autotest/release-notes.md
+   python3 .gigacode/skills/env-check/scripts/env_check.py --notes-fresh openspec/pvatf/env/release-notes.md
    ```
    `RELEASE NOTES: СВЕЖИЕ` -> MCP не вызывай, файл не трогай, сразу команда проверки ниже.
    `НУЖЕН ЗАПРОС` -> вызови MCP-инструмент `get_pvat_release_notes` (таймаут 120 секунд; таймаут или
-   ошибка -> повтори 1 раз) и запиши в `.gigacode/data/autotest/release-notes.md` только строки-заголовки релизов - строки, где стоит номер версии
+   ошибка -> повтори 1 раз) и запиши в `openspec/pvatf/env/release-notes.md` только строки-заголовки релизов - строки, где стоит номер версии
    (`## <версия>`, «Версия <версия> от <дата>»), дословно, по строке на релиз, не больше 30 строк.
    Описания изменений не переписывай: из файла скрипт берёт только номера версий. Нельзя:
    переписать ответ целиком. Нельзя: написать номер версии от себя - только строки из ответа.
@@ -53,10 +57,10 @@ description: 'Проверка, настройка и создание с нул
    `САМАЯ НОВАЯ` с пометкой «без MCP». Сам версию не ищешь и не выбираешь.
    Запусти (таймаут команды - 600 секунд; компиляцию скрипт сам ограничивает 540 секундами):
    ```
-   python3 .gigacode/skills/env-check/scripts/env_check.py --release-notes .gigacode/data/autotest/release-notes.md
+   python3 .gigacode/skills/env-check/scripts/env_check.py --release-notes openspec/pvatf/env/release-notes.md
    ```
    Скрипт сам выбирает команду компиляции (`mvn -q -DskipTests test-compile` или
-   `gradle -q testClasses`, обёртка в приоритете), пишет `.gigacode/data/autotest/ENV.json`
+   `gradle -q testClasses`, обёртка в приоритете), пишет `openspec/pvatf/env/ENV.json`
    и печатает сводку.
 2. Покажи человеку сводку по шаблону из раздела «Контракт» - строки `СТАТУС`, `E1`-`E6` и
    все строки `ПРОБЛЕМА` дословно.
@@ -120,11 +124,11 @@ description: 'Проверка, настройка и создание с нул
 для `init` - groupId, artifactId, пакет.
 
 Выход:
-- `.gigacode/data/autotest/ENV.json` - полный результат (пишет скрипт, руками не правится);
-- режим setup - `.gigacode/data/autotest/ENV-SETUP.md` по шаблону `references/setup.md`;
-- режим init - ещё `pom.xml`, каталоги тестов, `.gigacode/data/autotest/ENV-INIT.md`, базовый тест-класс;
-- `.gigacode/data/autotest/release-notes.md` - строки-заголовки релизов из ответа `get_pvat_release_notes` (не больше 30);
-- режим setup с ключом - `.gigacode/data/autotest/<ключ>/ENV-TC.md` (пишет `env_tc.py`, руками не правится);
+- `openspec/pvatf/env/ENV.json` - полный результат (пишет скрипт, руками не правится);
+- режим setup - `openspec/pvatf/env/ENV-SETUP.md` по шаблону `references/setup.md`;
+- режим init - ещё `pom.xml`, каталоги тестов, `openspec/pvatf/env/ENV-INIT.md`, базовый тест-класс;
+- `openspec/pvatf/env/release-notes.md` - строки-заголовки релизов из ответа `get_pvat_release_notes` (не больше 30);
+- режим setup с ключом - `openspec/changes/<имя>/outputs/ENV-TC.md` (пишет `env_tc.py`, руками не правится);
 - ответ в чате строго по шаблону:
 
 ```

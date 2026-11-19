@@ -5,11 +5,11 @@
 1. Скажи, что все юниты карты выполнены и проверка миграции замечаний не нашла (номер круга).
 2. Проверь раздел «5. Входящие» карты: если там есть неразобранные пункты - скажи об этом и
    предложи запустить `migration-map` (обновление карты), чтобы превратить их в юниты.
-3. Назови отчёты: `.gigacode/data/migration/MIGRATION-REVIEW.md` и
-   `.gigacode/data/migration/review/*.md`.
+3. Назови отчёты: `openspec/changes/<имя>/outputs/MIGRATION-REVIEW.md` и
+   `openspec/changes/<имя>/outputs/review/*.md`.
    Предложи: «Напишите: `/orchestrator проверь зависимости` - после миграции в сборке часто остаются старые библиотеки и разные версии одной библиотеки».
 4. **Служебная папка.** Спроси одним вопросом: «Миграция завершена. Удалить служебные файлы
-   миграции `.gigacode/data/migration/`? да / нет». Только после ответа «да»:
-   `git rm -r --cached .gigacode/data/migration 2>/dev/null; rm -r .gigacode/data/migration`.
+   миграции `openspec/changes/<имя>/outputs/`? да / нет». Только после ответа «да»:
+   `git rm -r --cached openspec/changes/<имя>/outputs 2>/dev/null; rm -r openspec/changes/<имя>/outputs`.
    Без «да» ничего не удаляй. Пока есть невыполненные юниты, открытые вопросы или
    `review_status` не `clean` - удаление не предлагай.

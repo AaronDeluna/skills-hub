@@ -82,7 +82,7 @@ python3 .gigacode/skills/migration-map/scripts/card.py new M-<nnn> <tech> --depe
 **Промпт (копируй дословно, подставь `<...>`):**
 ```
 Ты пишешь карточку юнита миграции одной технологии на фрейм PVATF. Меняешь ОДИН файл:
-<абсолютный путь>/.gigacode/data/migration/units/M-<nnn>.md. В нём уже лежит заготовка:
+<абсолютный путь>/openspec/changes/<имя>/outputs/units/M-<nnn>.md. В нём уже лежит заготовка:
 шапка, «Данные подключения», команды поиска, таблица потребителей, подшаг S-01 - их не
 переписывай, только заполни в них поля `<...>`. Больше ничего не создавай и
 не меняй, код проекта не трогай, сборку не запускай. Всё, что пишешь, бери только из
@@ -93,11 +93,11 @@ python3 .gigacode/skills/migration-map/scripts/card.py new M-<nnn> <tech> --depe
 <путь к скиллу>/references/tech-unit-template.md
 
 Источники (прочитай):
-- разбор технологии: <путь>/.gigacode/data/migration/inventory/analysis-<tech>.md
-- целевая картина: блок `T-<tech>` в <путь>/.gigacode/data/migration/MIGRATION-MAP.md (раздел 2), строки `G` и `L` с технологией <tech>
-- архитектурный план: строки технологии <tech> и разделы 1-2 в <путь>/.gigacode/data/migration/ARCHITECTURE.md
-- конспект: <путь>/.gigacode/data/migration/doc-notes/<tech>.md и doc-notes/common.md
-- подключения: раздел <tech> в <путь>/.gigacode/data/migration/CONNECTIONS.md
+- разбор технологии: <путь>/openspec/changes/<имя>/outputs/inventory/analysis-<tech>.md
+- целевая картина: блок `T-<tech>` в <путь>/openspec/changes/<имя>/design.md (раздел 2), строки `G` и `L` с технологией <tech>
+- архитектурный план: строки технологии <tech> и разделы 1-2 в <путь>/openspec/changes/<имя>/outputs/ARCHITECTURE.md
+- конспект: <путь>/openspec/pvatf/migration/doc-notes/<tech>.md и doc-notes/common.md
+- подключения: раздел <tech> в <путь>/openspec/changes/<имя>/outputs/CONNECTIONS.md
 - отложенные в другую технологию файлы: <список; нет - "-">
 
 Параметры юнита: id M-<nnn>; depends_on [<...>]; core_mode <new|in-place>; стиль шагов <steps|flow>; scope <full|core>.
@@ -151,10 +151,10 @@ python3 .gigacode/skills/migration-map/scripts/card.py M-<nnn>
 Ты проверяешь карточку юнита миграции на фрейм PVATF. Только читаешь и находишь
 нарушения: ничего не меняй. Свои правила не придумывай, вкусовые замечания не пиши.
 
-Карточка: <путь>/.gigacode/data/migration/units/M-<nnn>.md
-Разбор технологии: <путь>/.gigacode/data/migration/inventory/analysis-<tech>.md
+Карточка: <путь>/openspec/changes/<имя>/outputs/units/M-<nnn>.md
+Разбор технологии: <путь>/openspec/changes/<имя>/outputs/inventory/analysis-<tech>.md
 Шаблон и правила «Как писать подшаг»: <путь к скиллу>/references/tech-unit-template.md
-Конспект: <путь>/.gigacode/data/migration/doc-notes/<tech>.md
+Конспект: <путь>/openspec/pvatf/migration/doc-notes/<tech>.md
 
 Проверь по пунктам:
 К1. Каждое действие из колонки «Действия» разбора есть методом в подшагах `core`; в `core`

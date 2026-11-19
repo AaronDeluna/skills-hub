@@ -21,9 +21,11 @@ import re
 import sys
 from pathlib import Path
 
-OUT_DIR = Path(".gigacode") / "data" / "migration" / "inventory"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+OUT_DIR = pp.migration_dir() / "inventory"
 CODE_EXT = (".java", ".kt")
-SKIP = {".git", ".gigacode", "target", "build", "out", ".idea", ".gradle"}
+SKIP = {".git", ".gigacode", "openspec", "target", "build", "out", ".idea", ".gradle"}
 ASSERT = re.compile(r"Assertions\.|\bassert(Equals|True|False|NotNull|Null|That|All|Throws)\(|SoftAssertions|\.should\(|"
                     r"\bassertThat\(")
 PARSE = re.compile(r"\.as\([A-Z][A-Za-z0-9_]*\.class\)|readValue\(|fromJson\(|JsonNode|\.extract\(\)")

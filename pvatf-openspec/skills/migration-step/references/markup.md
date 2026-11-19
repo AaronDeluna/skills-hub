@@ -14,7 +14,7 @@
 значение в проекте -> дальше не ищи: делай по правилу для этого случая.
 
 1. Прочитай `references/markup-rules.md` и строку «Разметка» паспорта:
-   `grep -n "^- Разметка" .gigacode/data/migration/MIGRATION-MAP.md`.
+   `grep -n "^- Разметка" openspec/changes/<имя>/design.md`.
    В строке остались угловые скобки (значение не собрано) -> это незакрытый вопрос карты:
    СТОП, как в Шаге 1 (`references/start.md`).
 2. `unit.py rules M-<nnn>` - правило `MR-51`.

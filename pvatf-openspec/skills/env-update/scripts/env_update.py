@@ -22,8 +22,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import frame_versions as fv  # noqa: E402
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
 
-DATA = Path(".gigacode") / "data" / "autotest"
+DATA = pp.env_dir()
 WORK = DATA / "env-update"
 STATE = WORK / "state.json"
 BACKUP = WORK / "backup"

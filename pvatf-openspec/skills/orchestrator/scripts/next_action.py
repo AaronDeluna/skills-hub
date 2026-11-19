@@ -24,14 +24,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import autotest_queue as queue  # noqa: E402 - очередь ТК, тот же каталог
+import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
 
 # interactive - pvatf-skillkit (вопросы человеку), auto - pvatf-skillkit-auto (решения без человека)
 KIT_MODE = "interactive"
 
-DATA = Path(".gigacode") / "data"
-MIGRATION = DATA / "migration"
-AUTOTEST = DATA / "autotest"
-REVIEW = DATA / "autotest-review"
+DATA = pp.root()
 AGENTS = Path(".gigacode") / "agents"
 AGENT_NAMES = ["pvatf-checker", "pvatf-docs", "pvatf-examples", "pvatf-executor", "pvatf-generator", "pvatf-marker", "pvatf-markup-analyst"]
 BATCH_LIMIT = 5
@@ -171,7 +169,7 @@ def open_questions_note(text):
 
 
 def card_rows(uid):
-    card = read(MIGRATION / "units" / (uid + ".md"))
+    card = read(pp.migration_dir(create=False) / "units" / (uid + ".md"))
     if card is None:
         return None
     return [row for row in (cells(line) for line in card.split("\n"))
@@ -280,7 +278,7 @@ def requested(request, units, archived, core):
 
 
 def migration(args):
-    map_file = MIGRATION / "MIGRATION-MAP.md"
+    map_file = pp.map_file(create=False)
     text = read(map_file)
     if text is None:
         say("migration-map", "карты нет - строим с Этапа 1")
@@ -358,7 +356,7 @@ def migration(args):
 # ---------- окружение ----------
 
 def env_state():
-    env = AUTOTEST / "ENV.json"
+    env = pp.env_dir() / "ENV.json"
     try:
         return json.loads(env.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -368,7 +366,7 @@ def env_state():
 def env(args):
     """Окружение: незаконченное обновление продолжается; иначе - запрошенный режим (check / setup / update)."""
     mode = args[0] if args and args[0] in ("check", "setup", "update", "init") else "check"
-    update = read(AUTOTEST / "ENV-UPDATE.md")
+    update = read(pp.env_dir() / "ENV-UPDATE.md")
     if update is not None:
         head = front_matter(update)
         status = head.get("update_status", "-")
@@ -437,15 +435,15 @@ def autotest(args):
         say("autotest-plan", "новый тест-кейс из артефакта " + want + " - разбор, проверка, план")
         return
     rows = []
-    for plan in sorted(AUTOTEST.glob("*/PLAN.md")) if AUTOTEST.is_dir() else []:
+    for key, plan in pp.plan_files():
         head = front_matter(read(plan) or "")
-        rows.append((plan.parent.name, head.get("plan_status", "-"), head.get("tc_status", "-")))
+        rows.append((key, head.get("plan_status", "-"), head.get("tc_status", "-")))
     if want:
         for tc, status, tc_status in rows:
             if tc == want:
                 say(*autotest_step(tc, status, tc_status))
                 return
-        tc_file = AUTOTEST / want / "TC.md"
+        tc_file = pp.autotest_dir(want, create=False) / "TC.md"
         if tc_file.is_file():
             say("autotest-plan " + want, "тест-кейс разобран, плана нет - проверка, план")
         else:
@@ -482,10 +480,10 @@ def queue_next(explicit):
     if item["key"] == "-":
         say("autotest-plan " + item["source"], "очередь, " + where + " - новый тест-кейс из артефакта, разбор, проверка, план")
     else:
-        head = front_matter(read(AUTOTEST / item["key"] / "PLAN.md") or "")
+        head = front_matter(read(pp.plan_file(item["key"], create=False)) or "")
         if head:
             action, why = autotest_step(item["key"], head.get("plan_status", "-"), head.get("tc_status", "-"))
-        elif (AUTOTEST / item["key"] / "TC.md").is_file():
+        elif (pp.autotest_dir(item["key"], create=False) / "TC.md").is_file():
             action, why = "autotest-plan " + item["key"], "тест-кейс разобран, плана нет - проверка, план"
         else:
             action, why = "autotest-plan " + item["key"], "загрузить ТК из Zephyr по ключу, потом разбор, проверка, план"
@@ -497,12 +495,11 @@ def queue_next(explicit):
 def run(key):
     """Запуск сгенерированного тест-класса: только после чистой проверки."""
     if not key:
-        checked = [p.parent.name for p in sorted(AUTOTEST.glob("*/PLAN.md")) if AUTOTEST.is_dir()
-                   and front_matter(read(p) or "").get("plan_status") == "checked"]
+        checked = [k for k, p in pp.plan_files() if front_matter(read(p) or "").get("plan_status") == "checked"]
         say("нельзя", "не назван ключ ТК - запусти: «/orchestrator запусти автотест <ключ>»"
             + ("; проверены: " + ", ".join(checked[:10]) if checked else ""))
         return
-    head = front_matter(read(AUTOTEST / key / "PLAN.md") or "")
+    head = front_matter(read(pp.plan_file(key, create=False)) or "")
     if not head:
         say("нельзя", "плана " + key + " нет - сначала «/orchestrator сгенерируй автотест по ТК " + key + "»")
         return
@@ -548,17 +545,17 @@ def foreign_tests():
 
 def env_tc_ready(tc):
     """Окружение под ТК проверено env_tc.py и готово: ENV-TC.md с env_tc: ready."""
-    return front_matter(read(AUTOTEST / tc / "ENV-TC.md") or "").get("env_tc") == "ready"
+    return front_matter(read(pp.autotest_dir(tc, create=False) / "ENV-TC.md") or "").get("env_tc") == "ready"
 
 
 def autotest_step(tc, status, tc_status):
     if tc_status == "FAIL":
-        return ("заблокировано", tc + ": проверка тест-кейса FAIL - покажи находки из .gigacode/data/autotest/" + tc
-                + "/TC-CHECK.md, нужен исправленный ТК")
+        return ("заблокировано", tc + ": проверка тест-кейса FAIL - покажи находки из " + str(pp.autotest_dir(tc, create=False) / "TC-CHECK.md").replace("\\", "/")
+                + ", нужен исправленный ТК")
     if status not in PLAN_STATUSES or status == "draft":
         return ("autotest-plan " + tc, "plan_status: " + status + " - план не утверждён, достроить и проверить")
     if status in ("planned", "generating") and not env_tc_ready(tc):
-        return ("env-setup " + tc, "окружение под ТК не готово (нет " + str(AUTOTEST / tc / "ENV-TC.md").replace("\\", "/")
+        return ("env-setup " + tc, "окружение под ТК не готово (нет " + str(pp.autotest_dir(tc, create=False) / "ENV-TC.md").replace("\\", "/")
                 + " с env_tc: ready) - модули фрейма, драйвер, сервисы и подключения по документации, потом генерация")
     if status == "planned":
         return ("autotest-gen " + tc, "план готов - сгенерировать шаги и собрать тест-класс")
@@ -583,7 +580,7 @@ def review(args):
         return
     want = args[0] if args else None
     rows = []
-    for plan in sorted(REVIEW.glob("*/REVIEW-PLAN.md")) if REVIEW.is_dir() else []:
+    for plan in pp.review_plans():
         head = front_matter(read(plan) or "")
         rows.append((head.get("file", "-"), head.get("review_status", "-")))
     if want:
@@ -609,7 +606,7 @@ def deps(args):
         say("нельзя", "в корне нет pom.xml, build.gradle и settings.gradle - ревью зависимостей нечего проверять;"
             " проект с нуля - /orchestrator создай проект автотестов")
         return
-    head = front_matter(read(DATA / "dependency" / "FINDINGS.md") or "")
+    head = front_matter(read(pp.kind_dir("deps-review", "dependency", create=False) / "FINDINGS.md") or "")
     status = head.get("deps_status", "-")
     if status in ("scanned", "tree-done"):
         say("dependency-review", "deps_status: " + status + " - ревью не закончено, продолжить с того же места")

@@ -23,7 +23,11 @@ REST, Kafka, базы данных, OpenShift и другие технологи
 
 ## Предусловия
 
-- Карта `.gigacode/data/migration/MIGRATION-MAP.md` с `map_status: approved`, карточка `units/M-<nnn>.md`.
+- Файлы работы - в каталоге изменения OpenSpec `openspec/changes/<имя>/` (`<имя>` - строка
+  `ИЗМЕНЕНИЕ:` из `os_work.py next` оркестратора): артефакты `proposal.md`, `design.md`,
+  `tasks.md` и рабочие файлы `outputs/`. Общее для проекта (конспект документации, `ENV.json`) -
+  `openspec/pvatf/`. Пути в командах скриптов определяются сами - подставлять их не нужно.
+- Карта `openspec/changes/<имя>/design.md` с `map_status: approved`, карточка `units/M-<nnn>.md`.
 - Запуск из корня мигрируемого проекта, ветка миграции в git.
 - Python 3.8+ - для скриптов `unit.py`, `notes.py`, `markup_keys.py`.
 - Агенты `pvatf-docs`, `pvatf-checker`, `pvatf-executor` в `.gigacode/agents/` (ставит orchestrator).
@@ -39,7 +43,7 @@ REST, Kafka, базы данных, OpenShift и другие технологи
 ## Сначала узнай режим - от него зависит, правишь ли ты код
 
 ```
-grep -n "Режим исполнения" .gigacode/data/migration/MIGRATION-MAP.md
+grep -n "Режим исполнения" openspec/changes/<имя>/design.md
 ```
 
 | Строка паспорта | Кто правит код проекта | Твой путь по подшагу |

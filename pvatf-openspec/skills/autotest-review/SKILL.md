@@ -7,25 +7,29 @@ description: 'Проверка и оптимизация существующе�
 
 Скилл запускает `orchestrator`. Находки ищет скрипт, литералы в константы выносит скрипт,
 остальные правки делает агент `pvatf-generator`, компилирует и откатывает скрипт. Ты ведёшь
-цикл по правкам. Состояние - в `REVIEW-PLAN.md` (`review_status` и колонка «Статус»), поэтому
+цикл по правкам. Состояние - в `REVIEW-design.md` (`review_status` и колонка «Статус»), поэтому
 оборванный чат продолжается с того же места. Сначала прочитай `references/autotest-rules.md`.
 
 ## Когда использовать / когда не использовать
 
-| `review_status` в `.gigacode/data/autotest-review/<класс>/REVIEW-PLAN.md` | Что делаешь |
+| `review_status` в `openspec/pvatf/env-review/<класс>/REVIEW-design.md` | Что делаешь |
 |-------------------------------------------------------------------------|-------------|
 | файла нет | шаги 1-8 |
 | `found` | шаги 2-8 |
 | `approved` | шаги 3-8 |
 | `fixing` | шаги 4-8 |
-| `checked`, `rolled-back` | только итог: есть `REVIEW.md` -> по его шаблону; `REVIEW.md` нет (правки не одобрены, шаг 2) -> две строки ответа шага 2 по `REVIEW-PLAN.md`; новая проверка - шаг 1 по просьбе человека |
+| `checked`, `rolled-back` | только итог: есть `REVIEW.md` -> по его шаблону; `REVIEW.md` нет (правки не одобрены, шаг 2) -> две строки ответа шага 2 по `REVIEW-design.md`; новая проверка - шаг 1 по просьбе человека |
 
 Тест по тест-кейсу ещё не написан - не этот скилл, а `autotest-plan`.
 
 ## Предусловия
 
+- Файлы работы - в каталоге изменения OpenSpec `openspec/changes/<имя>/` (`<имя>` - строка
+  `ИЗМЕНЕНИЕ:` из `os_work.py next` оркестратора): артефакты `proposal.md`, `design.md`,
+  `tasks.md` и рабочие файлы `outputs/`. Общее для проекта (конспект документации, `ENV.json`) -
+  `openspec/pvatf/`. Пути в командах скриптов определяются сами - подставлять их не нужно.
 - Путь к тест-классу `.java` от корня проекта (в классе есть `@Test`).
-- `.gigacode/data/autotest/ENV.json` со статусом `ok` или `warning` - от `env-check`.
+- `openspec/pvatf/env/ENV.json` со статусом `ok` или `warning` - от `env-check`.
 - Агенты `pvatf-generator`, `pvatf-docs` в `.gigacode/agents/` (из папки `agents/` набора).
 - Python 3.8+ (команды `python3 ...`; на Windows, где нет `python3`, - `python ...` или `py -3 ...`).
 
@@ -49,7 +53,7 @@ description: 'Проверка и оптимизация существующе�
    `--target-only` - когда на второй вопрос ответ «нет». Строки с «Кто» `human` скрипт не
    одобряет никогда - они уходят в итог. Вывод `ОДОБРЕНО: нет` (ответ `none` или все находки - «Кто» `human`) -> шаг 3 не запускай, `REVIEW.md` не создаётся; ответ
    в чате 2 строки: `Автотест: <файл> · правки не одобрены` и `Находки: <R-n через запятую> -
-   в .gigacode/data/autotest-review/<класс>/REVIEW-PLAN.md`. Дальше не идёшь.
+   в openspec/pvatf/env-review/<класс>/REVIEW-design.md`. Дальше не идёшь.
 3. Компиляция до правок, копия исходников, правки скрипта (таймаут команды 600 секунд; компиляцию скрипт ограничивает 540 секундами):
    ```
    python3 .gigacode/skills/autotest-review/scripts/review.py start <файл>
@@ -66,7 +70,7 @@ description: 'Проверка и оптимизация существующе�
    |--------|---------|
    | `ok` | `review.py mark <файл> <R-n> done` |
    | `failed` | `review.py mark <файл> <R-n> failed` |
-   | `blocked` | вопросы документации по `references/autotest-rules.md`, правила 2-3 (метка - по технологии правки, ответ - в `.gigacode/data/doc-notes/<метка>.md`), потом снова шаг 4: `next` выдаст ту же правку с новым конспектом. Второй `blocked` на ту же правку -> `review.py mark <файл> <R-n> blocked` |
+   | `blocked` | вопросы документации по `references/autotest-rules.md`, правила 2-3 (метка - по технологии правки, ответ - в `openspec/pvatf/doc-notes/<метка>.md`), потом снова шаг 4: `next` выдаст ту же правку с новым конспектом. Второй `blocked` на ту же правку -> `review.py mark <файл> <R-n> blocked` |
 
    Потом снова шаг 4.
 6. Проверка (таймаут команды 600 секунд; компиляцию скрипт ограничивает 540 секундами):
@@ -80,7 +84,7 @@ description: 'Проверка и оптимизация существующе�
      ```
      python3 .gigacode/skills/autotest-review/scripts/review.py rollback <файл>
      ```
-8. Итог по шаблону - данные из `.gigacode/data/autotest-review/<класс>/REVIEW.md`.
+8. Итог по шаблону - данные из `openspec/pvatf/env-review/<класс>/REVIEW.md`.
 
 ## Контракт «вход -> выход»
 
@@ -88,9 +92,9 @@ description: 'Проверка и оптимизация существующе�
 
 Выход:
 - изменённый тест-класс, классы шагов и констант, зависимые тесты (только одобренные);
-- `.gigacode/data/autotest-review/<класс>/REVIEW-PLAN.md` - план и статусы (пишет скрипт);
-- `.gigacode/data/autotest-review/<класс>/REVIEW.md` - отчёт (пишет скрипт);
-- `.gigacode/data/autotest-review/<класс>/backup/` - копия исходников до правок.
+- `openspec/pvatf/env-review/<класс>/REVIEW-design.md` - план и статусы (пишет скрипт);
+- `openspec/pvatf/env-review/<класс>/REVIEW.md` - отчёт (пишет скрипт);
+- `openspec/pvatf/env-review/<класс>/backup/` - копия исходников до правок.
 
 Ответ в чате строго по шаблону:
 ```

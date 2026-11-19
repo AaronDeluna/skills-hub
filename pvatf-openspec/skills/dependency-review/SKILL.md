@@ -8,12 +8,12 @@ description: 'Ревью управления зависимостями про�
 Скилл запускает `orchestrator`. Файлы проекта ты только читаешь. Проверки по файлам сборки и
 дерево зависимостей делает скрипт `deps.py`; ты подтверждаешь спорные строки по
 `references/rules.md` и записываешь результат командой скрипта. Отчёт собирает скрипт.
-Состояние - в `.gigacode/data/dependency/FINDINGS.md` (`deps_status` в шапке), поэтому
+Состояние - в `openspec/changes/<имя>/outputs/FINDINGS.md` (`deps_status` в шапке), поэтому
 оборванный чат продолжается с того же места.
 
 ## Когда использовать / когда не использовать
 
-| `deps_status` в `.gigacode/data/dependency/FINDINGS.md` | Что делаешь |
+| `deps_status` в `openspec/changes/<имя>/outputs/FINDINGS.md` | Что делаешь |
 |---------------------------------------------------------|-------------|
 | файла нет или `reported` | шаги 1-6 |
 | `scanned` | шаги 2-6 |
@@ -24,6 +24,10 @@ description: 'Ревью управления зависимостями про�
 
 ## Предусловия
 
+- Файлы работы - в каталоге изменения OpenSpec `openspec/changes/<имя>/` (`<имя>` - строка
+  `ИЗМЕНЕНИЕ:` из `os_work.py next` оркестратора): артефакты `proposal.md`, `design.md`,
+  `tasks.md` и рабочие файлы `outputs/`. Общее для проекта (конспект документации, `ENV.json`) -
+  `openspec/pvatf/`. Пути в командах скриптов определяются сами - подставлять их не нужно.
 - Запуск из корня проекта; в корне `pom.xml`, `build.gradle(.kts)` или `settings.gradle(.kts)`.
 - Python 3.8+ (команды `python3 ...`; на Windows, где нет `python3`, - `python ...` или `py -3 ...`).
 - Для шага 2 - Maven (`./mvnw` или `mvn`) или Gradle (`./gradlew` или `gradle`). Нет - шаг 2 с `--no-build`.
@@ -76,14 +80,14 @@ description: 'Ревью управления зависимостями про�
 Вход: корень проекта; необязательно - «сборку не запускать».
 
 Выход:
-- `.gigacode/data/dependency/FINDINGS.md` - строки по правилам и статусы (пишет скрипт);
-- `.gigacode/data/dependency/DEPS.json` - то же для скрипта;
-- `.gigacode/data/dependency/tree.txt` - вывод сборщика;
-- `.gigacode/data/dependency/DEPENDENCY-ANALYSIS.md` - отчёт (пишет скрипт).
+- `openspec/changes/<имя>/outputs/FINDINGS.md` - строки по правилам и статусы (пишет скрипт);
+- `openspec/changes/<имя>/outputs/DEPS.json` - то же для скрипта;
+- `openspec/changes/<имя>/outputs/tree.txt` - вывод сборщика;
+- `openspec/changes/<имя>/outputs/DEPENDENCY-ANALYSIS.md` - отчёт (пишет скрипт).
 
 Ответ в чате строго по шаблону, данные - из вывода `report`:
 ```
-Зависимости: <СБОРКА> · <СТРУКТУРА> · отчёт .gigacode/data/dependency/DEPENDENCY-ANALYSIS.md
+Зависимости: <СБОРКА> · <СТРУКТУРА> · отчёт openspec/changes/<имя>/outputs/DEPENDENCY-ANALYSIS.md
 Находки: <строка НАХОДКИ>
 Дерево: <строка ДЕРЕВО из шага 2>
 Главное: <строка ГЛАВНОЕ>

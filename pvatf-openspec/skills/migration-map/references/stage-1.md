@@ -22,16 +22,16 @@
    пользователю: без документации из MCP миграцию начинать нельзя.
 3. Ответы агент пишет в файл сам, в конспект их переносит `notes.py merge common
    migration/doc-notes "этап 1"` (порядок - `references/subagents.md`, раздел 1): получатся записи
-   `D-common-1` ... `D-common-6` в `.gigacode/data/migration/doc-notes/common.md`. Сам конспект
+   `D-common-1` ... `D-common-6` в `openspec/pvatf/migration/doc-notes/common.md`. Сам конспект
    не правишь.
 4. В раздел 1 карты, в строку «Модули фрейма», выпиши список: модуль - технология.
 5. **Версии.** Вызови сам инструмент `get_pvat_release_notes` (без параметров, таймаут 120
    секунд; таймаут - повтори 1 раз, снова - как «недоступен» ниже).
-   Ответ есть -> запиши в `.gigacode/data/migration/release-notes.md` только строки-заголовки
+   Ответ есть -> запиши в `openspec/pvatf/env/release-notes.md` только строки-заголовки
    релизов (строки с номером версии: `## <версия>`, «Версия <версия> от <дата>»), дословно, не
    больше 30 строк, и запусти:
    ```
-   python3 .gigacode/skills/migration-map/scripts/frame_versions.py latest .gigacode/data/migration/release-notes.md
+   python3 .gigacode/skills/migration-map/scripts/frame_versions.py latest openspec/pvatf/env/release-notes.md
    ```
    В паспорт, в строку «Версии фрейма»: версия фрейма (pvat) - строка `САМАЯ НОВАЯ` дословно;
    версия perfeccionista - из ответа инструмента символ в символ. Номер версии сам не выбираешь
