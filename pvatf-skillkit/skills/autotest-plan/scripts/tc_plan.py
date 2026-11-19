@@ -264,13 +264,12 @@ def class_index(env, groups_needed):
 
 
 def class_name(tc):
-    title = re.sub(r"\[[^\]]*\]", " ", tc["title"])
-    words = re.findall(r"[A-Za-z][A-Za-z0-9]*", title)
-    if len(words) < 2:
-        words = ["".join(TRANSLIT.get(ch, ch) for ch in w.lower()) for w in re.findall(r"[А-Яа-яЁё]{3,}", title)[:4]] or words
-    camel = "".join(w[:1].upper() + w[1:] for w in words if w.lower() not in ("api", "rest", "test"))[:60]
-    digits = re.sub(r"\D", "", tc["key"].split("-")[-1])
-    name = (camel or "Case") + digits + "Test"
+    """Имя тест-класса - из ключа ТК: DEPOEFS-T1906 -> Depoefs1906Test. Русские слова латиницей (транслит) в имена
+    не попадают: это нарушает соглашения Java проекта."""
+    parts = re.findall(r"[A-Za-z]+|[0-9]+", tc["key"])
+    code = next((p for p in parts if p.isalpha() and p.upper() != "T"), "Case")
+    digits = "".join(p for p in parts if p.isdigit())
+    name = code[:1].upper() + code[1:].lower() + digits + "Test"
     return name if JAVA_NAME.fullmatch(name) else "Case" + digits + "Test"
 
 
@@ -278,14 +277,19 @@ def class_name(tc):
 
 def render(tc, check, env, rows, groups, consts, vars_, index, needs):
     project = env.get("project", {})
-    package = project.get("base_package") or "-"
+    package = project.get("test_package") or project.get("base_package") or "-"
     roots = project.get("test_roots") or ["src/test/java"]
     name = class_name(tc)
     test_file = roots[0].rstrip("/") + "/" + (package.replace(".", "/") + "/" if package != "-" else "") + name + ".java"
     bases = project.get("base_test_classes") or []
     base = bases[0].split("/")[-1].replace(".java", "").replace(".kt", "") if bases else "-"
+    base_fqn = "-"
+    for test_root in roots:
+        prefix = test_root.rstrip("/") + "/"
+        if bases and bases[0].startswith(prefix):
+            base_fqn = bases[0][len(prefix):].rsplit(".", 1)[0].replace("/", ".")
     out = ["---", "tc: " + tc["key"], "plan_status: draft", "tc_status: " + check["status"], "class: " + name,
-           "package: " + package, "test_file: " + test_file, "base_class: " + base,
+           "package: " + package, "test_file: " + test_file, "base_class: " + base, "base_fqn: " + base_fqn,
            "ui_lib: " + project.get("ui_lib", "-"), "step_style: " + project.get("step_style", "-"), "---", "",
            "# План автотеста " + tc["key"] + " · " + tc["title"], "",
            "## 1. Проверка тест-кейса", "",

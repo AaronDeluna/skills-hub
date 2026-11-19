@@ -20,6 +20,7 @@ Python 3.8+, только стандартная библиотека. Код в
 находки или нечего делать, 2 - неверные аргументы или нет файлов.
 """
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -311,6 +312,9 @@ def cmd_assemble(key):
     for extra in ("import io.qameta.allure.TmsLink;", "import org.junit.jupiter.api.DisplayName;", "import org.junit.jupiter.api.Test;"):
         if extra not in imports:
             imports.append(extra)
+    base_fqn = head.get("base_fqn", "-")
+    if "." in base_fqn and base_fqn.rsplit(".", 1)[0] != head["package"] and ("import " + base_fqn + ";") not in imports:
+        imports.append("import " + base_fqn + ";")  # BaseTest в <корень>, тест - в <корень>.tests
     name = head["class"]
     method = name[0].lower() + name[1:-4] if name.endswith("Test") and len(name) > 4 else "scenario"
     base = head.get("base_class", "-")
@@ -417,6 +421,7 @@ def run_argv(env, head):
     base = project.get("compile_argv") or project.get("compile_command", "-").split()
     if not base or base == ["-"]:
         return None, "нет команды компиляции в ENV.json - запусти env-check"
+    base = [shutil.which(base[0]) or base[0]] + list(base[1:])  # Windows: mvn -> полный путь к mvn.cmd
     tool = Path(base[0]).name.lower()
     module = module_of(head.get("test_file", ""))
     fqn = (head.get("package", "-") + "." if head.get("package", "-") != "-" else "") + head.get("class", "")
@@ -471,7 +476,12 @@ def report_result(key, path, text, head, reports, since, run_status, command, ta
     if counts is None:
         status = run_status if run_status != "ok" else "no-report"
     else:
-        status = "passed" if not falls and counts["tests"] > counts["skipped"] else ("failed" if falls else "no-tests")
+        if falls:
+            status = "failed"
+        elif run_status in ("error", "timeout"):
+            status = run_status  # сборка упала или не уложилась: XML мог остаться от прошлого запуска
+        else:
+            status = "passed" if counts["tests"] > counts["skipped"] else "no-tests"
     lines = ["# Запуск автотеста " + key, "", "- Тест-класс: " + head.get("test_file", "-"),
              "- Команда: " + command, "- Результат: " + status]
     if counts:

@@ -472,7 +472,7 @@ def cmd_scan(root):
               "версии фрейма: " + "; ".join(v + " (" + ", ".join(d["file"] + ":" + str(d["line"]) for d in decl if d["value"] == v)[:120] + ")" for v in values))
     literal = [d for d in decl if d["kind"] in ("dependency", "артефакт")]
     if len(literal) >= 2:
-        f.add("D-P2", "VIOLATION", literal[0]["file"] + ":" + str(literal[0]["line"]),
+        f.add("D-P2", "CANDIDATE", literal[0]["file"] + ":" + str(literal[0]["line"]),
               "версия фрейма записана в %d объявлениях: %s; как подключать по документации - вопрос pvatf-docs"
               % (len(literal), ", ".join(d["name"] for d in literal[:5])))
     autotests = is_autotests(root, info)

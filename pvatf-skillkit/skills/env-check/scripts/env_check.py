@@ -8,6 +8,8 @@
   python3 <каталог скилла>/scripts/env_check.py --json        - напечатать полный JSON вместо сводки
   python3 <каталог скилла>/scripts/env_check.py --release-notes <файл> - ещё сравнить версию фрейма с самой новой
       из ответа MCP get_pvat_release_notes (проблема FRAME_OUTDATED, severity info: статус не меняет)
+  python3 <каталог скилла>/scripts/env_check.py --offline [--example <путь>] - MCP недоступен: самая новая версия
+      фрейма из скачанных исходников фрейма (теги git) или проекта-примера (frame_versions.py offline)
   python3 <каталог скилла>/scripts/env_check.py --notes-fresh <файл> - нужен ли новый запрос release notes:
       файл записан сегодня и в нём есть номера версий -> «СВЕЖИЕ», код 0; иначе «НУЖЕН ЗАПРОС», код 1
 
@@ -35,7 +37,10 @@ SKIP_DIRS = {".git", ".gigacode", ".idea", ".gradle", "target", "build", "out", 
 
 # Что ищем в файлах сборки. Список - из пакета генерации автотестов; имя ищется как подстрока.
 MANDATORY_DEPS = ["environment-junit5", "allure2"]
-RECOMMENDED_DEPS = ["slf4j-api", "slf4j-simple", "allure-junit5", "aspectjweaver"]
+RECOMMENDED_DEPS = ["allure-junit5", "aspectjweaver"]
+# логирование на фрейме: простой логгер SLF4J - две зависимости и файл настроек (code-rules.md, MR-43)
+LOGGING_DEPS = ["slf4j-simple", "slf4j-api"]
+LOGGING_FILE = "simplelogger.properties"
 RECOMMENDED_PLUGINS = ["maven-surefire-plugin", "allure-maven", "maven-resources-plugin"]
 REQUIRED_PROPERTY_KEY = "perfeccionista.attachment.dir"
 DEFAULT_TIMEOUT = 540
@@ -49,12 +54,19 @@ def main():
     as_json = False
     timeout = DEFAULT_TIMEOUT
     notes = None
+    offline = False
+    examples = []
     i = 0
     while i < len(args):
         if args[i] == "--no-compile":
             compile_on = False
         elif args[i] == "--json":
             as_json = True
+        elif args[i] == "--offline":
+            offline = True
+        elif args[i] == "--example" and i + 1 < len(args):
+            examples.append(args[i + 1])
+            i += 1
         elif args[i] == "--release-notes" and i + 1 < len(args):
             notes = args[i + 1]
             i += 1
@@ -62,7 +74,7 @@ def main():
             timeout = int(args[i + 1])
             i += 1
         else:
-            print("Использование: env_check.py [--no-compile] [--timeout <секунды>] [--json] [--release-notes <файл>]")
+            print("Использование: env_check.py [--no-compile] [--timeout <секунды>] [--json] [--release-notes <файл> | --offline [--example <путь>]]")
             return 2
         i += 1
 
@@ -99,10 +111,13 @@ def main():
     check_tc_modules(report, build_text)
     check_configuration(report, root, java_files)
     check_plugins(report, build_text, tool)
+    check_logging(report, root, build_text, tool)
     describe_tests(report, root, java_files, test_roots, build_text)
     report["frame_versions"] = frame_versions(root, build_files)
     if notes is not None:
         check_outdated(report, notes)
+    elif offline:
+        check_offline(report, examples)
 
     command = compile_command(root, tool)
     report["project"]["compile_command"] = " ".join(command) if command else "-"
@@ -157,7 +172,8 @@ def summary(report):
                  project.get("base_package", "-"), project.get("ui_lib", "-"), project.get("step_style", "-")),
              "КОМПИЛЯЦИЯ: " + project.get("compile_command", "-") + " -> " + report["compile"]["status"]]
     if "latest_version" in report:
-        lines.append("САМАЯ НОВАЯ: " + report["latest_version"])
+        lines.append("САМАЯ НОВАЯ: " + report["latest_version"]
+                     + (" (" + report["latest_source"] + ")" if report.get("latest_source") else ""))
     for version in report["frame_versions"]:
         lines.append("ВЕРСИЯ: %s = %s (%s:%d)" % (version["name"], version["value"], version["file"], version["line"]))
     for item in report["checks"]:
@@ -229,6 +245,25 @@ def check_tc_modules(report, build_text):
                 "; ".join(missing[:10]))
 
 
+def check_offline(report, examples):
+    """MCP недоступен: версия из исходников фрейма или проекта-примера. Не нашлась -> FRAME_VERSION_NOT_FOUND."""
+    rows = frame_versions_module.offline(examples)
+    best = next((r for r in rows if r[2] and r[0] != "perfeccionista"), None)
+    if not best:
+        report["latest_version"] = "-"
+        problem(report, "warning", "FRAME_VERSION_NOT_FOUND", "Версия фрейма не найдена: MCP недоступен, исходников фрейма "
+                "и проекта-примера с версией нет", "нужна версия фрейма от человека")
+        return
+    report["latest_version"] = best[2]
+    report["latest_source"] = "без MCP: " + best[0] + " " + best[1] + " (" + best[3] + ")"
+    key = frame_versions_module.version_key
+    current = [v["value"] for v in report["frame_versions"] if frame_versions_module.VERSION.match(str(v["value"]))]
+    unknown = sorted({v for v in current if key(v) > key(best[2])})
+    if unknown:
+        problem(report, "warning", "FRAME_VERSION_UNKNOWN", "Версии фрейма " + ", ".join(unknown)
+                + " нет в источниках, она новее самой новой " + best[2], "поставь самую новую: " + best[2])
+
+
 def check_outdated(report, notes):
     """Версия фрейма в сборке против самой новой из release notes. Отстаёт -> FRAME_OUTDATED (info)."""
     latest, known = frame_versions_module.newest(read(Path(notes)), allow_snapshot=True)
@@ -294,6 +329,26 @@ def check_plugins(report, build_text, tool):
         check(report, "E5", "плагины Maven", "ok", "найдены")
 
 
+def check_logging(report, root, build_text, tool):
+    """Логирование: slf4j-simple и slf4j-api в сборке и simplelogger.properties в ресурсах тестов."""
+    if tool == "-":
+        return
+    missing = [d for d in LOGGING_DEPS if d not in build_text]
+    missing += logging_files_missing(root)
+    report["project"]["logging_missing"] = missing
+    if missing:
+        problem(report, "warning", "LOGGING_MISSING", "Логирование фрейма не настроено", ", ".join(missing))
+
+
+def logging_files_missing(root):
+    """simplelogger.properties нужен в ресурсах тестов каждого модуля с src/test/java."""
+    roots = find_test_roots(root)
+    if not roots:
+        return [] if find_named(root, LOGGING_FILE) else [LOGGING_FILE]
+    return [rel(root, d.parent / "resources" / LOGGING_FILE) for d in roots
+            if not (d.parent / "resources" / LOGGING_FILE).is_file()]
+
+
 def describe_tests(report, root, java_files, test_roots, build_text):
     """Паспорт тестов: сколько классов, базовый пакет, базовые классы, библиотека UI, стиль шагов."""
     test_files = [f for f in java_files if any(is_inside(f, d) for d in test_roots)]
@@ -317,11 +372,18 @@ def describe_tests(report, root, java_files, test_roots, build_text):
             base_classes.append(rel(root, f))
     report["project"]["test_classes"] = test_classes
     report["project"]["base_package"] = common_package(list(packages.keys()))
+    init = read(OUT_DIR / "ENV-INIT.md")
+    root_match = re.search(r"(?m)^- Корень пакетов: ([\w.]+)", init)
+    style_match = re.search(r"(?m)^- Стиль шагов: (steps|flow)", init)
+    # новый проект (каркас init): тест-классы - в <корень>.tests, иначе - пакет существующих тестов
+    report["project"]["root_package"] = root_match.group(1) if root_match else "-"
+    report["project"]["test_package"] = (root_match.group(1) + ".tests") if root_match else report["project"]["base_package"]
     report["project"]["base_test_classes"] = base_classes[:10]
     lowered = build_text.lower()
     libs = [name for name in ("playwright", "selenide") if name in lowered]
     report["project"]["ui_lib"] = libs[0] if len(libs) == 1 else ("playwright+selenide" if libs else "-")
-    report["project"]["step_style"] = "flow" if flow and flow >= steps else ("steps" if steps else "plain")
+    report["project"]["step_style"] = "flow" if flow and flow >= steps else ("steps" if steps else
+                                     (style_match.group(1) if style_match else "plain"))
 
 
 def run_compile(report, command, timeout):
@@ -375,11 +437,22 @@ def compile_command(root, tool):
     windows = os.name == "nt"
     if tool == "Maven":
         wrapper = "mvnw.cmd" if windows else "./mvnw"
-        return [wrapper if (root / wrapper).exists() else "mvn", "-q", "-DskipTests", "test-compile"]
+        return [wrapper_path(root, wrapper) if (root / wrapper).exists() else tool_path("mvn"), "-q", "-DskipTests", "test-compile"]
     if tool == "Gradle":
         wrapper = "gradlew.bat" if windows else "./gradlew"
-        return [wrapper if (root / wrapper).exists() else "gradle", "-q", "testClasses"]
+        return [wrapper_path(root, wrapper) if (root / wrapper).exists() else tool_path("gradle"), "-q", "testClasses"]
     return []
+
+
+def wrapper_path(root, wrapper):
+    """Обёртка в корне: на Windows - полный путь к mvnw.cmd / gradlew.bat, иначе ./mvnw как есть."""
+    return str(root / wrapper) if os.name == "nt" else wrapper
+
+
+def tool_path(name):
+    """Полный путь к команде сборки: на Windows mvn - это mvn.cmd, и без полного пути Python его не запустит
+    (WinError 2). Не нашлась - имя как есть, проверка E6 скажет BUILD_TOOL_NOT_FOUND."""
+    return shutil.which(name) or name
 
 
 def modules(root, tool):

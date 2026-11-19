@@ -56,8 +56,8 @@ def defaults():
     name = re.sub(r"[^a-z0-9]+", "-", Path(".").resolve().name.lower()).strip("-") or "autotests"
     if not name[0].isalpha():
         name = "at-" + name
-    group = "ru.autotests"
-    package = group + "." + re.sub(r"[^a-z0-9]", "", name) + ".tests"
+    group = "ru.sber." + (re.sub(r"[^a-z0-9]", "", name) or "autotests")
+    package = group  # корень пакетов: <корень>.config, .steps, .steps.base, .data, .tests (autotest-rules.md, правило 13)
     return group, name, package
 
 
@@ -67,7 +67,7 @@ def option(args, name):
 
 def main(args):
     if not args or args[0] not in ("defaults", "create"):
-        print("Использование: env_init.py defaults | create --group <groupId> --artifact <artifactId> --package <пакет>")
+        print("Использование: env_init.py defaults | create --group <groupId> --artifact <artifactId> --package <корень пакетов> --style <steps | flow>")
         return 2
     existing = [b for b in BUILD if Path(b).is_file()]
     if existing:
@@ -75,30 +75,35 @@ def main(args):
         return 1
     group, artifact, package = defaults()
     if args[0] == "defaults":
-        print("ПО УМОЛЧАНИЮ: groupId " + group + " · artifactId " + artifact + " · пакет " + package)
+        print("ПО УМОЛЧАНИЮ: groupId " + group + " · artifactId " + artifact + " · корень пакетов " + package + " · стиль шагов steps")
         return 0
     group = option(args, "--group") or group
     artifact = option(args, "--artifact") or artifact
     package = option(args, "--package") or package
+    style = option(args, "--style") or "steps"
     bad = [n + " «" + v + "»" for n, v, rx in (("groupId", group, GROUP), ("artifactId", artifact, ARTIFACT),
                                                 ("пакет", package, PACKAGE)) if not rx.fullmatch(v)]
+    if style not in ("steps", "flow"):
+        bad.append("стиль шагов «" + style + "» (steps или flow)")
     if bad:
         print("НЕВЕРНО: " + ", ".join(bad) + " - groupId вида ru.sber.demo, artifactId вида demo-tests, пакет вида ru.sber.demo.tests")
         return 1
     created = []
     Path("pom.xml").write_text(POM.format(group=group, artifact=artifact), encoding="utf-8")
     created.append("pom.xml")
-    for folder in ("src/test/java/" + package.replace(".", "/"), "src/test/resources"):
+    base = "src/test/java/" + package.replace(".", "/")
+    for folder in (base, base + "/config", base + "/steps", base + "/tests", "src/test/resources"):
         if not Path(folder).is_dir():
             Path(folder).mkdir(parents=True)
             created.append(folder + "/")
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text("# Каркас проекта\n\n- Дата: " + datetime.now().strftime("%Y-%m-%d %H:%M")
-                   + "\n- groupId: " + group + "\n- artifactId: " + artifact + "\n- Пакет тестов: " + package
+                   + "\n- groupId: " + group + "\n- artifactId: " + artifact + "\n- Корень пакетов: " + package
+                   + "\n- Пакет тестов: " + package + ".tests" + "\n- Стиль шагов: " + style
                    + "\n\n## Создано\n\n" + "\n".join("- " + c for c in created) + "\n", encoding="utf-8")
     for item in created:
         print("СОЗДАНО: " + item)
-    print("ПАКЕТ: " + package)
+    print("КОРЕНЬ ПАКЕТОВ: " + package + " · тесты " + package + ".tests · стиль шагов " + style)
     print("ДАЛЬШЕ: режим setup - зависимости фрейма, конфигурация, базовый тест-класс по документации")
     return 0
 

@@ -10,6 +10,7 @@
 - модуль фрейма под каждую технологию ТК есть в файлах сборки (слова из раздела 8);
 - драйвер JDBC под каждый адрес jdbc:<вендор> из ТК есть в файлах сборки;
 - allure-junit5 есть в файлах сборки (тест-класс несёт @TmsLink);
+- логирование: slf4j-simple и slf4j-api в сборке, simplelogger.properties в ресурсах;
 - в services() класса конфигурации окружения регистраций не меньше, чем технологий ТК;
 - каждое значение подключения из ТК (адрес REST-клиента, адрес, пользователь и пароль БД,
   логин и пароль пользователя) записано в файл настроек (src/test/resources) или в класс *Configuration;
@@ -62,6 +63,10 @@ def main(args):
         word = DRIVER_WORDS.get(vendor, vendor)
         if word not in build_text:
             need.append(("драйвер", "jdbc:" + vendor, "слово в сборке: " + word))
+    log_missing = [d for d in env_check.LOGGING_DEPS if d not in build_text]
+    log_missing += env_check.logging_files_missing(root)
+    if log_missing:
+        need.append(("логирование", ", ".join(log_missing), "simplelogger.properties и slf4j-simple + slf4j-api"))
     if "allure-junit5" not in build_text:
         need.append(("allure", "allure-junit5", "тест-класс несёт @TmsLink"))
     registered = count_registered(root)
@@ -78,13 +83,16 @@ def main(args):
         if compile_status != "ok":
             need.append(("компиляция", compile_status, "тесты не компилируются"))
     ready = not need
+    out_file = OUT_DIR / key / "ENV-TC.md"
+    written = write_report(out_file, key, ready, need, compile_status)
     lines = ["ТК: " + key]
     lines += ["НУЖНО: %s · %s · %s" % item for item in need]
     lines.append("КОМПИЛЯЦИЯ: " + compile_status)
+    if not written:
+        lines.append("НЕ ЗАПИСАН: " + str(out_file).replace("\\", "/") + " - без него генерация не начнётся")
+        ready = False
     lines.append("ОКРУЖЕНИЕ ТК: " + ("готово" if ready else "не готово (НУЖНО %d)" % len(need)))
-    out_file = OUT_DIR / key / "ENV-TC.md"
     lines.append("ФАЙЛ: " + str(out_file).replace("\\", "/"))
-    write_report(out_file, key, ready, need, compile_status)
     sys.stdout.buffer.write(("\n".join(lines) + "\n").encode("utf-8"))
     return 0 if ready else 1
 
@@ -200,8 +208,9 @@ def write_report(path, key, ready, need, compile_status):
         "| Что нужно | Чего | Подробно |", "|-----------|------|----------|"] + rows) + "\n"
     try:
         path.write_text(text, encoding="utf-8")
+        return True
     except OSError:
-        pass
+        return False
 
 
 if __name__ == "__main__":

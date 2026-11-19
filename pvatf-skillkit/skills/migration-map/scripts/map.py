@@ -253,7 +253,7 @@ def gate(stage, text):
                 p.append(tech + ": нет конспекта doc-notes/" + tech + ".md с записями")
             if "T-" + tech not in sec2:
                 p.append(tech + ": в разделе 2 нет блока T-" + tech)
-        if not re.search(r"(?m)^\| G-[0-9]+ ", sec2):
+        if migrate_techs(text) and not re.search(r"(?m)^\| G-[0-9]+ ", sec2):
             p.append("в разделе 2 нет ни одной строки G")
         for line in sec2.split("\n"):
             row = cells(line)

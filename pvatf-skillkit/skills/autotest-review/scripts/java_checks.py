@@ -6,6 +6,7 @@ Python 3.8+, только стандартная библиотека.
 """
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -83,6 +84,7 @@ def compile_project(timeout, env_json=ENV_JSON):
     command = " ".join(argv)
     if not argv or argv == ["-"]:
         return "skipped", ["нет команды компиляции в ENV.json - запусти env-check"]
+    argv = [shutil.which(argv[0]) or argv[0]] + list(argv[1:])  # Windows: mvn -> полный путь к mvn.cmd
     try:
         result = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
     except subprocess.TimeoutExpired:

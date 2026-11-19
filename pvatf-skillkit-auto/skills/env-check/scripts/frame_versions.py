@@ -1,5 +1,11 @@
-"""Где в файлах сборки объявлена версия фрейма PVATF. Модуль, а не команда: его импортируют
-env_check.py и env_update.py из той же папки scripts/.
+"""Где в файлах сборки объявлена версия фрейма PVATF. Модуль: его импортируют env_check.py и
+env_update.py из той же папки scripts/. Ещё две команды (запуск из корня проекта):
+
+  python3 frame_versions.py latest <файл>         - самая новая версия по заголовкам release notes
+  python3 frame_versions.py offline [<путь> ...]  - версия без MCP: исходники фрейма (теги git), потом
+      проект-пример (версия фрейма в его сборке). Путей нет - ищет git-клоны фрейма на диске
+      (~, /home, /opt, /work, /data, глубина 6; ~/.m2, jar и распаковка не используются).
+  Код выхода: 0 - версия найдена, 1 - нет, 2 - неверный запуск.
 
 Объявление - строка файла, где версия записана буквально: свойство (<pvat.version>3.4.1</pvat.version>,
 pvatVersion=3.4.1, pvat = "3.4.1" в libs.versions.toml) или версия прямо в зависимости,
@@ -7,7 +13,10 @@ parent, плагине (<version>3.4.1</version>, "ru.sber.pvat:core:3.4.1"). В
 (${pvat.version}, $pvatVersion, version.ref) разворачивается до строки, где стоит число.
 Python 3.8+, только стандартная библиотека.
 """
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 FRAME_MARKERS = ["pvat", "pv-at", "platform-v-at", "perfeccionista", "sbt-at", "ru.sber.qa"]
@@ -215,3 +224,112 @@ def version_key(value):
     else:
         rank = 1
     return numbers, rank, suffix
+
+
+# ---------- версия без MCP ----------
+
+MODULE_DIRS = {"rest", "kafka", "database", "websocket", "grpc", "core", "environment", "environment-junit5", "allure2"}
+SOURCE_NAMES = re.compile(r"platform-v-at|pvat|perfeccionista", re.I)
+
+
+def find_clones():
+    """git-клоны фрейма и проектов-примеров на диске - те же правила, что в migration-map, Этап 1, п.6."""
+    default = (os.path.expanduser("~"), "/home", "/opt", "/work", "/data")
+    # PVATF_SEARCH_ROOTS - свои каталоги поиска через «:» (например, где лежат клоны в контуре)
+    custom = [r for r in os.environ.get("PVATF_SEARCH_ROOTS", "").split(":") if r]
+    roots = [r for r in (custom or default) if os.path.isdir(r)]
+    command = ["find"] + roots + ["-maxdepth", "6", "-type", "d", "-name", ".git", "-not", "-path", "*/.m2/*",
+                                  "-not", "-path", "*/node_modules/*"]
+    try:
+        out = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=120).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    found = []
+    for line in out.decode("utf-8", "replace").splitlines():
+        folder = line[:-len("/.git")] if line.endswith("/.git") else line
+        if SOURCE_NAMES.search(folder) and folder not in found:
+            found.append(folder)
+    return sorted(found)[:20]
+
+
+def kind_of(path):
+    """исходники фрейма (подкаталоги-модули со своим src/main/java), проект-пример (подключает фрейм) или None."""
+    path = Path(path)
+    modules = [d for d in path.iterdir() if d.is_dir() and d.name in MODULE_DIRS and (d / "src" / "main" / "java").is_dir()] \
+        if path.is_dir() else []
+    if modules:
+        return "исходники фрейма"
+    if path.is_dir() and declarations(path):
+        return "проект-пример"
+    return None
+
+
+def source_version(path):
+    """Версия исходников фрейма: самый новый тег git вида v<версия>, иначе <version> корневого pom без SNAPSHOT."""
+    try:
+        out = subprocess.run(["git", "-C", str(path), "tag", "--list"], stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, timeout=60).stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.TimeoutExpired):
+        out = ""
+    tags = [t.strip().lstrip("vV") for t in out.splitlines()]
+    tags = [t for t in tags if VERSION.match(t) and "." in t and "SNAPSHOT" not in t.upper()]
+    if tags:
+        return max(tags, key=version_key), "тег git"
+    pom = read(Path(path) / "pom.xml")
+    head = re.sub(r"<(parent|dependencies|dependencyManagement|build|profiles)>.*?</\1>", "", pom, flags=re.S)
+    m = re.search(r"<version>\s*([^<\s]+)\s*</version>", head)
+    if m and VERSION.match(m.group(1)) and "SNAPSHOT" not in m.group(1).upper():
+        return m.group(1), "pom.xml"
+    return None, "-"
+
+
+def offline(paths):
+    """[(вид, путь, версия, откуда)] по найденным источникам; первым - лучший."""
+    rows = []
+    given = {str(Path(p).resolve()) for p in paths}
+    here = Path.cwd().resolve()
+    # пути от человека или из паспорта + найденные git-клоны: исходники фрейма ищутся всегда
+    for path in dict.fromkeys(list(paths) + find_clones()):
+        if Path(path).resolve() == here:
+            continue  # сам проект - не источник своей же версии
+        kind = kind_of(path)
+        if kind == "исходники фрейма":
+            version, where = source_version(path)
+            rows.append((kind, str(path), version, where))
+        elif kind == "проект-пример":
+            decl = [d for d in declarations(path) if "SNAPSHOT" not in d["value"].upper()]
+            frame = [d for d in decl if "perfeccionista" not in d["name"].lower()] or decl
+            if frame:
+                best = max(frame, key=lambda d: version_key(d["value"]))
+                rows.append((kind, str(path), best["value"], best["file"] + ":" + str(best["line"])))
+                for d in decl:
+                    if "perfeccionista" in d["name"].lower():
+                        rows.append(("perfeccionista", str(path), d["value"], d["file"] + ":" + str(d["line"])))
+    order = {"исходники фрейма": 0, "проект-пример": 1, "perfeccionista": 2}
+    # исходники фрейма - всегда первыми; среди проектов-примеров названный человеком важнее найденного
+    rows.sort(key=lambda r: (order[r[0]], str(Path(r[1]).resolve()) not in given, r[2] is None,
+                             tuple(-n for n in version_key(r[2] or "0")[0])))
+    return rows
+
+
+def main(args):
+    if len(args) == 2 and args[0] == "latest":
+        latest, _ = newest(read(Path(args[1])))
+        print("САМАЯ НОВАЯ: " + (latest or "-"))
+        return 0 if latest else 1
+    if args and args[0] == "offline":
+        rows = offline(args[1:])
+        for kind, path, version, where in rows:
+            if kind != "perfeccionista":
+                print("ИСТОЧНИК: %s · %s · версия %s (%s)" % (kind, path, version or "не найдена", where))
+        best = next((r for r in rows if r[2] and r[0] != "perfeccionista"), None)
+        perf = next((r for r in rows if r[0] == "perfeccionista"), None)
+        print("ВЕРСИЯ БЕЗ MCP: " + ("%s · %s %s" % (best[2], best[0], best[1]) if best else "не найдена"))
+        print("PERFECCIONISTA БЕЗ MCP: " + ("%s · проект-пример %s (%s)" % (perf[2], perf[1], perf[3]) if perf else "не найдена"))
+        return 0 if best else 1
+    print("Использование: frame_versions.py latest <файл> | offline [<путь> ...]")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
