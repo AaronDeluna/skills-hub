@@ -40,3 +40,9 @@ pvatf-skillkit-auto/shared/
 pvatf-skillkit-auto/tests/
 __pycache__/
 *.pyc
+
+# Конспект внутрибанковского openspec-de для встраивания наборов - не коммитить
+openspec-de/
+pvatf-openspec/scripts/
+pvatf-openspec/shared/
+pvatf-openspec/tests/

@@ -1,0 +1,81 @@
+# Версия пакета pvatf-openspec: 0.1.0
+# Схема для отдельного проекта автотестов на фрейме PVATF. Одна основная схема на проект.
+# Вид изменения - ключ `x-pvatf-kind` в .openspec.yaml изменения (autotest, ...).
+# Содержимое артефактов пишет скрипт os_artifacts.py из рабочих файлов набора
+# (.gigacode/data/), модель артефакты руками не пишет и не правит.
+name: pvatf-autotests
+version: 1
+description: PVATF - автотест по тест-кейсу из TMS - proposal -> tc -> design -> tasks -> apply
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Какие тест-кейсы автоматизируются и зачем
+    template: proposal.md
+    instruction: |
+      Не пиши файл сам. Запусти (таймаут 600 секунд):
+        python3 .gigacode/skills/autotest-plan/scripts/os_artifacts.py proposal <имя изменения>
+      Код 0 -> покажи пользователю строки вывода «ИТОГ» и «ФАЙЛ».
+      Код 1 -> покажи строки «НУЖНО» и сделай то, что в них написано, потом запусти снова.
+      Код 2 -> покажи вывод и остановись.
+      Нельзя: дописать proposal.md руками. Нужно: только вывод скрипта.
+    requires: []
+  - id: tc
+    generates: "tc/*.md"
+    description: Тест-кейс из TMS и его проверка (TC-n)
+    template: tc.md
+    instruction: |
+      Не пиши файлы сам. Запусти (таймаут 600 секунд):
+        python3 .gigacode/skills/autotest-plan/scripts/os_artifacts.py tc <имя изменения>
+      Код 0 -> покажи строки «ИТОГ» и «ФАЙЛ».
+      Код 1 -> тест-кейс FAIL по проверке TC-n: покажи строки «НАХОДКА» пользователю и
+      остановись - ТК правит автор в TMS, автотест по FAIL не пишется.
+      Код 2 -> покажи вывод и остановись.
+    requires:
+      - proposal
+  - id: design
+    generates: design.md
+    description: Окружение, классы шагов, данные и тест-класс автотеста
+    template: design.md
+    instruction: |
+      Не пиши файл сам. Запусти (таймаут 600 секунд):
+        python3 .gigacode/skills/autotest-plan/scripts/os_artifacts.py design <имя изменения>
+      Код 0 -> покажи строки «ИТОГ» и «ФАЙЛ».
+      Код 1 -> строки «НУЖНО»: окружение не готово. Запусти скилл env-check в режиме setup с
+      ключом ТК из строки, потом этот скрипт снова. Не больше 3 кругов.
+      Код 2 -> покажи вывод и остановись.
+    requires:
+      - tc
+  - id: tasks
+    generates: tasks.md
+    description: Группы задач apply - одна группа на шаг генерации G-n
+    template: tasks.md
+    instruction: |
+      Не пиши файл сам. Запусти (таймаут 600 секунд):
+        python3 .gigacode/skills/autotest-plan/scripts/os_artifacts.py tasks <имя изменения>
+      Код 0 -> покажи строки «ИТОГ» и «ФАЙЛ». Код 1 или 2 -> покажи вывод и остановись.
+    requires:
+      - design
+apply:
+  requires:
+    - tasks
+  tracks: tasks.md
+  instruction: |
+    Ты выполняешь задачи tasks.md по design.md. Ты не автор дизайна.
+
+    Режим всегда subagents: каждую группу `## G-n` выполняет сабагент-исполнитель
+    pvatf-generator по брифу, ты код не пишешь. Бриф группы печатает скрипт:
+      python3 .gigacode/skills/autotest-gen/scripts/at_tools.py next <ключ ТК>
+    Вывод после строки «ЗАДАНИЕ для агента pvatf-generator» передай агенту дословно.
+    Ответ агента - строка `Статус:`: ok -> `at_tools.py mark <ключ> <G-n> ok`, отметь задачи
+    группы `- [x]`; stub -> `mark ... stub`, задача остаётся `- [ ]` с пометкой «STUB»;
+    blocked -> вопросы документации агенту pvatf-docs (правило 3 autotest-rules.md), потом то
+    же задание снова, не больше 2 кругов, потом stub.
+
+    После всех групп: `at_tools.py assemble <ключ>`, затем `at_tools.py check <ключ>`.
+    Находки check исправляй по references/generation.md скилла autotest-gen, не больше 3 кругов.
+
+    Правило происхождения: файл, которого нет в «Планируемых изменениях» design.md, не трогать.
+    Запрещено: ослаблять проверки, ставить заглушку ради зелёной сборки, писать код шагов
+    самому, запускать тест на стенде без согласия человека.
+    Расхождение design и проекта (класса нет, сигнатура другая) - СТОП, покажи человеку:
+      Симптом: <ошибка> · Задача: tasks.md:<N> · Design: design.md:<M> · Что менять: <артефакт>
