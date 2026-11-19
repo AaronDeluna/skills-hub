@@ -32,13 +32,15 @@ def has_marker(text):
 
 DEP_GA = re.compile(r"<groupId>\s*([^<\s]+)\s*</groupId>\s*<artifactId>\s*([^<\s]+)\s*</artifactId>")
 DEP_AG = re.compile(r"<artifactId>\s*([^<\s]+)\s*</artifactId>\s*<groupId>\s*([^<\s]+)\s*</groupId>")
+DEP_BLOCK = re.compile(r"<dependency>(.*?)</dependency>", re.S)
 DEP_GRADLE = re.compile(r"[\"']([\w.\-]+):([\w.\-]+)(?::[^\"'\s]*)?[\"']")
 
 
 def framework_artifacts(text):
     """artifactId зависимостей фрейма (groupId с маркером фрейма) из текста файлов сборки, через пробел.
     Слова технологий ищутся только здесь: `slf4j-api` или `rest-assured` чужих групп модуль фрейма не изображают."""
-    pairs = DEP_GA.findall(text) + [(g, a) for a, g in DEP_AG.findall(text)] + DEP_GRADLE.findall(text)
+    blocks = "\n".join(DEP_BLOCK.findall(text))  # Maven: только <dependency>, координаты самого проекта не в счёт
+    pairs = DEP_GA.findall(blocks) + [(g, a) for a, g in DEP_AG.findall(blocks)] + DEP_GRADLE.findall(text)
     return " ".join(sorted({a.lower() for g, a in pairs if has_marker(g)}))
 
 

@@ -237,7 +237,7 @@ def check_tc_modules(report, build_text):
             if len(cells) < 6 or cells[1] in ("Метка", "-") or set(cells[0]) <= set("-:") or cells[2] == "RECOMMENDED":
                 continue
             words = [w.strip() for w in cells[4].split(",") if w.strip() not in ("", "-")]
-            if words and low and not any(w in low for w in words):
+            if words and build_text.strip() and not any(w in low for w in words):
                 missing.append(plan.parent.name + ": " + cells[0])
     report["project"]["tc_modules_missing"] = missing
     if missing:
@@ -285,6 +285,17 @@ def check_outdated(report, notes):
                 "обновление - /orchestrator обнови окружение (env-update)")
 
 
+def rest_allure_missing(java_files):
+    """REST фрейма в проекте (RestService в коде), а класса настройки REST с фильтром Allure нет:
+    класс `extends DefaultRestServiceConfiguration`, в котором есть `AllureRestAssured` (setup.md, раздел 3).
+    True - проблема есть."""
+    texts = [read(f) for f in java_files]
+    if not any(re.search(r"\bRestService\b", t) for t in texts):
+        return False
+    return not any(re.search(r"extends\s+DefaultRestServiceConfiguration\b", t) and "AllureRestAssured" in t
+                   for t in texts)
+
+
 def check_configuration(report, root, java_files):
     env_configs = [f for f in java_files if f.name.endswith("EnvironmentConfiguration.java")
                    or f.name.endswith("EnvironmentConfiguration.kt")]
@@ -304,6 +315,11 @@ def check_configuration(report, root, java_files):
         problem(report, "warning", "STASH_CONFIGURATION_MISSING",
                 "Нет класса AllureDataSourceServiceConfiguration",
                 "Нужен, если тест передаёт данные между шагами через Stash")
+    if rest_allure_missing(java_files):
+        warned = True
+        problem(report, "warning", "REST_ALLURE_MISSING",
+                "RestService есть, а класса настройки REST с фильтром AllureRestAssured нет",
+                "Без него запросы и ответы REST не попадают в Allure и в консоль")
     if not properties:
         failed = True
         problem(report, "critical", "PERFECCIONISTA_PROPERTIES_MISSING", "Нет файла perfeccionista.properties",

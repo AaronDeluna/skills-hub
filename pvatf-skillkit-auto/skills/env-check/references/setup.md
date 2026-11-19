@@ -19,6 +19,7 @@
 | `LOGGING_MISSING` (`<чего нет>`) | вопрос не нужен: правка дословно по разделу 3, «Логирование» (то же, что в миграции) |
 | `ENVIRONMENT_CONFIGURATION_MISSING` | Как объявить класс конфигурации окружения (EnvironmentConfiguration) и подключить его к тестам |
 | `STASH_CONFIGURATION_MISSING` | Как объявить AllureDataSourceServiceConfiguration для передачи данных между шагами (Stash) |
+| `REST_ALLURE_MISSING` | вопрос не нужен: класс дословно по разделу 3, «Allure для REST»; импорты - вопрос «Из каких пакетов импортировать DefaultRestServiceConfiguration, RequestResponseConsoleLoggingFilter и Level» |
 | `PERFECCIONISTA_PROPERTIES_MISSING` / `PERFECCIONISTA_REQUIRED_KEY_MISSING` | Какие ключи нужны в perfeccionista.properties, в том числе perfeccionista.attachment.dir |
 | `MAVEN_PLUGINS_MISSING` (`<плагины>`) | Как настроить плагины `<плагины>` для запуска тестов фрейма и отчёта Allure |
 | `TEST_ROOT_MISSING` | Какая структура каталогов нужна проекту автотестов на фрейме |
@@ -99,7 +100,44 @@ python3 .gigacode/skills/env-check/scripts/notes.py find env <2-4 слова в�
   ```
   (в проекте-примере файл выглядит иначе - бери оттуда).
 Конфигурацию и зависимости другого логгера (`logback`, `log4j`) не добавляешь. Запросы и
-ответы фрейм пишет в лог сам - логгер в код тестов не добавляешь.
+ответы REST в консоль и в Allure пишет класс настройки REST (рецепт «Allure для REST» ниже) -
+логгер и фильтры в код тестов не добавляешь.
+
+**Allure для REST - `REST_ALLURE_MISSING` или строка `НУЖНО: allure-rest`.** Без этого класса
+запросы и ответы REST не попадают ни в отчёт Allure, ни в консоль. Делаешь сам, ДОСЛОВНО (так в
+проекте-примере фрейма):
+```java
+package <пакет>;
+
+<импорты>
+
+public class Allure2RestServiceConfiguration extends DefaultRestServiceConfiguration {
+
+    @Override
+    public RequestSpecification requestSpecification() {
+        return super.requestSpecification()
+                .filter(new AllureRestAssured())
+                .filter(new RequestResponseConsoleLoggingFilter(Level.WARN));
+    }
+}
+```
+- `<пакет>`: новый проект - `<корень пакетов>.config.services`; существующий - пакет, где уже лежат
+  другие `*ServiceConfiguration` проекта, их нет - подпакет `services` рядом с пакетом класса
+  конфигурации окружения;
+- `<импорты>`: `RequestSpecification` - `io.restassured.specification.RequestSpecification`,
+  `AllureRestAssured` - `io.qameta.allure.restassured.AllureRestAssured`; пакеты
+  `DefaultRestServiceConfiguration`, `RequestResponseConsoleLoggingFilter` и `Level` - из ответа
+  `pvatf-docs` (вопрос - таблица раздела 1), по памяти не пишешь;
+- регистрация: в `getServiceConfigurations()` у `RestService` класс настройки - этот:
+  `.put(ConfiguredServiceHolder.of(RestService.class, new Allure2RestServiceConfiguration()))`.
+  `RestService` уже зарегистрирован с другим классом -> меняешь только класс настройки в этой
+  строке, остальное в строке (например `.setOrder(-10)`) не трогаешь;
+- компиляция падает на `AllureRestAssured` -> в сборке нет `allure-rest-assured`: вопрос `pvatf-docs`
+  «Как подключить allure-rest-assured к проекту на фрейме: groupId, artifactId, версия».
+
+Нельзя: зарегистрировать `RestService` с `DefaultRestServiceConfiguration` и закончить - запросы не
+видны в Allure. Нельзя: добавить `.filter(new AllureRestAssured())` в шаги или тесты. Нужно: один
+класс `Allure2RestServiceConfiguration` по рецепту и регистрация `RestService` с ним.
 
 По одной правке на проблему, только в файлах сборки и конфигурации. Исключение -
 `TEST_ROOT_MISSING`: создай каталог `src/test/java` в модуле, где лежит файл сборки с
@@ -145,6 +183,7 @@ python3 .gigacode/skills/env-check/scripts/notes.py find env <2-4 слова в�
 | `модуль · <технология>` | Как подключить модуль фрейма для раздела «<технология>» в Maven: groupId, artifactId, версия |
 | `драйвер · jdbc:<вендор>` | Какой драйвер JDBC подключить к проекту на фрейме для адреса jdbc:<вендор>: groupId, artifactId, версия |
 | `логирование · <чего нет>` | вопрос не нужен: правка дословно по разделу 3, «Логирование» |
+| `allure-rest · Allure2RestServiceConfiguration` | вопрос не нужен: класс дословно по разделу 3, «Allure для REST» (импорты - вопрос из таблицы раздела 1) |
 | `allure · allure-junit5` | Как подключить allure-junit5 к проекту на фрейме: groupId, artifactId, версия |
 | `сервис · <технология>` | Какой сервис фрейма нужен для раздела «<технология>» и как зарегистрировать его в классе конфигурации окружения: класс сервиса, класс его настройки, пример регистрации |
 | `значение · адрес REST-клиента <имя>` | Как задать базовый адрес REST-клиента <имя>: класс настройки, метод и ключ настроек |
@@ -157,8 +196,8 @@ python3 .gigacode/skills/env-check/scripts/notes.py find env <2-4 слова в�
 | Что | Куда | Как |
 |-----|------|-----|
 | модуль, драйвер, allure-junit5 | файл сборки, где стоят зависимости фрейма | модуль фрейма - версия ссылкой на свойство версии фрейма (или без версии, если стоит BOM фрейма), правило версии - раздел 3; драйвер и allure-junit5 - версия из ответа. Версии нет в ответе -> строка в итоге `Нужно от человека: версия драйвера <артефакт>` |
-| класс настройки сервиса | берёшь класс настройки из ответа как есть; свой класс в `<корень пакетов>.config` создаёшь, только если ответ показывает свой класс-наследник | имя и родитель - из ответа |
-| регистрация | метод `getServiceConfigurations()` существующего `*EnvironmentConfiguration` в `<корень пакетов>.config` | одна строка `.put(ConfiguredServiceHolder.of(<Сервис>.class, new <класс настройки>()))` на сервис, как в ответе; уже зарегистрированные сервисы не трогаешь |
+| класс настройки сервиса | берёшь класс настройки из ответа как есть; свой класс создаёшь, только если ответ показывает свой класс-наследник, - в пакет, где лежит существующий `*EnvironmentConfiguration` (новый проект - `<корень пакетов>.config`) | имя и родитель - из ответа |
+| регистрация | метод `getServiceConfigurations()` существующего `*EnvironmentConfiguration` - там, где он лежит, класс не переносишь (правило 13 `autotest-rules.md`); класса нет - создаёшь в `<корень пакетов>.config` | одна строка `.put(ConfiguredServiceHolder.of(<Сервис>.class, new <класс настройки>()))` на сервис, как в ответе; уже зарегистрированные сервисы не трогаешь |
 | значения | `src/test/resources/perfeccionista.properties` | ключ из ответа, значение из строки `НУЖНО` дословно |
 
 Нельзя: придумать регистрацию по памяти (`services()`, `.register(...)`, `ServicesConfiguration.builder()` -
@@ -168,7 +207,7 @@ python3 .gigacode/skills/env-check/scripts/notes.py find env <2-4 слова в�
 ```java
 @Override
 public @NotNull ServiceConfigurationManager getServiceConfigurations() {
-    return ServiceConfigurationManager.of()
+    return super.getServiceConfigurations()      // начало цепочки - как уже стоит в классе, не меняешь
             // ... сервисы, которые уже были, - без изменений
             .put(ConfiguredServiceHolder.of(<сервис REST из ответа>.class, new <класс настройки REST из ответа>()))
             .put(ConfiguredServiceHolder.of(<сервис БД из ответа>.class, new <класс настройки БД из ответа>()));

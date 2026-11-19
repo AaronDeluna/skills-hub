@@ -88,11 +88,12 @@ def env_needs(tc, rows, env):
             build += Path(name).read_text(encoding="utf-8", errors="replace") + "\n"
         except OSError:
             pass
-    build = frame_versions.framework_artifacts(build) if build else ""
+    has_build = bool(build.strip())  # нет файлов сборки -> «-»; сборка без модулей фрейма -> «нет»
+    build = frame_versions.framework_artifacts(build)
     out = []
     for label, item in needs.items():
         words = BUILD_WORDS.get(label, [])
-        if not words or not build:
+        if not words or not has_build:
             present = "-"
         else:
             hit = [w for w in words if w in build]

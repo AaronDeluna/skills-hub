@@ -8,13 +8,17 @@
 Читает .gigacode/data/autotest/<ключ>/PLAN.md (раздел 8 «Окружение под ТК») и TC.md (колонки
 «Действие» и «Тестовые данные») и сверяет с проектом:
 - модуль фрейма под каждую технологию ТК есть в файлах сборки (слова из раздела 8 ищутся в artifactId
-  зависимостей фрейма, groupId с маркером фрейма);
+  зависимостей фрейма, groupId с маркером фрейма; файлов сборки нет -> проверка не делается, как в
+  env_check.py и tc_plan.py);
 - драйвер JDBC под каждый адрес jdbc:<вендор> из ТК есть в файлах сборки;
 - allure-junit5 есть в файлах сборки (тест-класс несёт @TmsLink);
 - логирование: slf4j-simple и slf4j-api в сборке, simplelogger.properties в ресурсах;
-- сервис фрейма под каждую технологию ТК зарегистрирован в классе конфигурации окружения:
-  ConfiguredServiceHolder.of(<Сервис>.class, ...) в getServiceConfigurations(), имя сервиса содержит
-  слово технологии (SERVICE_WORDS);
+- ТК с REST: класс `extends DefaultRestServiceConfiguration` с фильтром AllureRestAssured есть в проекте;
+- сервис фрейма под технологию ТК зарегистрирован в классе конфигурации окружения:
+  ConfiguredServiceHolder.of(<Сервис>.class, ...) в getServiceConfigurations() (комментарии не в счёт),
+  имя сервиса содержит слово технологии из SERVICE_WORDS. Метки без слова в SERVICE_WORDS (ui, mobile,
+  graphql, openshift, sessions, sup, abyss) скрипт не проверяет: имени их сервиса в эталоне нет,
+  регистрацию для них агент делает по ответу документации;
 - каждое значение подключения из ТК (адрес REST-клиента, адрес, пользователь и пароль БД,
   логин и пароль пользователя) записано в файл настроек (src/test/resources) или в класс *Configuration;
 - тесты компилируются (команда из env_check.py).
@@ -42,10 +46,11 @@ DRIVER_WORDS = {"postgresql": "postgresql", "oracle": "ojdbc", "sqlserver": "mss
 URL = re.compile(r"https?://[^\s;,)\]|<>\"']+")
 JDBC = re.compile(r"jdbc:[^\s;,)\]|<>\"']+")
 CONFIG_SUFFIXES = (".properties", ".yml", ".yaml", ".conf", ".json")
-# метка технологии (раздел 8 плана) -> слово в имени сервиса фрейма (RestService, DatabaseService, KafkaService ...).
+# метка технологии (раздел 8 плана) -> слово в имени сервиса фрейма (RestService, DatabaseService, KafkaService ...),
+# имена - из ApiEnvironmentConfiguration проекта-примера фрейма.
 # Метки без слова скрипт не проверяет. DataSourceService - это Stash, не БД: слово БД - database.
 SERVICE_WORDS = {"rest": "rest", "db": "database", "kafka": "kafka", "opensearch": "opensearch",
-                 "websocket": "websocket", "sbermock": "sbermock", "toggler": "toggler", "metrics": "metric",
+                 "websocket": "websocket", "grpc": "grpc", "sbermock": "sbermock", "toggler": "toggler", "metrics": "metric",
                  "launcher": "launcher", "fixtures": "fixture", "audit": "audit", "journals": "journal",
                  "dataconverter": "dataconverter", "testcontainers": "container", "value": "value",
                  "timeouts": "timeouts", "invocation": "invocation"}
@@ -70,7 +75,7 @@ def main(args):
     need = []
     techs = tc_technologies(env_check.read(plan_file))
     for tech, _, words in techs:
-        if words and not any(w in frame_artifacts for w in words):
+        if words and raw_build.strip() and not any(w in frame_artifacts for w in words):
             need.append(("модуль", tech, "слова в artifactId фрейма: " + ", ".join(words)))
     data = tc_data(env_check.read(OUT_DIR / key / "TC.md"))
     for vendor in sorted({d["vendor"] for d in data["db"]}):
@@ -83,6 +88,12 @@ def main(args):
         need.append(("логирование", ", ".join(log_missing), "simplelogger.properties и slf4j-simple + slf4j-api"))
     if "allure-junit5" not in build_text:
         need.append(("allure", "allure-junit5", "тест-класс несёт @TmsLink"))
+    java_files = [f for f in env_check.walk(root) if f.suffix in (".java", ".kt")]
+    if any(label == "rest" for _, label, _ in techs) and not any(
+            re.search(r"extends\s+DefaultRestServiceConfiguration\b", t) and "AllureRestAssured" in t
+            for t in (env_check.read(f) for f in java_files)):
+        need.append(("allure-rest", "Allure2RestServiceConfiguration",
+                     "класс настройки REST с AllureRestAssured - рецепт setup.md, раздел 3"))
     services = registered_services(root)
     for tech, label, _ in techs:
         word = SERVICE_WORDS.get(label)
@@ -182,12 +193,34 @@ def values(data):
 
 
 def registered_services(root):
-    """Имена сервисов (строчными) из ConfiguredServiceHolder.of(<Сервис>.class ...) во всех .java/.kt проекта."""
+    """Имена сервисов (строчными) из ConfiguredServiceHolder.of(<Сервис>.class ...) в методах
+    getServiceConfigurations() классов .java/.kt проекта; комментарии вырезаются."""
     names = set()
     for f in env_check.walk(root):
-        if f.suffix in (".java", ".kt"):
-            names.update(n.lower() for n in HOLDER.findall(env_check.read(f)))
+        if f.suffix not in (".java", ".kt"):
+            continue
+        text = re.sub(r"/\*.*?\*/|//[^\n]*", "", env_check.read(f), flags=re.S)
+        # объявление метода: «getServiceConfigurations() {», вызов super.getServiceConfigurations() не в счёт
+        for match in re.finditer(r"getServiceConfigurations\s*\(\s*\)\s*\{", text):
+            body = method_body(text, match.end() - 1)
+            names.update(n.lower() for n in HOLDER.findall(body))
     return names
+
+
+def method_body(text, start):
+    """Тело метода от первой «{» после start до парной «}»."""
+    open_at = text.find("{", start)
+    if open_at < 0:
+        return ""
+    depth = 0
+    for i in range(open_at, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_at:i + 1]
+    return text[open_at:]
 
 
 def stored_text(root):
