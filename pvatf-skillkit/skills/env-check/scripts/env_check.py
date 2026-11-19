@@ -224,8 +224,8 @@ def check_dependencies(report, build_text, tool):
 
 
 def check_tc_modules(report, build_text):
-    """Раздел 8 «Окружение под ТК» незаконченных планов: технология со словами, которых нет в файлах сборки."""
-    low = build_text.lower()
+    """Раздел 8 «Окружение под ТК» незаконченных планов: технология, слов которой нет в artifactId зависимостей фрейма."""
+    low = frame_versions_module.framework_artifacts(build_text)
     missing = []
     for plan in sorted(OUT_DIR.glob("*/PLAN.md")) if OUT_DIR.is_dir() else []:
         text = read(plan)

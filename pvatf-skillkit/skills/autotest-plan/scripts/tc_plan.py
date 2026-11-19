@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tc_common as tcc  # noqa: E402
+import frame_versions  # noqa: E402 - копия shared/scripts
 
 SKILLS = Path(__file__).resolve().parent.parent.parent
 GROUP_REF = {"integration": "tech-integration.md", "db": "tech-db.md", "kafka": "tech-kafka.md", "ui": "tech-ui.md",
@@ -42,7 +43,8 @@ JAVA_PACKAGE = re.compile(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*")
 
 # Окружение под ТК (раздел 8 плана): метка -> слова, которые ищутся в файлах сборки (подсказка, не имя артефакта:
 # имя модуля берётся только из документации, его ставит env-check в режиме setup). Пустой список - модуль не ищется.
-BUILD_WORDS = {"rest": ["rest"], "grpc": ["grpc"], "graphql": ["graphql"], "websocket": ["websocket"],
+# слова ищутся в artifactId зависимостей фрейма (frame_versions.framework_artifacts); модуль REST фрейма - api
+BUILD_WORDS = {"rest": ["rest", "api"], "grpc": ["grpc"], "graphql": ["graphql"], "websocket": ["websocket"],
                "db": ["database", "datasource", "jdbc"], "opensearch": ["opensearch", "elastic"], "kafka": ["kafka"],
                "ui": ["playwright", "selenide"], "mobile": ["appium", "mobile"], "audit": ["audit"], "journals": ["journal"],
                "abyss": ["abyss"], "metrics": ["metric"], "sup": ["sup-", "-sup"], "fixtures": ["fixture"], "timeouts": [],
@@ -83,9 +85,10 @@ def env_needs(tc, rows, env):
     build = ""
     for name in env.get("project", {}).get("build_files", []):
         try:
-            build += Path(name).read_text(encoding="utf-8", errors="replace").lower()
+            build += Path(name).read_text(encoding="utf-8", errors="replace") + "\n"
         except OSError:
             pass
+    build = frame_versions.framework_artifacts(build) if build else ""
     out = []
     for label, item in needs.items():
         words = BUILD_WORDS.get(label, [])

@@ -30,6 +30,18 @@ def has_marker(text):
     return any(marker in low for marker in FRAME_MARKERS)
 
 
+DEP_GA = re.compile(r"<groupId>\s*([^<\s]+)\s*</groupId>\s*<artifactId>\s*([^<\s]+)\s*</artifactId>")
+DEP_AG = re.compile(r"<artifactId>\s*([^<\s]+)\s*</artifactId>\s*<groupId>\s*([^<\s]+)\s*</groupId>")
+DEP_GRADLE = re.compile(r"[\"']([\w.\-]+):([\w.\-]+)(?::[^\"'\s]*)?[\"']")
+
+
+def framework_artifacts(text):
+    """artifactId зависимостей фрейма (groupId с маркером фрейма) из текста файлов сборки, через пробел.
+    Слова технологий ищутся только здесь: `slf4j-api` или `rest-assured` чужих групп модуль фрейма не изображают."""
+    pairs = DEP_GA.findall(text) + [(g, a) for a, g in DEP_AG.findall(text)] + DEP_GRADLE.findall(text)
+    return " ".join(sorted({a.lower() for g, a in pairs if has_marker(g)}))
+
+
 def walk(root):
     root = Path(root)
     stack = [root]
