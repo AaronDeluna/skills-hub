@@ -138,6 +138,10 @@ def cmd_proposal(args):
     if not root:
         return 2
     tc = read(root / "outputs" / "TC.md")
+    if not tc and key.startswith("NOTC-"):
+        out("НУЖНО: ТК нет - нужен файл (лог, Allure, код теста) и имя тест-класса: спроси одной строкой «Имя тест-класса?"
+            " Латиницей, окончание Test», потом tc_convert.py <файл> --key " + key + " --class <Имя>Test; потом снова")
+        return 1
     if not tc:
         out("НУЖНО: тест-кейс " + key + " не загружен - шаг 1 скилла autotest-plan: человек дал файл (ТК, лог, Allure, код теста)"
             " -> tc_convert.py <этот файл> --key " + key + "; дал только ключ -> ТК из TMS по ключу (MCP) -> tc_convert.py; потом снова")
@@ -150,12 +154,11 @@ def cmd_proposal(args):
     package = project.get("test_package") or project.get("base_package") or ""
     title, no_tc = field(tc, "Название"), key.startswith("NOTC-")
     steps = tc_steps(tc)
-    if not (root / "outputs" / "TC-CHECK.md").is_file():
-        run_script("autotest-plan", "tc_check.py", [key])  # допущения proposal - находки проверки ТК
+    run_script("autotest-plan", "tc_check.py", [key])  # всегда заново: ТК могли заменить исправленным
     check = read(root / "outputs" / "TC-CHECK.md")
     status = re.search(r"(?m)^- Статус:\s*(\S+)", check)
     findings = [" · ".join(c.strip() for c in l.strip().strip("|").split("|")[:3]) for l in check.splitlines()
-                if re.match(r"^\|\s*TC-\d+", l)]
+                if re.match(r"^\|\s*TC-\d+", l) and l.strip().strip("|").split("|")[-1].strip() != "да"]  # блокирующие - не допущения
     text = ["# Proposal: " + name, "",
             "## Зачем",
             ("Автоматизировать проверку «" + title + "» - ТК в TMS ещё нет, служебный ключ " + key + "." if no_tc
@@ -182,7 +185,7 @@ def cmd_proposal(args):
              " (design.md, раздел 2, тип SERVICE) - без кода.",
              "2. Каждый ожидаемый результат - проверка в коде по design.md, раздел 13; ожидаемые значения - константы тест-класса.",
              "3. " + ("Без `@TmsLink`: ТК нет, ключ служебный." if no_tc else "`@TmsLink(\"" + key + "\")` на тест-методе."),
-             "4. `mvn -q test-compile` - сборка без ошибок.",
+             "4. Компиляция тестов `" + (" ".join(project.get("compile_argv") or []) or project.get("compile_command") or "командой из ENV.json") + "` - без ошибок.",
              "5. `" + AT + " check " + key + "` - ИТОГ: находок 0.",
              "6. `" + AT + " run " + key + "` - строка РЕЗУЛЬТАТ; тест запускается последней задачей, без вопроса человеку.", "",
              "## Вне scope",
@@ -239,6 +242,13 @@ def cmd_design(args):
     arts = root / "outputs" / "ARTIFACTS.md"
     if not arts.is_file():
         run_script("autotest-plan", "artifacts.py", ["scan", key])
+    import tc_plan
+    env = tc_plan.load_env()
+    if env.get("status", "failed") == "failed":
+        codes = [x.get("code", "-") for x in env.get("problems", []) if x.get("severity") == "critical"]
+        out("НУЖНО: окружение проекта не готово (" + ("нет ENV.json" if not env else "ENV.json failed: " + ", ".join(codes[:3]))
+            + ") - скилл env-check, режим setup, потом снова")
+        return 1
     if "- Разбор агентом: нужен" in read(arts):
         out("НУЖНО: разбор артефактов - шаг 1б скилла autotest-plan: artifacts.py task " + key + " -> агент pvatf-artifacts"
             " -> artifacts.py merge " + key + ", потом снова")
@@ -265,7 +275,7 @@ def cmd_design(args):
         out("НУЖНО: окружение под ТК не готово - скилл env-check, режим setup " + key + ", потом снова")
         return 1
     head = front(read(design))
-    if not head.get("approved", "no").startswith("yes"):
+    if not tc_plan.approved_ok(read(design)):
         out("НУЖНО: подтверждение плана - шаг 8 скилла autotest-plan: покажи человеку разделы 11-16 design.md (файлы, методы"
             " шагов, проверки, настройки, привязка шагов к коду, планируемые изменения) и спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve "
             + key + "; правки -> исправь строки, потом снова. Код не пишется до подтверждения")
@@ -332,15 +342,18 @@ def cmd_tasks(args):
     if front(plan).get("plan_status") not in ("planned", "generating", "checked"):
         out("НУЖНО: design.md не готов (plan_status: " + front(plan).get("plan_status", "нет") + ") - сначала артефакт design")
         return 1
-    if not front(plan).get("approved", "no").startswith("yes"):
-        out("НУЖНО: план не подтверждён человеком (approved: no) - сначала артефакт design, шаг подтверждения")
+    import tc_plan
+    if not tc_plan.approved_ok(plan):
+        out("НУЖНО: план не подтверждён человеком или изменён после подтверждения - сначала артефакт design, шаг подтверждения")
         return 1
     gens = gen_rows(plan)
     lines_of = plan.splitlines()
     test_line = next((no for no, l in enumerate(lines_of, 1) if l.startswith("test_file:")), 1)
     test_row = next((no for no, f in section_lines(plan, "11.") if f[0] == front(plan).get("test_file")), test_line)
     items = plan_items(plan)
-    lines = ["apply-mode: subagents", "",
+    project = tc_plan.load_env().get("project", {})
+    compile_cmd = " ".join(project.get("compile_argv") or []) or project.get("compile_command") or "команда компиляции из ENV.json"
+    lines = ["apply-mode: subagents", "plan: " + tc_plan.plan_hash(plan), "",
              "## Цель", "Автотест " + key + " по design.md: тест-класс `" + front(plan).get("test_file", "-") + "`, шаги генерации "
              + ", ".join(g[0] for _, g in gens) + ". Делать только задачи ниже; файл, метод или проверка не из списка - не писать.", ""]
     n = 0
@@ -353,7 +366,7 @@ def cmd_tasks(args):
         for text, line in items.get(g[0], []):
             k += 1
             lines.append("- [ ] " + str(n) + "." + str(k) + " " + text + " (design.md:" + str(line) + ")")
-        lines += ["- [ ] " + str(n) + "." + str(k + 1) + " `" + AT + " compile " + key + " " + g[0] + "` (`mvn -q test-compile`)"
+        lines += ["- [ ] " + str(n) + "." + str(k + 1) + " `" + AT + " compile " + key + " " + g[0] + "` (`" + compile_cmd + "`)"
                   " -> КОМПИЛЯЦИЯ: ok (design.md:" + str(no) + ")", ""]
     n += 1
     lines += ["## " + str(n) + ". Сборка и проверка",
@@ -363,7 +376,7 @@ def cmd_tasks(args):
     for text, line in items.get("", []):  # строки плана без G (настройки без метода и т.п.)
         k += 1
         lines.append("- [ ] " + str(n) + "." + str(k) + " " + text + " (design.md:" + str(line) + ")")
-    lines += ["- [ ] " + str(n) + "." + str(k + 1) + " `" + AT + " check " + key + "` -> ИТОГ: находок 0 (design.md:" + str(test_line) + ")", ""]
+    lines += ["- [ ] " + str(n) + "." + str(k + 1) + " `" + AT + " check " + key + "` -> ИТОГ: находок 0, кроме строк STUB (design.md:" + str(test_line) + ")", ""]
     n += 1  # последняя задача всегда - запуск теста; без него изменение не архивируется
     lines += ["## " + str(n) + ". Запуск теста",
               "- [ ] " + str(n) + ".1 `" + AT + " run " + key + "` -> РЕЗУЛЬТАТ: passed - тест прошёл на стенде; запуск без вопроса человеку"
@@ -417,6 +430,7 @@ def sync(root):
         return 0
     plan = read(root / "design.md")
     done = {g[0] for _, g in gen_rows(plan) if len(g) > 7 and g[7] in ("ok", "stub")}
+    stub = {g[0] for _, g in gen_rows(plan) if len(g) > 7 and g[7] == "stub"}  # заглушка: код G допишет человек
     status = front(plan).get("plan_status", "")
     checked = status == "checked"
     assembled = status in ("assembled", "checked")
@@ -432,7 +446,8 @@ def sync(root):
         if m:
             hit = m.group(1) in done
         elif "at_tools.py compile" in line:
-            hit = bool(group) and group in done and "- Компиляция: ok" in read(root / "outputs" / "compile" / (group + ".md"))
+            hit = bool(group) and (group in stub or group in done
+                                   and "- Компиляция: ok" in read(root / "outputs" / "compile" / (group + ".md")))
         elif "at_tools.py assemble" in line:
             hit = assembled
         elif "at_tools.py check" in line:
@@ -442,7 +457,7 @@ def sync(root):
         else:
             hit = item_done(line, plan, fields)
             if hit is not None:
-                hit = hit and (group in done if group else assembled)
+                hit = group in stub or (hit and (group in done if group else assembled))
         if hit is not None and line.startswith(("- [ ]", "- [x]")):
             if hit and line.startswith("- [ ]"):
                 marked += 1

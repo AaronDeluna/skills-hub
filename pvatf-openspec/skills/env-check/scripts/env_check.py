@@ -432,6 +432,15 @@ def describe_tests(report, root, java_files, test_roots, build_text):
         if re.match(r"(Base|Abstract)\w*Test\w*$", f.stem) or re.match(r"\w*(TestBase|BaseTest)$", f.stem):
             base_classes.append(rel(root, f))
     report["project"]["test_classes"] = test_classes
+    if not packages:  # тест-классов с @Test ещё нет: пакет базового класса тестов или пакет *.tests
+        found = {}
+        for f in test_files:
+            match = re.search(r"^\s*package\s+([\w.]+)", read(f), flags=re.M)
+            if match:
+                found[rel(root, f)] = match.group(1)
+        pick = [found[b] for b in base_classes if b in found] or sorted({v for v in found.values() if v.endswith(".tests")})
+        for value in pick[:1]:
+            packages[value] += 1
     report["project"]["base_package"] = common_package(list(packages.keys()))
     init = read(OUT_DIR / "ENV-INIT.md")
     root_match = re.search(r"(?m)^- Корень пакетов: ([\w.]+)", init)

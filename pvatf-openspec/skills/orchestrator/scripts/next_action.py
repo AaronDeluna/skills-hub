@@ -477,6 +477,12 @@ def queue_next(explicit):
         say("очередь пройдена", queue.summary(rows) + ("; заблокированы: " + ", ".join(blocked) if blocked else ""))
         return True
     where = "пункт %s из %d (%s)" % (item["n"], len(rows), queue.summary(rows))
+    if pp.on():  # режим OpenSpec: каждый пункт очереди - своё изменение со всеми артефактами и архивом
+        obj = item["key"] if item["key"] != "-" else item["source"]
+        say("openspec " + obj, "очередь, " + where + " - os_work.py new autotest " + obj + ", потом os_work.py next <имя"
+            " изменения> (Шаг 0, пункт 2) до архива")
+        print("ЗАМЕТКА: очередь ТК - после архива скажи: «Откройте новый чат и напишите: /orchestrator продолжи очередь»")
+        return True
     if item["key"] == "-":
         say("autotest-plan " + item["source"], "очередь, " + where + " - новый тест-кейс из артефакта, разбор, проверка, план")
     else:
@@ -548,14 +554,24 @@ def env_tc_ready(tc):
     return front_matter(read(pp.autotest_dir(tc, create=False) / "ENV-TC.md") or "").get("env_tc") == "ready"
 
 
+def plan_approved(text):
+    """Подтверждение плана с отпечатком (tc_plan.py); нет скилла autotest-plan - по строке approved."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "autotest-plan" / "scripts"))
+        import tc_plan
+        return tc_plan.approved_ok(text)
+    except ImportError:
+        return front_matter(text).get("approved", "no").startswith("yes")
+
+
 def autotest_step(tc, status, tc_status):
     if tc_status == "FAIL":
         return ("заблокировано", tc + ": проверка тест-кейса FAIL - покажи находки из " + str(pp.autotest_dir(tc, create=False) / "TC-CHECK.md").replace("\\", "/")
                 + ", нужен исправленный ТК")
     if status not in PLAN_STATUSES or status == "draft":
         return ("autotest-plan " + tc, "plan_status: " + status + " - план не утверждён, достроить и проверить")
-    approved = front_matter(read(pp.plan_file(tc, create=False)) or "").get("approved", "no")
-    if status == "planned" and not approved.startswith("yes"):
+    plan_text = read(pp.plan_file(tc, create=False)) or ""
+    if status in ("planned", "generating") and not plan_approved(plan_text):
         return ("autotest-plan " + tc, "план сошёлся, но не подтверждён человеком - шаг 8 autotest-plan: показать разделы 11-16,"
                 " после «да» tc_plan.py approve " + tc)
     if status in ("planned", "generating") and not env_tc_ready(tc):
@@ -567,6 +583,13 @@ def autotest_step(tc, status, tc_status):
         return ("autotest-gen " + tc, "генерация не закончена - продолжить с первого G со статусом todo")
     if status == "assembled":
         return ("autotest-gen " + tc, "тест-класс собран - проверка (at_tools.py check)")
+    run_status = front_matter(plan_text).get("run_status", "")
+    if run_status == "env":
+        return ("env-setup " + tc, "тест не запускался: окружение под ТК не готово - настроить, потом at_tools.py run " + tc)
+    if not run_status:
+        return ("autotest-gen " + tc, "проверка чистая, тест не запускался - шаги 7-9 autotest-gen: запуск без вопроса человеку")
+    if run_status != "passed":
+        return ("autotest-gen " + tc, "тест не прошёл (" + run_status + ") - шаг 8 autotest-gen: разбор падений из RUN.md")
     if KIT_MODE == "auto":
         return ("финал " + tc, "тест-класс прошёл проверку - покажи итог из CHECK.md")
     return ("финал " + tc, "тест-класс прошёл проверку - покажи итог из CHECK.md и предложи разметку: «/orchestrator разметь тесты»"

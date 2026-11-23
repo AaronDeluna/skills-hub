@@ -381,8 +381,11 @@ def main(args):
     key_arg, method, name = option(args, "--key"), option(args, "--method"), option(args, "--name")
     no_tc, test_class = "--no-tc" in args or bool(re.fullmatch(NO_TC + r"-[0-9]+", key_arg)), option(args, "--class")
     if no_tc and ((key_arg and not re.fullmatch(NO_TC + r"-[0-9]+", key_arg)) or not JAVA_CLASS.fullmatch(test_class)):
-        print("Использование: --no-tc без --key и с --class <Имя>Test: имя Java латиницей с большой буквы и окончанием Test,"
-              " без транслита (PaymentLockTest)")
+        if not JAVA_CLASS.fullmatch(test_class):
+            print("НУЖЕН --class <Имя>Test: ТК нет, имя тест-класса даёт человек - латиницей с большой буквы, окончание Test,"
+                  " без транслита (PaymentLockTest); спроси одной строкой «Имя тест-класса?» и запусти снова с --class")
+        else:
+            print("Использование: ТК нет - --key NOTC-<n> (из изменения) или --no-tc, и --class <Имя>Test")
         return 2
     suffix = path.suffix.lower()
     try:

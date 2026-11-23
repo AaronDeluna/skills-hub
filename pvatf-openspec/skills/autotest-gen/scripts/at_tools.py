@@ -90,6 +90,25 @@ def journal(text, what):
     return text.rstrip("\n") + "\n| at_tools | " + what + " |\n"
 
 
+def approved_ok(text):
+    """План подтверждён и не менялся после «да» (отпечаток - tc_plan.py). Нет скилла autotest-plan - по строке approved."""
+    try:
+        sys.path.insert(0, str(SKILL.parent / "autotest-plan" / "scripts"))
+        import tc_plan
+        return tc_plan.approved_ok(text)
+    except ImportError:
+        return head_of(text).get("approved", "no").startswith("yes")
+
+
+def drop_run(text):
+    """Код изменился - прошлый запуск не в счёт."""
+    return re.sub(r"(?m)^run_status:.*\n", "", text, count=1)
+
+
+def fix_files(key, gid):
+    return [folder(key) / "fix" / (gid + "-compile.md"), folder(key) / "fix" / (gid + "-check.md")]
+
+
 def plan(key):
     path = plan_path(key)
     text = read(path)
@@ -151,9 +170,9 @@ def cmd_next(key):
         return fail("НЕТ ПЛАНА (design.md изменения): сначала артефакт design / autotest-plan")
     if head.get("plan_status") not in ("planned", "generating"):
         return fail("plan_status " + head.get("plan_status", "-") + " - генерация только по плану planned или generating", 1)
-    if not head.get("approved", "no").startswith("yes"):
-        return fail("ПЛАН НЕ ПОДТВЕРЖДЁН: approved " + head.get("approved", "no") + " - человек подтверждает разделы 11-16"
-                    " design.md (tc_plan.py approve " + key + "), код до этого не пишется", 1)
+    if not approved_ok(text):
+        return fail("ПЛАН НЕ ПОДТВЕРЖДЁН или изменён после подтверждения: approved " + head.get("approved", "no")
+                    + " - os_work.py design <имя изменения> (validate и «да» человека на разделы 11-16), код до этого не пишется", 1)
     gens = section_rows(text, "3. Порядок генерации")
     steps = {r[0]: r for r in section_rows(text, "2. Шаги")}
     todo = [g for g in gens if len(g) >= 8 and g[7] == "todo"]
@@ -164,8 +183,6 @@ def cmd_next(key):
     tc = read(folder(key) / "TC.md")
     consts = [c for c in section_rows(text, "4. Константы") if c[0] != "-" and set(c[5].replace(" ", "").split(",")) & set(g[1].replace(" ", "").split(","))]
     variables = [v for v in section_rows(text, "5. Переменные") if v[0] != "-"]
-    classes = [l[2:] for l in text.split("\n") if l.startswith("- " + g[2] + " · `")
-               and not re.search(r"/config/|Configuration\.java`", l)]  # конфигурация окружения - не класс шагов
     root = str(Path(".").resolve())
     lines = ["ЗАДАНИЕ для агента pvatf-generator (передай дословно, всё ниже этой строки):", "",
              "- Проект: " + root,
@@ -228,8 +245,10 @@ def cmd_next(key):
             lines.append("  - планируемые изменения (design.md, раздел 16; сигнатуры и параметры - ровно так):")
             for b in blocks:
                 lines += ["    " + ("### " if i == 0 else "") + l for i, l in enumerate(b.rstrip().splitlines())]
-    lines.append("- Классы шагов проекта для этой технологии (переиспользуй, если подходят):")
-    lines += ["  - " + c for c in classes] or ["  - нет"]
+    fixes = [l for f in fix_files(key, g[0]) for l in read(f).splitlines() if l.startswith("- ")]
+    if fixes:
+        lines.append("- ИСПРАВЬ (прошлый круг этого G: ошибки компиляции и находки check в твоих файлах; договор плана не меняй):")
+        lines += ["  " + l for l in fixes]
     print("\n".join(lines))
     return 0
 
@@ -244,6 +263,8 @@ def cmd_mark(key, gid, status):
     if not pattern.search(text):
         return fail("в разделе 3 плана нет строки " + gid, 1)
     frag = folder(key) / "fragments" / (gid + ".md")
+    if status in ("ok", "stub") and not approved_ok(text):
+        return fail("ПЛАН НЕ ПОДТВЕРЖДЁН или изменён после подтверждения - os_work.py design <имя изменения>", 1)
     if status == "ok" and not frag.is_file():
         return fail("нет фрагмента fragments/" + gid + ".md - агент его не записал; статус не меняю", 1)
     if status in ("stub", "blocked") and not frag.is_file():
@@ -262,6 +283,12 @@ def cmd_mark(key, gid, status):
         frag.write_text("# " + gid + "\n\n- Статус: " + status + "\n- Файлы шагов: -\n\n## imports\n```java\n```\n\n"
                         "## fields\n```java\n```\n\n## body\n```java\n" + "\n".join(body) + "\n```\n", encoding="utf-8")
     text = pattern.sub(lambda m: m.group(1) + " " + status + " |", text, count=1)
+    if status == "todo":
+        text = drop_run(text)
+    else:
+        for f in fix_files(key, gid):
+            if f.is_file():
+                f.unlink()  # агент ответил - прошлые ошибки этого G закрыты, check и compile проверят снова
     stale = folder(key) / "compile" / (gid + ".md")
     if stale.is_file():
         stale.unlink()  # код G меняется - прошлая компиляция не в счёт
@@ -289,14 +316,24 @@ def cmd_compile(key, gid):
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("# Компиляция после " + gid + "\n\n- Компиляция: " + status + "\n\n" + "\n".join("- " + d for d in details) + "\n",
                       encoding="utf-8")
+    if status == "skipped":
+        print("НУЖНО: нет команды компиляции в ENV.json - скилл env-check, режим check, потом снова compile " + key + " " + gid)
+        return 1
+    fix = fix_files(key, gid)[0]
+    if status == "failed":
+        fix.parent.mkdir(parents=True, exist_ok=True)
+        fix.write_text("# Ошибки компиляции после " + gid + "\n\n" + "\n".join("- КОМПИЛЯЦИЯ " + d for d in details) + "\n",
+                       encoding="utf-8")
+    elif fix.is_file():
+        fix.unlink()
     for d in details if status == "failed" else []:
         print("КОМПИЛЯЦИЯ " + d)
     print("КОМПИЛЯЦИЯ: " + status + " · " + gid + (" · " + details[0] if details and status != "failed" else ""))
     if status == "failed":
-        print("НУЖНО: mark " + key + " " + gid + " todo, затем next - то же задание агенту pvatf-generator, строки КОМПИЛЯЦИЯ"
-              " добавь в конец задания дословно; не больше 2 кругов, потом mark " + key + " " + gid + " stub")
+        print("НУЖНО: mark " + key + " " + gid + " todo, затем next - задание агенту pvatf-generator (ошибки уже в нём, раздел"
+              " ИСПРАВЬ); не больше 2 кругов, потом mark " + key + " " + gid + " stub")
     sync_tasks(key)
-    return 0 if status in ("ok", "skipped") else 1
+    return 0 if status == "ok" else 1
 
 
 def sync_tasks(key):
@@ -375,6 +412,9 @@ def cmd_assemble(key):
     not_ready = [g[0] + " " + g[7] for g in gens if len(g) >= 8 and g[7] not in ("ok", "stub", "blocked")]
     if not_ready:
         return fail("НЕ ГОТОВЫ: " + ", ".join(not_ready) + " - сначала next/mark по каждому G", 1)
+    if "run_status:" in text.split("\n---", 1)[0]:
+        text = drop_run(text)
+        path.write_text(text, encoding="utf-8")
     parts = [fragment(folder(key) / "fragments" / (g[0] + ".md")) for g in gens]
     imports, fields, field_names = [], [], set()
     for p in parts:
@@ -668,6 +708,37 @@ def plan_checks(text, target, step_files):
     return findings
 
 
+def route_findings(key, text, target, findings):
+    """Находки в классах шагов -> fix/G-n-check.md: их исправляет агент pvatf-generator в задании своего G.
+    Модель правит только тест-класс (через фрагменты). Возвращает {G: [находки]}."""
+    step_g = {r[0].split(".")[0]: r[10] for r in section_rows(text, "2. Шаги") if len(r) >= 11}
+    file_g = {}
+    for r in section_rows(text, "11. Файлы"):
+        if len(r) >= 4 and r[0] != str(target) and re.fullmatch(r"G-\d+(\s*,\s*G-\d+)*", r[3].strip()):
+            file_g[r[0]] = r[3].split(",")[0].strip()
+    for m in section_rows(text, "12. Методы шагов"):
+        if len(m) >= 6:
+            for path in [f for f in file_g if Path(f).stem == m[1]]:
+                file_g[path] = m[0]
+    routed = {}
+    for f in findings:
+        if f.startswith("STUB ") or str(target) in f:
+            continue
+        gid = next((g for path, g in file_g.items() if path in f), None)
+        if not gid:
+            step = re.match(r"(?:ПРОВЕРКА НЕТ|ТЕЛО) шаг (\d+)", f)
+            gid = step_g.get(step.group(1)) if step else None
+        if gid:
+            routed.setdefault(gid, []).append(f)
+    for old in (folder(key) / "fix").glob("G-*-check.md") if (folder(key) / "fix").is_dir() else []:
+        old.unlink()
+    for gid, items in routed.items():
+        target_file = fix_files(key, gid)[1]
+        target_file.parent.mkdir(parents=True, exist_ok=True)
+        target_file.write_text("# Находки check в файлах " + gid + "\n\n" + "\n".join("- " + i for i in items) + "\n", encoding="utf-8")
+    return routed
+
+
 def cmd_check(key, compile_on):
     path, text, head = plan(key)
     if text is None:
@@ -675,6 +746,9 @@ def cmd_check(key, compile_on):
     target = Path(head.get("test_file", "-"))
     if not target.is_file():
         return fail("НЕТ ТЕСТ-КЛАССА " + str(target) + " - сначала assemble")
+    if "run_status:" in text.split("\n---", 1)[0]:
+        text = drop_run(text)
+        path.write_text(text, encoding="utf-8")
     findings = []
     lines = read(target).splitlines()
     findings += scan(str(target), lines, CHECKS + TEST_ONLY)
@@ -698,6 +772,7 @@ def cmd_check(key, compile_on):
     status, details = ("skipped", ["--no-compile"]) if not compile_on else compile_project(540)
     if status == "failed":
         findings += ["КОМПИЛЯЦИЯ " + d for d in details]
+    routed = route_findings(key, text, target, findings)
     report = ["# Проверка автотеста " + key, "", "- Тест-класс: " + str(target), "- Компиляция: " + status,
               "- Находок: " + str(len(findings)), "", "| Находка |", "|---------|"]
     report += ["| " + f.replace("|", "\\|") + " |" for f in findings] or ["| нет |"]
@@ -705,6 +780,9 @@ def cmd_check(key, compile_on):
     for f in findings:
         print(f)
     print("КОМПИЛЯЦИЯ: " + status + (" · " + details[0] if details else ""))
+    for gid, items in sorted(routed.items()):
+        print("НУЖНО: " + gid + " - находок в классах шагов " + str(len(items)) + ": mark " + key + " " + gid
+              + " todo, next - задание агенту pvatf-generator (находки уже в нём, раздел ИСПРАВЬ); классы шагов сам не правишь")
     print("ИТОГ: находок " + str(len(findings)) + (" - чисто" if not findings else " - исправь и запусти снова"))
     if not [f for f in findings if not f.startswith("STUB ")] and status in ("ok", "skipped"):
         path.write_text(journal(set_head(text, "plan_status", "checked"), "check -> чисто"), encoding="utf-8")
@@ -853,6 +931,7 @@ def cmd_run(key, args):
             for line in checked.stdout.decode("utf-8", "replace").splitlines():
                 if line.startswith(("НУЖНО", "ОКРУЖЕНИЕ")):
                     print(line)
+            path.write_text(journal(set_or_add_head(text, "run_status", "env"), "run -> env: окружение не готово"), encoding="utf-8")
             return fail("ОКРУЖЕНИЕ НЕ ГОТОВО: тест не запущен - настрой окружение (env-check, режим setup с ключом "
                         + key + "), потом снова run", 1)
     if "--dry-run" in args:

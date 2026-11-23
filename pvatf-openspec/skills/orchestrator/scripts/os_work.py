@@ -151,6 +151,13 @@ def cmd_new(args):
             "ДАЛЬШЕ: спроси имя тест-класса, потом tc_convert.py <файл> --key " + obj + " --class <Имя>Test",
             "ФАЙЛ: " + rel(root / ".openspec.yaml"))
         return 0
+    if kind in ("autotest", "tc-check") and Path(obj).is_file():
+        code, text = run("autotest-plan", "tc_convert.py", [obj])  # ключ - из файла ТК, человека не спрашиваем
+        key = re.search(r"(?m)^ТК:\s*(\S+)", text)
+        if code != 0 or not key:
+            out(text.rstrip())
+            return code or 1
+        obj = key.group(1)
     if kind in ("autotest", "tc-check"):
         if not KEY.match(obj):
             out("НУЖНО: ключ ТК вида ABC-T123 - спроси человека одной строкой: «Ключ ТК? Дайте ключ вида CODE-T123 или"
@@ -159,6 +166,9 @@ def cmd_new(args):
         root = pp.find_change("autotest", obj) or pp.ensure_change("autotest", obj, task)
         if kind == "tc-check" and "x-pvatf-stop" not in pp.meta(root) and not (root / "design.md").is_file():
             (root / ".openspec.yaml").write_text(read(root / ".openspec.yaml") + 'x-pvatf-stop: "tc"\n', encoding="utf-8")
+        if kind == "autotest" and "x-pvatf-stop" in pp.meta(root):  # после «проверь ТК» человек просит автотест
+            (root / ".openspec.yaml").write_text(re.sub(r"(?m)^x-pvatf-stop:.*\n?", "", read(root / ".openspec.yaml")),
+                                                 encoding="utf-8")
         out("ИЗМЕНЕНИЕ: " + root.name, "ВИД: " + kind, "ФАЙЛ: " + rel(root / ".openspec.yaml"))
         return 0
     if kind == "autotest-review" and not Path(obj).is_file():
@@ -363,6 +373,18 @@ def artifact_status(root):
             for i, f in files if i != "tc" or schema == "pvatf-autotests"]
 
 
+def approved_ok(text):
+    sys.path.insert(0, str(SKILLS / "autotest-plan" / "scripts"))
+    import tc_plan
+    return tc_plan.approved_ok(text)
+
+
+def plan_hash(text):
+    sys.path.insert(0, str(SKILLS / "autotest-plan" / "scripts"))
+    import tc_plan
+    return tc_plan.plan_hash(text)
+
+
 def cmd_next(args):
     if not pp.on():
         out("НЕТ OPENSPEC: в корне нет openspec/config.yaml - установите по INSTALL.md пакета")
@@ -380,18 +402,28 @@ def cmd_next(args):
         return 2
     name, root, kind, obj = t
     sync(root, kind)
+    tc_md = root / "outputs" / "TC.md"
+    newer = lambda f: tc_md.is_file() and f.is_file() and tc_md.stat().st_mtime > f.stat().st_mtime
     for aid, done in artifact_status(root):
         head = front(read(root / "design.md")) if aid == "design" and done else {}
+        if kind == "autotest" and done and aid == "proposal" and newer(root / "proposal.md"):
+            done = False  # ТК заменили (исправленный после FAIL) - proposal заново
+        if kind == "autotest" and done and aid == "tc" and newer(root / "tc" / (obj + ".md")):
+            done = False  # новый TC.md - проверка ТК заново
         if aid == "design" and done and kind == "migration" and head.get("map_status") != "approved":
             done = False  # карта ещё строится - design не готов
         if aid == "design" and done and kind == "autotest" and head.get("plan_status", "draft") == "draft":
             done = False  # черновик плана - design не готов
-        if aid == "design" and done and kind == "autotest" and not head.get("approved", "no").startswith("yes"):
-            done = False  # человек не подтвердил план - код не пишется
+        if aid == "design" and done and kind == "autotest" and not approved_ok(read(root / "design.md")):
+            done = False  # человек не подтвердил план или план изменён после «да» - код не пишется
+        if aid == "tasks" and done and kind == "autotest" and not re.search(
+                r"(?m)^plan: " + plan_hash(read(root / "design.md")) + r"\s*$", read(root / "tasks.md")):
+            done = False  # tasks.md построен по другой версии плана - заново
         if aid == "tc" and done and re.search(r"\*\*Проверка ТК:\*\*\s*FAIL\b", read(root / "tc" / (obj + ".md"))):
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог проверки ТК",
-                "КОМАНДА: покажи человеку tc/" + obj + ".md - тест-кейс FAIL, автотест не пишется; автор исправляет ТК в TMS,"
-                " потом «/orchestrator продолжи " + name + "» с новым файлом ТК")
+                "КОМАНДА: покажи человеку tc/" + obj + ".md - тест-кейс FAIL, автотест не пишется; автор исправляет ТК в TMS."
+                " Человек дал исправленный ТК -> python3 .gigacode/skills/autotest-plan/scripts/tc_convert.py <файл> --key " + obj
+                + " (ключ без файла - ТК из TMS по ключу), потом os_work.py next " + name)
             return 0
         if not done:
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: артефакт " + aid,
@@ -399,11 +431,31 @@ def cmd_next(args):
             return 0
         if aid == "tc" and pp.meta(root).get("x-pvatf-stop") == "tc":
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог проверки ТК",
-                "КОМАНДА: покажи человеку tc/" + obj + ".md; автотест по этому ТК - «/orchestrator продолжи " + name + "»"
-                " (сначала убери строку x-pvatf-stop из .openspec.yaml)")
+                "КОМАНДА: покажи человеку tc/" + obj + ".md; автотест по этому ТК - os_work.py new autotest " + obj
+                + " (снимает стоп), потом os_work.py next " + name)
             return 0
-    left = len(re.findall(r"(?m)^- \[ \]", read(root / "tasks.md")))
-    run = front(read(root / "design.md")).get("run_status", "")
+    tasks_text = read(root / "tasks.md")
+    left = len(re.findall(r"(?m)^- \[ \]", tasks_text))
+    design = read(root / "design.md")
+    run = front(design).get("run_status", "")
+    if kind == "autotest":
+        other = len([l for l in tasks_text.splitlines() if l.startswith("- [ ]") and "at_tools.py run" not in l])
+        stubs = [g[0] for g in table(design, "3. Порядок генерации") if len(g) >= 8 and g[7] == "stub"]
+        if other:
+            out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · задач осталось " + str(left),
+                "КОМАНДА: openspec instructions apply --change \"" + name + "\" --json - выполни поле instruction")
+            return 0
+        if stubs:
+            out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог · заглушки " + ", ".join(stubs),
+                "КОМАНДА: тест не запускается - в нём заглушки (строки STUB). Покажи человеку итог скилла autotest-gen и спроси"
+                " «Заглушки " + ", ".join(stubs) + ": допишете код сами или архивировать как есть?»; дописал -> at_tools.py check "
+                + obj + ", потом at_tools.py run " + obj + "; «архивировать» -> openspec archive " + name + " --yes")
+            return 0
+        if run == "env":
+            out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: env-setup " + obj,
+                "КОМАНДА: окружение под ТК не готово, тест не запускался - скилл env-check, режим setup " + obj
+                + ", потом python3 .gigacode/skills/autotest-gen/scripts/at_tools.py run " + obj)
+            return 0
     if kind == "autotest" and run and run != "passed":
         out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: тест не прошёл · " + run + " · отчёт openspec/changes/" + name + "/outputs/RUN.md",
             "КОМАНДА: скилл autotest-gen, шаг 8: падения КОД - исправь, check, снова at_tools.py run " + obj

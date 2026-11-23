@@ -1,6 +1,6 @@
 {
   "name": "pvatf-openspec",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Скиллы PVATF поверх OpenSpec: автотесты, миграция, окружение и обновление фрейма",
   "contextFileName": "GIGACODE.md",
   "skills": "skills",

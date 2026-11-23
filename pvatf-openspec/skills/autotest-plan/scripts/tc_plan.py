@@ -4,6 +4,8 @@
   python3 <скилл>/scripts/tc_plan.py build <ключ ТК> [--force]  - черновик плана design.md (plan_status: draft)
   python3 <скилл>/scripts/tc_plan.py validate <ключ ТК>         - проверка плана; всё сошлось -> plan_status: planned
   python3 <скилл>/scripts/tc_plan.py style <ключ ТК> <steps|flow> - записать архитектуру тестов проекта (ответ человека)
+  python3 <скилл>/scripts/tc_plan.py package <ключ ТК> <пакет>  - пакет тестов в шапку и пути плана (пакет не определился)
+  python3 <скилл>/scripts/tc_plan.py rename <ключ ТК> <Имя>Test  - новое имя тест-класса (имя занято классом человека)
   python3 <скилл>/scripts/tc_plan.py approve <ключ ТК>          - человек подтвердил разделы 11-16 -> approved: yes
 
 build: шаги TC.md делятся на подшаги (два действия в одном шаге), каждому - тип, группа,
@@ -404,7 +406,8 @@ def detail_sections(test_file, package, env, rows, groups, consts, index, arts):
     perf = find_files("**/src/test/resources/perfeccionista.properties")
     files.append(((perf or [lay["resources"] + "/perfeccionista.properties"])[0], "скрипт",
                   "ключи фрейма по эталону: env_props.py ensure (руками не пишется)", "-"))
-    env_cfg = find_files("**/src/test/java/**/*.java", r"extends\s+DefaultEnvironmentConfiguration")
+    env_cfg = [f for f in env.get("project", {}).get("environment_configurations", []) if f.endswith(".java")] \
+        or find_files("**/src/test/java/**/*.java", r"extends\s+DefaultEnvironmentConfiguration")
     files.append(((env_cfg or [lay["dir"](lay["root"] + ".config") + "/" + FILL + "EnvironmentConfiguration.java"])[0],
                   "env-check", "регистрация сервисов технологий раздела 8 (настраивает env-check, генерация не трогает)", "-"))
     for c in prop_consts:
@@ -439,9 +442,11 @@ def render_detail(files, methods, checks, settings):
     return out
 
 
-def render(tc, check, env, rows, groups, consts, vars_, index, needs, arts=None):
+def render(tc, check, env, rows, groups, consts, vars_, index, needs, arts=None, keep_package="-"):
     project = env.get("project", {})
     package = project.get("test_package") or project.get("base_package") or "-"
+    if package == "-" and JAVA_PACKAGE.fullmatch(keep_package or ""):
+        package = keep_package  # build --force: пакет, который уже вписан в шапку, не теряется
     roots = project.get("test_roots") or ["src/test/java"]
     name = class_name(tc)
     test_file = roots[0].rstrip("/") + "/" + (package.replace(".", "/") + "/" if package != "-" else "") + name + ".java"
@@ -555,6 +560,7 @@ def build(key, force):
         print("НЕТ TC.md: " + str(folder / "TC.md") + " - сначала tc_convert.py")
         return 2
     plan = tcc.pp.plan_file(key)
+    old_package = re.search(r"(?m)^package:\s*(\S+)", plan.read_text(encoding="utf-8")) if plan.is_file() else None
     if plan.is_file() and not force:
         status = re.search(r"(?m)^plan_status:\s*(\S+)", plan.read_text(encoding="utf-8"))
         if status and status.group(1) != "draft":
@@ -591,7 +597,8 @@ def build(key, force):
     vars_ = variables(rows, arts["values"])
     index = class_index(env, {g["group"] for g in groups})
     needs = env_needs(tc, rows, env)
-    plan.write_text(render(tc, check, env, rows, groups, consts, vars_, index, needs, arts), encoding="utf-8")
+    plan.write_text(render(tc, check, env, rows, groups, consts, vars_, index, needs, arts,
+                           old_package.group(1) if old_package else "-"), encoding="utf-8")
     low = [r["id"] for r in rows if r["conf"] == "LOW" or r["group"] == "UNKNOWN_GROUP" or r["type"] == "UNKNOWN_TYPE"]
     print("ФАЙЛ: " + str(plan).replace("\\", "/"))
     print("ШАГОВ: %d · G: %d · КОНСТАНТ: %d · ПЕРЕМЕННЫХ: %d" % (len(rows), len(groups), len(consts), len(vars_)))
@@ -633,10 +640,81 @@ def set_style(key, style):
     return 0
 
 
+def set_package(key, package):
+    """Пакет тестов в шапку плана: package, test_file и пути раздела 11 с «-» вместо корня пакетов.
+    Без пакета - кандидаты: пакеты тест-классов проекта по частоте."""
+    if not package:
+        from collections import Counter
+        found = Counter()
+        for f in find_files("**/src/test/**/*.java"):
+            m = re.search(r"(?m)^\s*package\s+([\w.]+)\s*;", Path(f).read_text(encoding="utf-8", errors="replace"))
+            if m and (f.endswith("Test.java") or "/tests/" in f):
+                found[m.group(1)] += 1
+        if not found:
+            print("КАНДИДАТОВ НЕТ: тестов в проекте нет - спроси человека пакет одной строкой, ответ: tc_plan.py package "
+                  + key + " <пакет>")
+            return 1
+        for pkg, n in found.most_common(3):
+            print("КАНДИДАТ: " + pkg + " · тест-классов " + str(n))
+        print("ДАЛЬШЕ: tc_plan.py package " + key + " " + found.most_common(1)[0][0])
+        return 0
+    if not JAVA_PACKAGE.fullmatch(package):
+        print("НЕВЕРНО: пакет «" + str(package) + "» - нужен пакет Java, например ru.sber.demo.tests")
+        return 2
+    plan = tcc.pp.plan_file(key, create=False)
+    if not plan.is_file():
+        print("НЕТ ПЛАНА: сначала tc_plan.py build " + key)
+        return 2
+    text = plan.read_text(encoding="utf-8")
+    head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
+    lay = project_layout(load_env(), package)
+    old_test = head.get("test_file", "-")
+    new_test = lay["dir"](package) + "/" + head.get("class", "-") + ".java"
+    root_dir = lay["root"].replace(".", "/")
+    text = text.replace("| " + old_test + " |", "| " + new_test + " |")
+    text = re.sub(r"(?m)^(\| [^|\n]*?)/-/", lambda m: m.group(1) + "/" + root_dir + "/", text)
+    text = re.sub(r"(?m)^package:.*$", "package: " + package, text, count=1)
+    text = re.sub(r"(?m)^test_file:.*$", "test_file: " + new_test, text, count=1)
+    plan.write_text(text.rstrip("\n") + "\n| package | пакет тестов " + package + " |\n", encoding="utf-8")
+    print("ПАКЕТ: " + package + " · test_file: " + new_test)
+    print("ДАЛЬШЕ: tc_plan.py validate " + key)
+    return 0
+
+
+def rename_class(key, name):
+    """Новое имя тест-класса (имя занято классом человека): class, test_file, строка раздела 11. План меняется -
+    подтверждение снимет validate, нужно новое «да»."""
+    if not (JAVA_NAME.fullmatch(name or "") and name.endswith("Test")):
+        print("НЕВЕРНО: имя «" + str(name) + "» - имя Java с большой буквы и окончанием Test, например Cmn120GenTest")
+        return 2
+    plan = tcc.pp.plan_file(key, create=False)
+    text = plan.read_text(encoding="utf-8") if plan.is_file() else ""
+    head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
+    old = head.get("test_file", "-")
+    new = old.rsplit("/", 1)[0] + "/" + name + ".java" if "/" in old else name + ".java"
+    if not text or Path(new).exists():
+        print("НЕЛЬЗЯ: " + ("нет плана" if not text else "файл " + new + " уже есть - другое имя"))
+        return 1
+    text = text.replace("| " + old + " |", "| " + new + " |")
+    text = re.sub(r"(?m)^class:.*$", "class: " + name, text, count=1)
+    text = re.sub(r"(?m)^test_file:.*$", "test_file: " + new, text, count=1)
+    plan.write_text(text.rstrip("\n") + "\n| rename | тест-класс " + name + " |\n", encoding="utf-8")
+    print("ИМЯ: " + name + " · test_file: " + new)
+    print("ДАЛЬШЕ: tc_plan.py validate " + key + ", потом «да» человека (план изменился) - tc_plan.py approve " + key)
+    return 0
+
+
+def approved_ok(text):
+    """План подтверждён человеком и с тех пор не менялся: approved: yes <отпечаток текущего текста>."""
+    m = re.search(r"(?m)^approved:\s*yes\s+(\w+)\s*$", text.split("\n---", 1)[0] if text.startswith("---") else "")
+    return bool(m) and m.group(1) == plan_hash(text)
+
+
 def plan_hash(text):
     """Отпечаток содержания плана: без статусов (plan_status, approved, статусы G) и журнала."""
     import hashlib
     body = re.sub(r"(?ms)^## \d+\. Журнал.*\Z", "", strip_derived(text))
+    body = re.sub(r"(?m)^run_status:.*\n", "", body)  # строка запуска появляется и исчезает - на отпечаток не влияет
     body = re.sub(r"(?m)^(plan_status|approved|run_status):.*$", "", body)
     body = re.sub(r"(?m)\| (todo|ok|stub|blocked) \|\s*$", "| |", body)
     return hashlib.sha1(body.encode("utf-8")).hexdigest()[:12]
@@ -659,8 +737,8 @@ def detail_problems(text, head, steps):
     stems = {}
     for f in files:
         if "/-/" in f[0] or f[0].startswith("-/"):
-            problems.append("файл " + f[0] + ": в пути «-» - пакет не был известен при build: исправь package в шапке и"
-                            " перестрой план: tc_plan.py build " + head.get("tc", "<ключ>") + " --force")
+            problems.append("файл " + f[0] + ": в пути «-» - пакет не был известен при build: tc_plan.py package "
+                            + head.get("tc", "<ключ>") + " <пакет тестов> (пакет - из шага 6 скилла autotest-plan)")
         if f[1] not in FILE_ACTIONS:
             problems.append("файл " + f[0] + ": действие «" + f[1] + "» - одно из: " + ", ".join(FILE_ACTIONS))
         if f[0].endswith(".java") and f[1] == "создать" and f[0] != head.get("test_file"):
@@ -903,7 +981,8 @@ def validate(key):
     if not JAVA_NAME.fullmatch(head.get("class", "")) or not head.get("class", "").endswith("Test"):
         problems.append("class «" + head.get("class", "") + "» - нужно имя Java с большой буквы и окончанием Test")
     if not JAVA_PACKAGE.fullmatch(head.get("package", "")):
-        problems.append("package «" + head.get("package", "") + "» - нужен пакет Java, например ru.sber.demo.tests")
+        problems.append("package «" + head.get("package", "") + "» - нужен пакет Java: tc_plan.py package " + key
+                        + " <пакет тестов> (пакет - из шага 6 скилла autotest-plan)")
     if not head.get("test_file", "").endswith("/" + head.get("class", "") + ".java"):
         problems.append("test_file не оканчивается на /<class>.java")
     pkg_path = head.get("package", "").replace(".", "/")
@@ -960,6 +1039,9 @@ def validate(key):
         for p in problems:
             print("ПРОБЛЕМА: " + p)
         print("ИТОГ: план не сошёлся, проблем " + str(len(problems)))
+        if not head.get("approved", "no").startswith("no"):  # сломанный план не может оставаться подтверждённым
+            plan.write_text(re.sub(r"(?m)^approved:.*$", "approved: no", text, count=1), encoding="utf-8")
+            print("ПОДТВЕРЖДЕНИЕ: снято - план изменён и не сошёлся")
         return 1
     approved = head.get("approved", "no").split()
     still = len(approved) == 2 and approved[0] == "yes" and approved[1] == plan_hash(text)
@@ -978,10 +1060,14 @@ def validate(key):
 
 
 def main(args):
-    if len(args) < 2 or args[0] not in ("build", "validate", "style", "approve"):
+    if len(args) < 2 or args[0] not in ("build", "validate", "style", "approve", "package", "rename"):
         print("Использование: tc_plan.py build <ключ ТК> [--force] | validate <ключ ТК> | style <ключ ТК> <steps|flow>"
-              " | approve <ключ ТК>")
+              " | approve <ключ ТК> | package <ключ ТК> <пакет тестов> | rename <ключ ТК> <Имя>Test")
         return 2
+    if args[0] == "rename":
+        return rename_class(args[1], args[2] if len(args) > 2 else "")
+    if args[0] == "package":
+        return set_package(args[1], args[2] if len(args) > 2 else "")
     if args[0] == "approve":
         return approve(args[1])
     if args[0] == "style":
