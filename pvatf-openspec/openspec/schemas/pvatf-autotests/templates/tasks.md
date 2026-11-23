@@ -1,16 +1,19 @@
 apply-mode: subagents
 
 ## Цель
-<автотест <ключ> по design.md>
+Автотест <ключ> по design.md: тест-класс `<test_file>`, шаги генерации G-1..G-n. Делать только задачи ниже.
 
-## 1. G-1 · <технология>
-- [ ] 1.1 <действие> (design.md:<строка>)
-- [ ] 1.2 Фрагмент теста, шаги <n> (design.md:<строка>)
-- [ ] 1.3 `mvn -q test-compile` -> ожидается OK
+## 1. G-1 · <технология> · шаги <n, m>
+- [ ] 1.1 G-1: задание `at_tools.py next <ключ>` -> агент pvatf-generator, ответ ok -> `at_tools.py mark <ключ> G-1 ok` (design.md:<строка раздела 3>)
+- [ ] 1.2 Создать `<путь класса шагов>` - <что в нём> (design.md:<строка раздела 11>)
+- [ ] 1.3 Метод `<Класс>.<метод>(<Тип> <имя>, ...)` - шаги <n, m>; запрос <A-n> (design.md:<строка раздела 12>)
+- [ ] 1.4 Проверка шага <n>: <объект> · поле `<поле>` · <как> · <ожидаемое> (design.md:<строка раздела 13>)
+- [ ] 1.5 Настройка `<ключ>` = `<значение>` в `<файл>` (design.md:<строка раздела 14>)
+- [ ] 1.6 `at_tools.py compile <ключ> G-1` (`mvn -q test-compile`) -> КОМПИЛЯЦИЯ: ok (design.md:<строка раздела 3>)
 
 ## N. Сборка и проверка
-- [ ] N.1 `python3 .gigacode/skills/autotest-gen/scripts/at_tools.py assemble <ключ>`
-- [ ] N.2 `python3 .gigacode/skills/autotest-gen/scripts/at_tools.py check <ключ>` -> находок 0
+- [ ] N.1 `at_tools.py assemble <ключ>` -> тест-класс `<test_file>` (design.md:<строка>)
+- [ ] N.2 `at_tools.py check <ключ>` -> ИТОГ: находок 0 (design.md:<строка>)
 
 ## N+1. Запуск теста
-- [ ] N+1.1 `python3 .gigacode/skills/autotest-gen/scripts/at_tools.py run <ключ>` -> строка РЕЗУЛЬТАТ, человека не спрашивай
+- [ ] N+1.1 `at_tools.py run <ключ>` -> РЕЗУЛЬТАТ: passed, без вопроса человеку (design.md:<строка>)

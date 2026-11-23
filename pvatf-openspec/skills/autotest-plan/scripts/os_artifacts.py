@@ -123,6 +123,16 @@ def target(args):
     return args[0], root, key
 
 
+def tc_steps(tc):
+    """Таблица шагов TC.md: [(№, действие, данные, ожидаемый результат)]."""
+    rows = []
+    for line in tc.splitlines():
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
+        if len(cells) >= 4 and re.fullmatch(r"\d+", cells[0]):
+            rows.append(cells[:4])
+    return rows
+
+
 def cmd_proposal(args):
     name, root, key = target(args)
     if not root:
@@ -132,18 +142,58 @@ def cmd_proposal(args):
         out("НУЖНО: тест-кейс " + key + " не загружен - шаг 1 скилла autotest-plan: человек дал файл (ТК, лог, Allure, код теста)"
             " -> tc_convert.py <этот файл> --key " + key + "; дал только ключ -> ТК из TMS по ключу (MCP) -> tc_convert.py; потом снова")
         return 1
-    title = field(tc, "Название")
-    text = "\n".join([
-        "# Proposal: " + name, "",
-        "## Зачем", "Автоматизировать тест-кейс " + key + " «" + title + "».", "",
-        "## Тест-кейсы", "| Ключ TMS | Название | Источник |", "|----------|----------|----------|",
-        "| " + key + " | " + title + " | " + field(tc, "Источник") + " |", "",
-        "## Что меняется",
-        "- Новый автотест по тест-кейсу " + key + "; классы шагов, данные и тест-класс - по design.md.", "",
-        "## Вне scope",
-        "- Правка тест-кейса в TMS.",
-        "- Запуск теста на стенде - последняя задача apply, без вопроса человеку.", ""])
-    out("ИТОГ: proposal записан · ТК " + key, "ФАЙЛ: " + write(root / "proposal.md", text))
+    import tc_plan
+    import tc_common as tcc
+    parsed = tcc.parse_tc(root / "outputs" / "TC.md")
+    project = tc_plan.load_env().get("project", {})
+    cls = tc_plan.class_name(parsed)
+    package = project.get("test_package") or project.get("base_package") or ""
+    title, no_tc = field(tc, "Название"), key.startswith("NOTC-")
+    steps = tc_steps(tc)
+    if not (root / "outputs" / "TC-CHECK.md").is_file():
+        run_script("autotest-plan", "tc_check.py", [key])  # допущения proposal - находки проверки ТК
+    check = read(root / "outputs" / "TC-CHECK.md")
+    status = re.search(r"(?m)^- Статус:\s*(\S+)", check)
+    findings = [" · ".join(c.strip() for c in l.strip().strip("|").split("|")[:3]) for l in check.splitlines()
+                if re.match(r"^\|\s*TC-\d+", l)]
+    text = ["# Proposal: " + name, "",
+            "## Зачем",
+            ("Автоматизировать проверку «" + title + "» - ТК в TMS ещё нет, служебный ключ " + key + "." if no_tc
+             else "Автоматизировать тест-кейс " + key + " «" + title + "».")
+            + (" Цель ТК: " + field(tc, "Цель") + "." if field(tc, "Цель") not in ("-", "") else ""), "",
+            "## Тест-кейс",
+            "| Ключ | Название | Источник | Проверка ТК |", "|------|----------|----------|-------------|",
+            "| " + key + " | " + title + " | " + field(tc, "Источник") + " (" + field(tc, "Файл источника") + ") | "
+            + (status.group(1) if status else "-") + " |", "",
+            "## Сценарий",
+            "Шаги ТК дословно. Автотест повторяет их по порядку - ни шагов, ни проверок сверх этого списка.", "",
+            "| № | Действие | Тестовые данные | Ожидаемый результат |", "|---|----------|-----------------|---------------------|"]
+    text += ["| " + " | ".join(r) + " |" for r in steps] or ["| - | шагов нет | - | - |"]
+    text += ["", "## Предусловия и данные",
+             "- Предусловия: " + field(tc, "Предусловия"),
+             "- Требования к тестовым данным: " + field(tc, "Требования к тестовым данным"), "",
+             "## Что меняется",
+             "- Новый тест-класс `" + cls + "`" + (" в пакете `" + package + "`" if package else "") + " - один тест-метод, шаги 1-"
+             + str(len(steps)) + ".",
+             "- Классы шагов, данные и настройки - только из design.md, разделы 11-16: каждый файл, метод, проверка и ключ"
+             " настройки там названы, человек подтверждает их до кода.", "",
+             "## Критерии приёмки",
+             "1. Каждый шаг ТК 1-" + str(len(steps)) + " - шаг теста с комментарием `// Шаг <n>: <действие>`; служебные шаги"
+             " (design.md, раздел 2, тип SERVICE) - без кода.",
+             "2. Каждый ожидаемый результат - проверка в коде по design.md, раздел 13; ожидаемые значения - константы тест-класса.",
+             "3. " + ("Без `@TmsLink`: ТК нет, ключ служебный." if no_tc else "`@TmsLink(\"" + key + "\")` на тест-методе."),
+             "4. `mvn -q test-compile` - сборка без ошибок.",
+             "5. `" + AT + " check " + key + "` - ИТОГ: находок 0.",
+             "6. `" + AT + " run " + key + "` - строка РЕЗУЛЬТАТ; тест запускается последней задачей, без вопроса человеку.", "",
+             "## Вне scope",
+             "- Правка тест-кейса в TMS.",
+             "- Шаги, проверки, очистка данных и подготовка, которых нет в ТК.",
+             "- Другие тесты и общие классы проекта, кроме строк «дополнить» в design.md, раздел 11.",
+             "- `perfeccionista.properties` и регистрация сервисов: их пишут скрипт и env-check, не генерация.", "",
+             "## Допущения",
+             "Находки проверки ТК, которые не блокируют автотест (подробно: outputs/TC-CHECK.md):"]
+    text += ["- " + f for f in findings] or ["- нет"]
+    out("ИТОГ: proposal записан · ТК " + key + " · шагов " + str(len(steps)), "ФАЙЛ: " + write(root / "proposal.md", "\n".join(text) + "\n"))
     return 0
 
 
@@ -216,13 +266,62 @@ def cmd_design(args):
         return 1
     head = front(read(design))
     if not head.get("approved", "no").startswith("yes"):
-        out("НУЖНО: подтверждение плана - шаг 8 скилла autotest-plan: покажи человеку разделы 11-14 design.md (файлы, методы"
-            " шагов, проверки, настройки) и спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve "
+        out("НУЖНО: подтверждение плана - шаг 8 скилла autotest-plan: покажи человеку разделы 11-16 design.md (файлы, методы"
+            " шагов, проверки, настройки, привязка шагов к коду, планируемые изменения) и спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve "
             + key + "; правки -> исправь строки, потом снова. Код не пишется до подтверждения")
         return 1
     out("ИТОГ: design готов · plan_status " + head.get("plan_status", "-") + " · G " + str(len(gen_rows(read(design))))
         + " · окружение готово", "ФАЙЛ: " + rel(design))
     return 0
+
+
+def section_lines(plan, title):
+    """Строки таблицы раздела плана с номером строки в файле: [(номер строки, ячейки)]."""
+    rows, inside = [], False
+    for no, line in enumerate(plan.splitlines(), 1):
+        if line.startswith("## "):
+            inside = line.startswith("## " + title)
+            continue
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
+        if inside and cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Файл", "Ключ", "-"):
+            rows.append((no, cells))
+    return rows
+
+
+def ids(cell):
+    return [x.strip() for x in cell.split(",") if x.strip() and x.strip() != "-"]
+
+
+def plan_items(plan):
+    """Задачи групп G из разделов 11-14 плана: {G: [(текст задачи, номер строки design.md)]}."""
+    step_g = {r[0]: r[10] for _, r in section_lines(plan, "2.") if len(r) >= 11}
+    files = [(no, f) for no, f in section_lines(plan, "11.") if len(f) >= 4]
+    methods = [(no, m) for no, m in section_lines(plan, "12.") if len(m) >= 6]
+    checks = [(no, c) for no, c in section_lines(plan, "13.") if len(c) >= 5]
+    settings = [(no, x) for no, x in section_lines(plan, "14.") if len(x) >= 4]
+    test_file = front(plan).get("test_file", "-")
+    items = {}
+    for no, f in files:
+        if f[1] not in ("создать", "дополнить") or f[0] == test_file:
+            continue
+        gs = ids(f[3])
+        if not gs:  # тело запроса шага n -> G этого шага
+            step = re.search(r"шага ([\d.]+)", f[2])
+            gs = [step_g.get(step.group(1), "")] if step else []
+        for g in gs or [""]:
+            items.setdefault(g, []).append(("%s `%s` - %s" % ("Создать" if f[1] == "создать" else "Дополнить", f[0], f[2]), no))
+    for no, m in methods:
+        sig = m[2] + "(" + ", ".join(p.strip().split()[1] + " " + p.strip().split()[0] for p in m[5].split(";")
+                                     if len(p.strip().split()) >= 2 and p.strip() != "нет") + ")"
+        items.setdefault(m[0], []).append(("Метод `%s.%s` - шаги %s%s" % (m[1], sig, m[3], "; запрос " + m[4] if m[4] not in ("-", "") else ""), no))
+    for no, c in checks:
+        if c[3].startswith("проверено в шаге"):
+            continue
+        items.setdefault(step_g.get(c[0], ""), []).append(("Проверка шага %s: %s · поле `%s` · %s · %s" % tuple(c[:5]), no))
+    for no, x in settings:
+        g = next((m[0] for _, m in methods if "настройки " + x[0] in m[5]), "")
+        items.setdefault(g, []).append(("Настройка `%s` = `%s` в `%s`" % (x[0], x[2], x[1]), no))
+    return items
 
 
 def cmd_tasks(args):
@@ -237,29 +336,81 @@ def cmd_tasks(args):
         out("НУЖНО: план не подтверждён человеком (approved: no) - сначала артефакт design, шаг подтверждения")
         return 1
     gens = gen_rows(plan)
-    test_line = next((no for no, l in enumerate(plan.splitlines(), 1) if l.startswith("test_file:")), 1)
-    lines = ["apply-mode: subagents", "", "## Цель", "Автотест " + key + " по design.md.", ""]
+    lines_of = plan.splitlines()
+    test_line = next((no for no, l in enumerate(lines_of, 1) if l.startswith("test_file:")), 1)
+    test_row = next((no for no, f in section_lines(plan, "11.") if f[0] == front(plan).get("test_file")), test_line)
+    items = plan_items(plan)
+    lines = ["apply-mode: subagents", "",
+             "## Цель", "Автотест " + key + " по design.md: тест-класс `" + front(plan).get("test_file", "-") + "`, шаги генерации "
+             + ", ".join(g[0] for _, g in gens) + ". Делать только задачи ниже; файл, метод или проверка не из списка - не писать.", ""]
     n = 0
     for no, g in gens:
         n += 1
-        lines += ["## " + str(n) + ". " + g[0] + " · " + (g[3] if len(g) > 3 else "-"),
+        lines += ["## " + str(n) + ". " + g[0] + " · " + (g[3] if len(g) > 3 else "-") + " · шаги " + g[1],
                   "- [ ] " + str(n) + ".1 " + g[0] + ": задание `" + AT + " next " + key + "` -> агент pvatf-generator,"
-                  " ответ ok -> `" + AT + " mark " + key + " " + g[0] + " ok` (design.md:" + str(no) + ")", ""]
+                  " ответ ok -> `" + AT + " mark " + key + " " + g[0] + " ok` (design.md:" + str(no) + ")"]
+        k = 1
+        for text, line in items.get(g[0], []):
+            k += 1
+            lines.append("- [ ] " + str(n) + "." + str(k) + " " + text + " (design.md:" + str(line) + ")")
+        lines += ["- [ ] " + str(n) + "." + str(k + 1) + " `" + AT + " compile " + key + " " + g[0] + "` (`mvn -q test-compile`)"
+                  " -> КОМПИЛЯЦИЯ: ok (design.md:" + str(no) + ")", ""]
     n += 1
     lines += ["## " + str(n) + ". Сборка и проверка",
-              "- [ ] " + str(n) + ".1 `" + AT + " assemble " + key + "` (design.md:" + str(test_line) + ")",
-              "- [ ] " + str(n) + ".2 `" + AT + " check " + key + "` -> ИТОГ: находок 0 (design.md:" + str(test_line) + ")", ""]
+              "- [ ] " + str(n) + ".1 `" + AT + " assemble " + key + "` -> тест-класс `" + front(plan).get("test_file", "-")
+              + "` (design.md:" + str(test_row) + ")"]
+    k = 1
+    for text, line in items.get("", []):  # строки плана без G (настройки без метода и т.п.)
+        k += 1
+        lines.append("- [ ] " + str(n) + "." + str(k) + " " + text + " (design.md:" + str(line) + ")")
+    lines += ["- [ ] " + str(n) + "." + str(k + 1) + " `" + AT + " check " + key + "` -> ИТОГ: находок 0 (design.md:" + str(test_line) + ")", ""]
     n += 1  # последняя задача всегда - запуск теста; без него изменение не архивируется
     lines += ["## " + str(n) + ". Запуск теста",
-              "- [ ] " + str(n) + ".1 `" + AT + " run " + key + "` -> строка РЕЗУЛЬТАТ, человека не спрашивай"
+              "- [ ] " + str(n) + ".1 `" + AT + " run " + key + "` -> РЕЗУЛЬТАТ: passed - тест прошёл на стенде; запуск без вопроса человеку"
               " (design.md:" + str(test_line) + ")", ""]
-    out("ИТОГ: tasks записан · групп " + str(n), "ФАЙЛ: " + write(root / "tasks.md", "\n".join(lines)))
+    total = sum(1 for l in lines if l.startswith("- [ ]"))
+    out("ИТОГ: tasks записан · групп " + str(n) + " · задач " + str(total), "ФАЙЛ: " + write(root / "tasks.md", "\n".join(lines)))
     return sync(root)
 
 
+def code_fields(paths):
+    """Поля, которые проверяет код файлов (те же правила, что у at_tools.py check). Нет at_tools - пустое множество."""
+    try:
+        sys.path.insert(0, str(SKILLS / "autotest-gen" / "scripts"))
+        import at_tools
+    except Exception:  # noqa: BLE001 - скилл autotest-gen не установлен
+        return None
+    found = set()
+    for f in paths:
+        if Path(f).is_file():
+            lines = read(f).splitlines()
+            consts = at_tools.file_constants(lines)
+            for _, line in at_tools.code_lines(lines):
+                found.update(x.lower() for x in at_tools.checked_fields(line, consts))
+    return found
+
+
+def item_done(line, plan, fields):
+    """Задача из раздела 11-14 сделана по коду: файл есть, метод объявлен, поле проверяется, ключ в файле."""
+    m = re.search(r"(?:Создать|Дополнить) `([^`]+)`", line)
+    if m:
+        return Path(m.group(1)).is_file()
+    m = re.search(r"Метод `(\w+)\.(\w+)\(", line)
+    if m:
+        path = next((f[0] for _, f in section_lines(plan, "11.") if f[0].endswith("/" + m.group(1) + ".java")), "")
+        return bool(path) and Path(path).is_file() and re.search(r"\b" + m.group(2) + r"\s*\(", read(path)) is not None
+    m = re.search(r"Проверка шага \S+: .*? · поле `([^`]+)` · ([^·]+) ·", line)
+    if m:
+        return m.group(2).strip() == "статус" or fields is None or m.group(1).strip("`").lstrip("$.").lower() in fields
+    m = re.search(r"Настройка `([^`]+)` = .* в `([^`]+)`", line)
+    if m:
+        return Path(m.group(2)).is_file() and re.search(r"(?m)^\s*" + re.escape(m.group(1)) + r"\s*[=:]", read(m.group(2))) is not None
+    return None
+
+
 def sync(root):
-    """Чекбоксы tasks.md по статусам: G ok/stub в разделе 3 плана, сборка (CHECK.md), check (plan_status: checked),
-    запуск (run_status в шапке design.md при plan_status: checked)."""
+    """Чекбоксы tasks.md по статусам и коду: G ok/stub в разделе 3 плана; задачи файлов, методов, проверок и настроек -
+    G готова и это видно в коде; компиляция G - outputs/compile/G-n.md с «Компиляция: ok»; сборка (plan_status assembled), check (checked), запуск (run_status: passed при checked)."""
     tasks = root / "tasks.md"
     text = read(tasks)
     if not text:
@@ -269,13 +420,29 @@ def sync(root):
     status = front(plan).get("plan_status", "")
     checked = status == "checked"
     assembled = status in ("assembled", "checked")
-    ran = checked and bool(front(plan).get("run_status"))
-    lines, marked, cleared = [], 0, 0
+    ran = checked and front(plan).get("run_status") == "passed"  # отметка - только тест прошёл, не «запускали»
+    code = [f[0] for _, f in section_lines(plan, "11.") if f[0].endswith(".java")]
+    fields = code_fields(code)
+    lines, marked, cleared, group = [], 0, 0, ""
     for line in text.splitlines():
+        head = re.match(r"^## \d+\. (G-\d+)\b", line)
+        if line.startswith("## "):
+            group = head.group(1) if head else ""
         m = re.match(r"^- \[[ x]\] \S+ (G-\d+):", line)
-        hit = (m.group(1) in done) if m else (assembled if "at_tools.py assemble" in line
-                                               else checked if "at_tools.py check" in line
-                                               else ran if "at_tools.py run" in line else None)
+        if m:
+            hit = m.group(1) in done
+        elif "at_tools.py compile" in line:
+            hit = bool(group) and group in done and "- Компиляция: ok" in read(root / "outputs" / "compile" / (group + ".md"))
+        elif "at_tools.py assemble" in line:
+            hit = assembled
+        elif "at_tools.py check" in line:
+            hit = checked
+        elif "at_tools.py run" in line:
+            hit = ran
+        else:
+            hit = item_done(line, plan, fields)
+            if hit is not None:
+                hit = hit and (group in done if group else assembled)
         if hit is not None and line.startswith(("- [ ]", "- [x]")):
             if hit and line.startswith("- [ ]"):
                 marked += 1

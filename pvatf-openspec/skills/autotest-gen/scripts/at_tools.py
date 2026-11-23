@@ -4,6 +4,7 @@
   python3 <скилл>/scripts/at_tools.py rules <ключ ТК>              - правила кода и конспект в rules-now.md, docs-now.md
   python3 <скилл>/scripts/at_tools.py next <ключ ТК>               - задание агенту pvatf-generator на следующий G
   python3 <скилл>/scripts/at_tools.py mark <ключ ТК> <G-n> <статус> - статус G в плане: ok / stub / blocked / todo
+  python3 <скилл>/scripts/at_tools.py compile <ключ ТК> <G-n>      - компиляция после G (mvn -q test-compile из ENV.json)
   python3 <скилл>/scripts/at_tools.py assemble <ключ ТК>           - собрать тест-класс из фрагментов
   python3 <скилл>/scripts/at_tools.py check <ключ ТК> [--no-compile] - самопроверка кода, покрытие шагов, компиляция
   python3 <скилл>/scripts/at_tools.py run <ключ ТК> [--dry-run | --report-only] - запуск тест-класса, разбор отчёта JUnit
@@ -151,7 +152,7 @@ def cmd_next(key):
     if head.get("plan_status") not in ("planned", "generating"):
         return fail("plan_status " + head.get("plan_status", "-") + " - генерация только по плану planned или generating", 1)
     if not head.get("approved", "no").startswith("yes"):
-        return fail("ПЛАН НЕ ПОДТВЕРЖДЁН: approved " + head.get("approved", "no") + " - человек подтверждает разделы 11-14"
+        return fail("ПЛАН НЕ ПОДТВЕРЖДЁН: approved " + head.get("approved", "no") + " - человек подтверждает разделы 11-16"
                     " design.md (tc_plan.py approve " + key + "), код до этого не пишется", 1)
     gens = section_rows(text, "3. Порядок генерации")
     steps = {r[0]: r for r in section_rows(text, "2. Шаги")}
@@ -163,7 +164,8 @@ def cmd_next(key):
     tc = read(folder(key) / "TC.md")
     consts = [c for c in section_rows(text, "4. Константы") if c[0] != "-" and set(c[5].replace(" ", "").split(",")) & set(g[1].replace(" ", "").split(","))]
     variables = [v for v in section_rows(text, "5. Переменные") if v[0] != "-"]
-    classes = [l[2:] for l in text.split("\n") if l.startswith("- " + g[2] + " · `")]
+    classes = [l[2:] for l in text.split("\n") if l.startswith("- " + g[2] + " · `")
+               and not re.search(r"/config/|Configuration\.java`", l)]  # конфигурация окружения - не класс шагов
     root = str(Path(".").resolve())
     lines = ["ЗАДАНИЕ для агента pvatf-generator (передай дословно, всё ниже этой строки):", "",
              "- Проект: " + root,
@@ -219,6 +221,13 @@ def cmd_next(key):
         lines.append("  - настройки (ключ - файл - кто читает):")
         lines += ["    - " + st[0] + " - " + st[1] + " - " + st[3] for st in section_rows(text, "14. Настройки")
                   if len(st) >= 4 and st[0] != "-"] or ["    - нет"]
+        sect = re.search(r"(?ms)^## 16\. Планируемые изменения\s*\n(.*?)(?=^## |\Z)", text)
+        blocks = [b for b in re.split(r"(?m)^### ", sect.group(1) if sect else "")[1:]
+                  if re.search(r"(?m)^- G: .*\b" + re.escape(g[0]) + r"\b", b)]
+        if blocks:
+            lines.append("  - планируемые изменения (design.md, раздел 16; сигнатуры и параметры - ровно так):")
+            for b in blocks:
+                lines += ["    " + ("### " if i == 0 else "") + l for i, l in enumerate(b.rstrip().splitlines())]
     lines.append("- Классы шагов проекта для этой технологии (переиспользуй, если подходят):")
     lines += ["  - " + c for c in classes] or ["  - нет"]
     print("\n".join(lines))
@@ -253,6 +262,9 @@ def cmd_mark(key, gid, status):
         frag.write_text("# " + gid + "\n\n- Статус: " + status + "\n- Файлы шагов: -\n\n## imports\n```java\n```\n\n"
                         "## fields\n```java\n```\n\n## body\n```java\n" + "\n".join(body) + "\n```\n", encoding="utf-8")
     text = pattern.sub(lambda m: m.group(1) + " " + status + " |", text, count=1)
+    stale = folder(key) / "compile" / (gid + ".md")
+    if stale.is_file():
+        stale.unlink()  # код G меняется - прошлая компиляция не в счёт
     if head.get("plan_status") == "planned" or (status == "todo" and head.get("plan_status") in ("assembled", "checked")):
         text = set_head(text, "plan_status", "generating")
     path.write_text(journal(text, gid + " -> " + status), encoding="utf-8")
@@ -260,6 +272,31 @@ def cmd_mark(key, gid, status):
     print("ОТМЕЧЕНО: " + gid + " " + status + " · осталось todo: " + (", ".join(left) or "нет - дальше assemble"))
     sync_tasks(key)
     return 0
+
+
+def cmd_compile(key, gid):
+    """Компиляция проекта после G: классы шагов этой G уже в проекте, ошибка видна на своей группе, а не в конце."""
+    path, text, head = plan(key)
+    if text is None:
+        return fail("НЕТ ПЛАНА (design.md изменения)")
+    row = next((g for g in section_rows(text, "3. Порядок генерации") if g[0] == gid), None)
+    if not row:
+        return fail("в разделе 3 плана нет строки " + gid, 1)
+    if len(row) < 8 or row[7] not in ("ok", "stub"):
+        return fail(gid + " не готов (статус " + (row[7] if len(row) > 7 else "-") + ") - сначала задание агенту и mark " + gid + " ok", 1)
+    status, details = compile_project(540)
+    target = folder(key) / "compile" / (gid + ".md")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("# Компиляция после " + gid + "\n\n- Компиляция: " + status + "\n\n" + "\n".join("- " + d for d in details) + "\n",
+                      encoding="utf-8")
+    for d in details if status == "failed" else []:
+        print("КОМПИЛЯЦИЯ " + d)
+    print("КОМПИЛЯЦИЯ: " + status + " · " + gid + (" · " + details[0] if details and status != "failed" else ""))
+    if status == "failed":
+        print("НУЖНО: mark " + key + " " + gid + " todo, затем next - то же задание агенту pvatf-generator, строки КОМПИЛЯЦИЯ"
+              " добавь в конец задания дословно; не больше 2 кругов, потом mark " + key + " " + gid + " stub")
+    sync_tasks(key)
+    return 0 if status in ("ok", "skipped") else 1
 
 
 def sync_tasks(key):
@@ -839,9 +876,12 @@ def cmd_run(key, args):
 
 
 def main(args):
-    if len(args) < 2 or args[0] not in ("rules", "next", "mark", "assemble", "check", "run"):
-        print("Использование: at_tools.py rules|next|assemble|check|run <ключ ТК> | mark <ключ ТК> <G-n> <статус>")
+    if len(args) < 2 or args[0] not in ("rules", "next", "mark", "compile", "assemble", "check", "run"):
+        print("Использование: at_tools.py rules|next|assemble|check|run <ключ ТК> | mark <ключ ТК> <G-n> <статус>"
+              " | compile <ключ ТК> <G-n>")
         return 2
+    if args[0] == "compile":
+        return cmd_compile(args[1], args[2]) if len(args) >= 3 else fail("compile <ключ ТК> <G-n>")
     if args[0] == "mark":
         return cmd_mark(args[1], args[2], args[3]) if len(args) >= 4 else fail("mark <ключ ТК> <G-n> <статус>")
     if args[0] == "check":

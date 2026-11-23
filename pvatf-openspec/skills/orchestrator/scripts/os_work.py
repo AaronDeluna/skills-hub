@@ -403,6 +403,13 @@ def cmd_next(args):
                 " (сначала убери строку x-pvatf-stop из .openspec.yaml)")
             return 0
     left = len(re.findall(r"(?m)^- \[ \]", read(root / "tasks.md")))
+    run = front(read(root / "design.md")).get("run_status", "")
+    if kind == "autotest" and run and run != "passed":
+        out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: тест не прошёл · " + run + " · отчёт openspec/changes/" + name + "/outputs/RUN.md",
+            "КОМАНДА: скилл autotest-gen, шаг 8: падения КОД - исправь, check, снова at_tools.py run " + obj
+            + " (не больше 2 кругов); СТЕНД, ПРОВЕРКА, окружение - покажи человеку RUN.md и спроси «Тест не прошёл: <причина>."
+            " Исправить и запустить снова или архивировать как есть?»; «архивировать» -> openspec archive " + name + " --yes")
+        return 0
     if left:
         out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · задач осталось " + str(left),
             "КОМАНДА: openspec instructions apply --change \"" + name + "\" --json - выполни поле instruction")

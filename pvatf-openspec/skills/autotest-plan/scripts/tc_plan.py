@@ -4,7 +4,7 @@
   python3 <скилл>/scripts/tc_plan.py build <ключ ТК> [--force]  - черновик плана design.md (plan_status: draft)
   python3 <скилл>/scripts/tc_plan.py validate <ключ ТК>         - проверка плана; всё сошлось -> plan_status: planned
   python3 <скилл>/scripts/tc_plan.py style <ключ ТК> <steps|flow> - записать архитектуру тестов проекта (ответ человека)
-  python3 <скилл>/scripts/tc_plan.py approve <ключ ТК>          - человек подтвердил разделы 11-14 -> approved: yes
+  python3 <скилл>/scripts/tc_plan.py approve <ключ ТК>          - человек подтвердил разделы 11-16 -> approved: yes
 
 build: шаги TC.md делятся на подшаги (два действия в одном шаге), каждому - тип, группа,
 технология, уверенность, связь данных; шаги группируются в шаги генерации G-n; константы из
@@ -18,7 +18,8 @@ openspec/pvatf/env/STYLE.md или ENV-INIT.md) или код проекта (EN
 validate: нет UNKNOWN в шагах, каждый шаг в G, у каждой G есть справка, у констант есть источник,
 имя класса и пакет - допустимые имена Java, tc_status не FAIL, архитектура steps или flow, разбор
 артефактов закончен, у каждого запроса и SQL есть строка в разделе 9; разделы 11-14 (файлы, методы шагов,
-проверки, настройки) заполнены без ЗАПОЛНИТЬ и сходятся друг с другом и с разделами 2-5 (references/design-rules.md).
+проверки, настройки) заполнены без ЗАПОЛНИТЬ и сходятся друг с другом и с разделами 2-5 (references/design-rules.md);
+сошлось -> validate пишет разделы 15 (привязка шагов ТК к коду) и 16 (планируемые изменения по файлам).
 Генерация - только по плану, который человек подтвердил (approve -> approved: yes); validate сбрасывает approved.
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - выполнено, 1 - план не сошёлся или
 ТК FAIL, 2 - неверные аргументы или нет TC.md.
@@ -361,6 +362,11 @@ def find_files(pattern, text_re=None):
     return found
 
 
+def config_class(path):
+    """Класс конфигурации окружения или сервиса - не класс шагов: методы шагов в него не пишутся."""
+    return "/config/" in path.replace("\\", "/") or Path(path).stem.endswith("Configuration")
+
+
 def detail_sections(test_file, package, env, rows, groups, consts, index, arts):
     """Черновик разделов 11-14: файлы, методы шагов, проверки, настройки. Клетки, которые скрипт не решает, - ЗАПОЛНИТЬ."""
     lay = project_layout(env, package)
@@ -372,7 +378,7 @@ def detail_sections(test_file, package, env, rows, groups, consts, index, arts):
         work = [r for r in g["rows"] if r["type"] != "SERVICE"]
         if not work:
             continue
-        found = index.get(g["group"], [])
+        found = [c for c in index.get(g["group"], []) if not config_class(c[0])]
         if found:
             path, stem = found[0][0], found[0][1]
             files.append((path, "дополнить", "методы шагов " + g["id"] + " (раздел 12) - или " + FILL + ": путь нового класса", g["id"]))
@@ -515,7 +521,7 @@ def render(tc, check, env, rows, groups, consts, vars_, index, needs, arts=None)
     if not arts["values"]:
         out.append("| - | - | - | - | - |")
     out += render_detail(*detail_sections(test_file, package, env, rows, groups, consts, index, arts))
-    out += ["", "## 15. Журнал", "", "| Когда | Что |", "|-------|-----|",
+    out += ["", "## 17. Журнал", "", "| Когда | Что |", "|-------|-----|",
             "| build | черновик плана: шагов %d, G %d, констант %d |" % (len(rows), len(groups), len(consts))]
     return "\n".join(out) + "\n"
 
@@ -630,7 +636,7 @@ def set_style(key, style):
 def plan_hash(text):
     """Отпечаток содержания плана: без статусов (plan_status, approved, статусы G) и журнала."""
     import hashlib
-    body = re.sub(r"(?ms)^## 15\. Журнал.*\Z", "", text)
+    body = re.sub(r"(?ms)^## \d+\. Журнал.*\Z", "", strip_derived(text))
     body = re.sub(r"(?m)^(plan_status|approved|run_status):.*$", "", body)
     body = re.sub(r"(?m)\| (todo|ok|stub|blocked) \|\s*$", "| |", body)
     return hashlib.sha1(body.encode("utf-8")).hexdigest()[:12]
@@ -652,6 +658,9 @@ def detail_problems(text, head, steps):
     files = [r for r in table(text, "11. Файлы") if len(r) >= 4 and r[0] != "-"]
     stems = {}
     for f in files:
+        if "/-/" in f[0] or f[0].startswith("-/"):
+            problems.append("файл " + f[0] + ": в пути «-» - пакет не был известен при build: исправь package в шапке и"
+                            " перестрой план: tc_plan.py build " + head.get("tc", "<ключ>") + " --force")
         if f[1] not in FILE_ACTIONS:
             problems.append("файл " + f[0] + ": действие «" + f[1] + "» - одно из: " + ", ".join(FILE_ACTIONS))
         if f[0].endswith(".java") and f[1] == "создать" and f[0] != head.get("test_file"):
@@ -719,8 +728,154 @@ def detail_problems(text, head, steps):
     return problems
 
 
+DERIVED = ("15. Привязка шагов ТК к коду", "16. Планируемые изменения")
+PARAM = re.compile(r"^\s*([a-z]\w*)\s+([A-Za-z][\w<>\[\], .?]*?)\s+-\s+(.+?)\s*$")
+
+
+def strip_derived(text):
+    """Без разделов 15-16: их пишет validate из разделов 2-14, руками они не правятся."""
+    for title in DERIVED:
+        text = re.sub(r"(?ms)^## " + re.escape(title) + r"\s*\n.*?(?=^## |\Z)", "", text)
+    return text
+
+
+def params(cell):
+    """«host String - настройки test.url; code BigDecimal - тест» -> [(имя, тип, откуда)]."""
+    found = []
+    for part in cell.split(";"):
+        m = PARAM.match(part)
+        if m:
+            found.append(m.groups())
+    return found
+
+
+def signature(m):
+    """Строка раздела 12 -> «Класс.метод(Тип имя, ...)»."""
+    return m[1] + "." + m[2] + "(" + ", ".join(t + " " + n for n, t, _ in params(m[5])) + ")"
+
+
+def java_package(path):
+    m = re.search(r"/java/(.+)/[^/]+\.java$", path)
+    return m.group(1).replace("/", ".") if m else "-"
+
+
+def ids(cell):
+    return [x.strip() for x in cell.split(",") if x.strip() and x.strip() != "-"]
+
+
+def derived_sections(text, head):
+    """Разделы 15-16 из подтверждаемых таблиц 2-14: что, где и как будет в коде. Ничего нового - только сводка."""
+    steps = [r for r in table(text, "2. Шаги") if len(r) >= 11]
+    gens = [g for g in table(text, "3. Порядок генерации") if len(g) >= 8]
+    consts = [c for c in table(text, "4. Константы") if len(c) >= 6 and c[0] != "-"]
+    reqs = [r for r in table(text, "9. Запросы из артефактов") if len(r) >= 8 and r[1] != "-"]
+    files = [f for f in table(text, "11. Файлы") if len(f) >= 4 and f[0] != "-"]
+    methods = [m for m in table(text, "12. Методы шагов") if len(m) >= 6 and m[0] != "-"]
+    checks = [c for c in table(text, "13. Проверки") if len(c) >= 5 and c[0] != "-"]
+    settings = [x for x in table(text, "14. Настройки") if len(x) >= 4 and x[0] != "-"]
+    by_step = {}
+    for m in methods:
+        for sid in ids(m[3]):
+            by_step.setdefault(sid, m)
+    req_text = lambda sid: "; ".join(r[1] + " " + r[2] + " " + r[3] for r in reqs if r[0] == sid or r[0] == sid.split(".")[0]) or "-"
+    check_text = lambda c: c[1] + " · `" + c[2] + "` " + c[3] + ("" if c[4] == "-" else " " + c[4])
+    out = ["", "## " + DERIVED[0], "",
+           "Пишет `tc_plan.py validate` из разделов 2-14, руками не правится. Каждый шаг ТК - место в коде и его проверки.", "",
+           "| Шаг ТК | Действие | G | Где в коде | Запрос | Проверки |", "|--------|----------|---|------------|--------|----------|"]
+    for r in steps:
+        m = by_step.get(r[0])
+        where = "тест-класс: служебный шаг, кода шага нет" if r[3] == "SERVICE" else ("`" + signature(m) + "`" if m else "-")
+        cks = "; ".join(check_text(c) for c in checks if c[0] == r[0]) or "-"
+        out.append("| %s | %s | %s | %s | %s | %s |" % (r[0], r[1], r[10], where, req_text(r[0]), cks))
+    out += ["", "## " + DERIVED[1], "",
+            "Пишет `tc_plan.py validate` из разделов 4, 9, 11-14. Файлы и public-методы только отсюда:"
+            " лишнее `at_tools.py check` находит как ВНЕ ПЛАНА и МЕТОД ВНЕ ПЛАНА."]
+    analogs = {}
+    for line in re.findall(r"(?m)^- (\w+) · `([^`]+)` ·", text):
+        if not config_class(line[1]):
+            analogs.setdefault(line[0], line[1])
+    g_group = {g[0]: g for g in gens}
+    test_file = head.get("test_file", "-")
+    order = sorted(methods, key=lambda m: [float(x) if re.fullmatch(r"[\d.]+", x) and x.count(".") <= 1 else 0 for x in ids(m[3])][:1])
+    for f in files:
+        path, action, what, g = f[:4]
+        if action not in ("создать", "дополнить"):
+            continue
+        tag = "[ADDED]" if action == "создать" else "[MODIFIED]"
+        name = Path(path).stem if path.endswith(".java") else path.rsplit("/", 1)[-1]
+        out += ["", "### " + tag + " `" + name + "`",
+                "- Файл: `" + path + "`" + (" (новый)" if action == "создать" else " (есть в проекте, добавляются только методы ниже;"
+                                                                                  " существующие методы не меняются)")]
+        if path.endswith(".java"):
+            out.append("- Пакет: `" + java_package(path) + "`")
+        if path == test_file:
+            out.append("- Базовый класс: `" + head.get("base_fqn", "-") + "`")
+            out.append("- Аннотации: " + ("ТК нет (ключ " + head.get("tc", "-") + ") - без @TmsLink"
+                                          if head.get("tc", "").startswith("NOTC-") else "`@TmsLink(\"" + head.get("tc", "-") + "\")`"))
+            own = [c for c in consts if c[2] == "TEST_CLASS_STATIC_FINAL"]
+            out.append("- Константы класса: " + (", ".join("`" + c[0] + "` = `" + c[1] + "`" for c in own) or "нет"))
+            other = [c for c in consts if c[2] != "TEST_CLASS_STATIC_FINAL"]
+            if other:
+                out.append("- Значения не в тест-классе: " + ", ".join("`" + c[0] + "` - " + c[2] for c in other))
+            out.append("- Тест-метод: шаги ТК по порядку")
+            done = set()
+            for r in steps:
+                m = by_step.get(r[0])
+                if r[3] == "SERVICE":
+                    out.append("  - шаг " + r[0] + ": служебный, кода нет")
+                elif m and id(m) not in done:
+                    done.add(id(m))
+                    args = ", ".join(n + " (" + w + ")" for n, _, w in params(m[5])) or "без параметров"
+                    out.append("  - шаги " + m[3] + ": `// Шаг n: <действие>` и вызов `" + m[1] + "." + m[2] + "(...)` - " + args)
+            continue
+        own_methods = [m for m in order if m[1] == name]
+        if path.endswith(".java"):
+            for m in own_methods:
+                cks = [c for c in checks if c[0] in ids(m[3]) and not c[3].startswith("проверено в шаге")]
+                out.append("- Метод (public): `" + signature(m).split(".", 1)[1] + "` - шаги " + m[3]
+                           + ("; запрос " + m[4] if m[4] not in ("-", "") else ""))
+                for n, t, w in params(m[5]):
+                    out.append("  - параметр `" + n + "` (" + t + ") - " + w)
+                for c in cks:
+                    out.append("  - проверка шага " + c[0] + ": " + check_text(c))
+            if not own_methods:
+                out.append("- Методы: нет строк в разделе 12")
+            if action == "создать":
+                group = next((g_group[x][2] for x in ids(g) if x in g_group), "")
+                ref = next((g_group[x][5] for x in ids(g) if x in g_group), "-")
+                out.append("- Аналог: " + ("`" + analogs[group] + "`" if group in analogs else "в проекте нет - по справке " + ref))
+        else:
+            keys = [x for x in settings if x[1] == path]
+            for x in keys:
+                out.append("- Ключ: `" + x[0] + "` = `" + x[2] + "` - читает " + x[3])
+            out.append("- Что: " + what)
+        out.append("- G: " + g)
+    rest = [f for f in files if f[1] not in ("создать", "дополнить")]
+    if rest:
+        out += ["", "### Без правок генерации"]
+        out += ["- `" + f[0] + "` - " + f[1] + ": " + f[2] for f in rest]
+    out += ["", "### Порядок и зависимости"]
+    for n, g in enumerate(gens, 1):
+        names = sorted({m[1] for m in methods if m[0] == g[0]})
+        out.append(str(n) + ". " + g[0] + " (" + g[3] + ", шаги " + g[1] + "): " + (", ".join("`" + x + "`" for x in names) or "-"))
+    out.append(str(len(gens) + 1) + ". Сборка тест-класса `" + Path(test_file).name + "` из фрагментов G, `at_tools.py check` - находок 0.")
+    out.append(str(len(gens) + 2) + ". Запуск теста `at_tools.py run` - последняя задача, человека не спрашивать.")
+    return out
+
+
+def put_derived(text):
+    """Записать разделы 15-16 перед журналом (повторный запуск их пересоздаёт)."""
+    text = strip_derived(text)
+    head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
+    block = "\n".join(derived_sections(text, head)).lstrip("\n") + "\n\n"
+    m = re.search(r"(?m)^## \d+\. Журнал", text)
+    if not m:
+        return text.rstrip("\n") + "\n\n" + block
+    return text[:m.start()] + block + "## 17. Журнал" + text[m.end():]
+
+
 def approve(key):
-    """Человек подтвердил план (разделы 11-14) -> approved: yes <отпечаток>. План изменится - подтверждение снимается."""
+    """Человек подтвердил план (разделы 11-16) -> approved: yes <отпечаток>. План изменится - подтверждение снимается."""
     plan = tcc.pp.plan_file(key, create=False)
     text = plan.read_text(encoding="utf-8") if plan.is_file() else ""
     head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
@@ -812,11 +967,12 @@ def validate(key):
     text = re.sub(r"(?m)^approved:.*$", mark, text, count=1) if re.search(r"(?m)^approved:", text) \
         else re.sub(r"(?m)^(plan_status:[^\n]*)$", r"\1\n" + mark, text, count=1)
     text = re.sub(r"(?m)^plan_status:\s*\S+", "plan_status: planned", text, count=1)
+    text = put_derived(text)
     text = text.rstrip("\n") + "\n| validate | план сошёлся: шагов %d, G %d |\n" % (len(steps), len(gens))
     plan.write_text(text, encoding="utf-8")
     print("ИТОГ: план сошёлся, plan_status: planned · шагов %d · G %d" % (len(steps), len(gens)))
     if not still:
-        print("ПОДТВЕРЖДЕНИЕ: нужно - покажи человеку разделы 11-14 design.md (файлы, методы шагов, проверки, настройки) и"
+        print("ПОДТВЕРЖДЕНИЕ: нужно - покажи человеку разделы 11-16 design.md (файлы, методы шагов, проверки, настройки, привязка шагов, планируемые изменения) и"
               " спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve " + key)
     return 0
 
