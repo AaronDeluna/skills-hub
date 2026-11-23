@@ -397,6 +397,12 @@ def cmd_next(args):
         out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · задач осталось " + str(left),
             "КОМАНДА: openspec instructions apply --change \"" + name + "\" --json - выполни поле instruction")
         return 0
+    head = front(read(root / "design.md"))
+    if kind == "autotest" and not head.get("run_status"):
+        out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · запуск теста",
+            "КОМАНДА: скилл autotest-gen, шаги 7-9: python3 .gigacode/skills/autotest-gen/scripts/at_tools.py run " + obj
+            + " - тест не запускался, архив только после запуска")
+        return 0
     out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: архив",
         "КОМАНДА: openspec archive " + name + " --yes (или скилл openspec-de-archive-change, если стоит)")
     return 0

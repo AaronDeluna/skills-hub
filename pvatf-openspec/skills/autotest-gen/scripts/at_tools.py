@@ -342,8 +342,9 @@ def cmd_assemble(key):
     for extra, phase in (("import org.junit.jupiter.api.BeforeEach;", "before"), ("import org.junit.jupiter.api.AfterEach;", "after")):
         if phases[phase] and extra not in imports:
             imports.append(extra)
+    no_tc = re.fullmatch(r"NOTC-[0-9]+", key) is not None  # ТК ещё не заведён: @TmsLink не ставим, ключ не выдумываем
     for extra in ("import io.qameta.allure.TmsLink;", "import org.junit.jupiter.api.DisplayName;", "import org.junit.jupiter.api.Test;"):
-        if extra not in imports:
+        if extra not in imports and not (no_tc and "TmsLink" in extra):
             imports.append(extra)
     base_fqn = head.get("base_fqn", "-")
     if "." in base_fqn and base_fqn.rsplit(".", 1)[0] != head["package"] and ("import " + base_fqn + ";") not in imports:
@@ -358,8 +359,8 @@ def cmd_assemble(key):
     if phases["before"]:
         out += ["    @BeforeEach", "    void before" + suffix + "() {"]
         out += [("        " + l if l.strip() else "") for l in phases["before"]] + ["    }", ""]
-    out += ["    @Test", "    @TmsLink(\"" + key + "\")",
-            "    @DisplayName(\"[" + key + "] " + title.replace("\\", "\\\\").replace("\"", "\\\"") + "\")",
+    out += ["    @Test"] + ([] if no_tc else ["    @TmsLink(\"" + key + "\")"]) + [
+            "    @DisplayName(\"" + ("" if no_tc else "[" + key + "] ") + title.replace("\\", "\\\\").replace("\"", "\\\"") + "\")",
             "    void " + method + "() {"]
     out += [("        " + l if l.strip() else "") for l in phases["test"]]
     out += ["    }"]
@@ -388,6 +389,9 @@ STAND_NAME = re.compile(r"(?i)(?:^|[_.\-/])(ift|psi|uat|preprod|prom|dev)(?:$|[_
 LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
 MATCHER_PATH = re.compile(r"\b(?:have|notHave)\w*\(\s*\"([^\"]+)\"")
 SHOULD = re.compile(r"^\s*(.+?)\.should\w*\(")
+CONST_DEF = re.compile(r"static\s+final\s+([\w<>\[\], ?]+?)\s+([A-Z][A-Z0-9_]*)\s*=\s*(.+?);")
+MATCHER_CONST = re.compile(r"\b(?:have|notHave)\w*\(\s*([A-Z][A-Z0-9_]*)\b")
+EXPRESSION_FIELD = re.compile(r"^\s*\$?\.?([A-Za-z_][\w.\[\]]*)\s*(?:[!=<>]=?|>|<)")
 STD_HEADERS = {"content-type", "accept", "content-length", "host", "user-agent", "accept-encoding", "connection", "accept-charset"}
 
 
@@ -406,14 +410,36 @@ def code_lines(lines):
     return [(n, re.sub(r"\s//.*$", "", l)) for n, l in enumerate(lines, 1) if n not in skip]
 
 
+def file_constants(lines):
+    """{ИМЯ: (тип, значение без кавычек)} констант static final файла."""
+    out = {}
+    for _, line in code_lines(lines):
+        m = CONST_DEF.search(line)
+        if m:
+            value = m.group(3).strip()
+            out[m.group(2)] = (m.group(1).strip(), value[1:-1] if value.startswith('"') and value.endswith('"') else value)
+    return out
+
+
+def checked_fields(line, consts):
+    """Поля, которые проверяет строка: путь в matcher литералом или константой; выражение «code != 0» -> code."""
+    fields = MATCHER_PATH.findall(line) + [consts[n][1] for n in MATCHER_CONST.findall(line) if n in consts]
+    result = []
+    for f in fields:
+        m = EXPRESSION_FIELD.match(f)
+        result.append(m.group(1) if m else f)
+    return result
+
+
 def repeated_checks(path, lines):
-    """Одно поле одного объекта проверено дважды -> ПОВТОР."""
+    """Одно поле одного объекта проверено дважды (и значением, и выражением по тому же полю) -> ПОВТОР."""
     found, seen, receiver = [], {}, ""
+    consts = file_constants(lines)
     for number, line in code_lines(lines):
         m = SHOULD.match(line)
         if m:
             receiver = re.sub(r"\s+", "", m.group(1))
-        for field in MATCHER_PATH.findall(line):
+        for field in checked_fields(line, consts):
             key = (receiver, field)
             if key in seen:
                 found.append("ПОВТОР %s:%d - поле «%s» у «%s» уже проверено в строке %d: оставь одну проверку, повторный шаг ТК -"
@@ -432,7 +458,9 @@ def value_names(path, lines):
             continue
         name, value = m.group(1), m.group(2)
         literal = re.sub(r"[^A-Za-z0-9]", "", "".join(LITERAL.findall(value)) or value).upper()
-        if re.fullmatch(r"[A-Z]+_[0-9_]+", name) or (len(literal) >= 4 and literal in name.replace("_", "")):
+        tail = re.search(r"_([0-9]+)$", name)
+        if re.fullmatch(r"[A-Z]+_[0-9_]+", name) or (len(literal) >= 4 and literal in name.replace("_", "")) \
+                or (tail and tail.group(1) == literal):
             found.append("ИМЯ %s:%d - константа %s названа по значению: назови по полю или смыслу (EXPECTED_ACC_STATE)" % (path, number, name))
     return found
 
@@ -453,6 +481,28 @@ def run_literals(path, lines, values):
             if re.search(r"(?<![\w.])" + re.escape(v[0]) + r"(?![\w]|\.\d)", line):
                 found.append("ЛИТЕРАЛ %s:%d - значение %s из выборки шага %s (поле %s): в коде - переменная %s, не литерал" % (
                     path, number, v[0], v[1], v[2], v[4]))
+    return found
+
+
+def one_use_constants(path, lines, plan_values):
+    """Строковая константа, которая в файле используется один раз и не взята из раздела 4 плана (данные ТК) -> РАЗОВАЯ."""
+    found, text = [], "\n".join(l for _, l in code_lines(lines))
+    for name, (kind, value) in file_constants(lines).items():
+        if kind != "String" or value in plan_values or value.startswith("/") or value.endswith((".json", ".sql", ".xml")):
+            continue
+        if len(re.findall(r"\b" + name + r"\b", text)) <= 2:  # объявление + одно использование
+            found.append("РАЗОВАЯ %s - константа %s = \"%s\" используется один раз и это не данные ТК: впиши значение на месте"
+                         " вызова, константу удали" % (path, name, value))
+    return found
+
+
+def expected_in_steps(path, lines, plan_expected):
+    """Ожидаемое значение ТК объявлено в классе шагов -> ОЖИДАЕМОЕ (приходит параметром из теста)."""
+    found = []
+    for name, (_, value) in file_constants(lines).items():
+        if name.startswith("EXPECTED_") or value in plan_expected:
+            found.append("ОЖИДАЕМОЕ %s - %s = %s в классе шагов: ожидаемое значение ТК объявляется в тест-классе и"
+                         " передаётся в метод шага параметром" % (path, name, value))
     return found
 
 
@@ -487,10 +537,14 @@ def artifact_checks(key, text, target, step_files):
                 for found in Path(".").glob("**/src/test/resources/" + lit.lstrip("/")):
                     resources.add(str(found))
     values = [v for v in section_rows(text, "10. Значения из выборки") if len(v) >= 5 and v[0] != "-"]
+    plan_consts = [c for c in section_rows(text, "4. Константы") if len(c) >= 2 and c[0] != "-"]
+    plan_values = {c[1] for c in plan_consts}
+    plan_expected = {c[1] for c in plan_consts if c[0].startswith("EXPECTED_")}
     for f in files:
         lines = read(f).splitlines()
-        if f == str(target):
-            findings += repeated_checks(f, lines)
+        findings += repeated_checks(f, lines) + one_use_constants(f, lines, plan_values)
+        if f != str(target):
+            findings += expected_in_steps(f, lines, plan_expected)
         findings += value_names(f, lines) + stand_names(f, lines) + run_literals(f, lines, values)
     for f in sorted(resources):
         findings += run_literals(f, read(f).splitlines(), values)
@@ -502,6 +556,12 @@ def artifact_checks(key, text, target, step_files):
             if name and name.lower() not in STD_HEADERS and name.lower() not in blob:
                 findings.append("ЗАГОЛОВОК шаг %s - заголовка «%s» запроса %s (%s %s) нет в коде: перенеси все заголовки из"
                                 " описи артефактов" % (r[0], name, r[1], r[2], r[3]))
+    code_blob = "\n".join(read(f) for f in files)
+    for r in section_rows(text, "9. Запросы из артефактов"):
+        if len(r) >= 6 and r[1] != "-" and r[5] not in ("-", "") and r[2].upper() in ("POST", "PUT", "PATCH") \
+                and not re.search(r"\.body\s*\(", code_blob):
+            findings.append("ТЕЛО шаг %s - у запроса %s (%s %s) в артефактах есть тело (%s), а в коде запроса нет .body(...):"
+                            " отправь тело из файла данных" % (r[0], r[1], r[2], r[3], r[5]))
     findings += unused_methods([f for f in files if f != str(target)])
     return findings
 
@@ -681,6 +741,16 @@ def cmd_run(key, args):
     if argv is None:
         return fail("НЕЛЬЗЯ ЗАПУСТИТЬ: " + reports, 1)
     command = " ".join(argv)
+    env_tc = Path(__file__).resolve().parents[2] / "env-check" / "scripts" / "env_tc.py"
+    if env_tc.is_file() and "--dry-run" not in args and "--report-only" not in args:
+        checked = subprocess.run([sys.executable, str(env_tc), key, "--no-compile"], stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, timeout=120)
+        if checked.returncode != 0:
+            for line in checked.stdout.decode("utf-8", "replace").splitlines():
+                if line.startswith(("НУЖНО", "ОКРУЖЕНИЕ")):
+                    print(line)
+            return fail("ОКРУЖЕНИЕ НЕ ГОТОВО: тест не запущен - настрой окружение (env-check, режим setup с ключом "
+                        + key + "), потом снова run", 1)
     if "--dry-run" in args:
         print("КОМАНДА: " + command)
         print("ОТЧЁТ СБОРКИ: " + str(reports[0]).replace("\\", "/"))

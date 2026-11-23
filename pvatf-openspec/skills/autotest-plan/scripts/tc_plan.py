@@ -239,7 +239,7 @@ def constants(rows, skip_values=()):
             tail = re.sub(r"[^A-Za-z0-9]+", "_", m.group(1).rstrip("/").split("/")[-1]).strip("_")
             add("PATH_" + re.sub(r"(?<=[a-z])(?=[A-Z])", "_", tail).upper(), m.group(1), "TEST_CLASS_STATIC_FINAL", "LOCAL_FIELD_REF", r)
         for m in re.finditer(r"(?i)\b(код\w*(?:\s+ответа)?|статус\w*|status\s*code)\D{0,12}\b([1-5]\d\d)\b", both):
-            add("EXPECTED_STATUS_" + m.group(2), m.group(2), "TEST_CLASS_STATIC_FINAL", "LOCAL_FIELD_REF", r)
+            add("EXPECTED_STATUS_CODE", m.group(2), "TEST_CLASS_STATIC_FINAL", "LOCAL_FIELD_REF", r)
         for m in re.finditer(r"(?is)\b(SELECT|INSERT|UPDATE|DELETE)\b.+?(?:;|$)", data + "\n" + r["action"]):
             add("QUERY_" + m.group(1).upper(), m.group().strip().rstrip(";"), "TEST_CLASS_STATIC_FINAL", "LOCAL_FIELD_REF", r)
         for m in re.finditer(r"(?i)(?:топик\w*|topic)\s*[:=]?\s*[«\"`']?([A-Za-z0-9_.\-]{3,})", both):
@@ -302,7 +302,10 @@ def class_index(env, groups_needed):
 
 def class_name(tc):
     """Имя тест-класса - из ключа ТК: DEPOEFS-T1906 -> Depoefs1906Test. Русские слова латиницей (транслит) в имена
-    не попадают: это нарушает соглашения Java проекта."""
+    не попадают: это нарушает соглашения Java проекта. ТК нет (ключ NOTC-<n>) - имя из строки «Класс теста» TC.md."""
+    given = tc.get("fields", {}).get("Класс теста", "-")
+    if given != "-" and JAVA_NAME.fullmatch(given) and given.endswith("Test"):
+        return given
     parts = re.findall(r"[A-Za-z]+|[0-9]+", tc["key"])
     code = next((p for p in parts if p.isalpha() and p.upper() != "T"), "Case")
     digits = "".join(p for p in parts if p.isdigit())

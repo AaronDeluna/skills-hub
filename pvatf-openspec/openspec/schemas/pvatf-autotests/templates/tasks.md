@@ -11,3 +11,6 @@ apply-mode: subagents
 ## N. Сборка и проверка
 - [ ] N.1 `python3 .gigacode/skills/autotest-gen/scripts/at_tools.py assemble <ключ>`
 - [ ] N.2 `python3 .gigacode/skills/autotest-gen/scripts/at_tools.py check <ключ>` -> находок 0
+
+## N+1. Запуск теста
+- [ ] N+1.1 `python3 .gigacode/skills/autotest-gen/scripts/at_tools.py run <ключ>` -> строка РЕЗУЛЬТАТ, человека не спрашивай

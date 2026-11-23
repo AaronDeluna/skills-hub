@@ -20,7 +20,9 @@
 | `ENVIRONMENT_CONFIGURATION_MISSING` | Как объявить класс конфигурации окружения (EnvironmentConfiguration) и подключить его к тестам |
 | `STASH_CONFIGURATION_MISSING` | Как объявить AllureDataSourceServiceConfiguration для передачи данных между шагами (Stash) |
 | `REST_ALLURE_MISSING` | вопрос не нужен: класс дословно по разделу 3, «Allure для REST»; импорты - вопрос «Из каких пакетов импортировать DefaultRestServiceConfiguration, RequestResponseConsoleLoggingFilter и Level» |
-| `PERFECCIONISTA_PROPERTIES_MISSING` / `PERFECCIONISTA_REQUIRED_KEY_MISSING` | Какие ключи нужны в perfeccionista.properties, в том числе perfeccionista.attachment.dir |
+| `PERFECCIONISTA_PROPERTIES_MISSING` / `PERFECCIONISTA_REQUIRED_KEY_MISSING` | вопрос не нужен: `python3 .gigacode/skills/env-check/scripts/env_props.py ensure` - скрипт создаёт файл или дописывает ключи эталона (пакеты сканирования сервисов и источников данных, каталог вложений, `session.*`). Руками этот файл не пишешь |
+| `PROPERTIES_UNKNOWN_KEYS` / `PROPERTIES_FOREIGN_KEYS` / `PROPERTIES_STAND_VALUE` | вопрос не нужен: ключ не фрейма или со стендом - перенеси в свой файл настроек по правилу 14 `autotest-rules.md`; ключ `perfeccionista.*` не из эталона - оставь, только если он есть в конспекте документации, иначе удали |
+| `SUREFIRE_FAILURE_IGNORE` | вопрос не нужен: удали `<testFailureIgnore>true</testFailureIgnore>` и свойство `maven.test.failure.ignore` из `pom.xml`. Падения тестов не скрываются |
 | `MAVEN_PLUGINS_MISSING` (`<плагины>`) | Как настроить плагины `<плагины>` для запуска тестов фрейма и отчёта Allure |
 | `TEST_ROOT_MISSING` | Какая структура каталогов нужна проекту автотестов на фрейме |
 | `FRAME_VERSION_NOT_FOUND` | вопрос не нужен: MCP, исходники фрейма и проект-пример версию не дали - правило раздела 3, строка «Строки `САМАЯ НОВАЯ` нет» |
@@ -147,7 +149,8 @@ public class Allure2RestServiceConfiguration extends DefaultRestServiceConfigura
   зависимости логгера (`slf4j-*`) - `${log.version}` по рецепту «Логирование» выше;
 - класс конфигурации - в `<корень пакетов>.config` (строка «Корень пакетов» в `ENV-INIT.md`, правило 13
   `autotest-rules.md`); `ENV-INIT.md` нет - базовый пакет тестов из строки `ПРОЕКТ`, подпакет `config`;
-- `perfeccionista.properties` - в `src/test/resources/` модуля с тестами.
+- `perfeccionista.properties` - только скриптом `env_props.py ensure` (кладёт в `src/test/resources/`
+  модуля с тестами).
 
 Ответ документации «НЕТ В ДОКЕ» или «найден частично» без нужного имени -> правку не делай.
 
@@ -198,7 +201,7 @@ public class Allure2RestServiceConfiguration extends DefaultRestServiceConfigura
 | модуль, драйвер, allure-junit5 | файл сборки, где стоят зависимости фрейма | модуль фрейма - версия ссылкой на свойство версии фрейма (или без версии, если стоит BOM фрейма), правило версии - раздел 3; драйвер и allure-junit5 - версия из ответа. Версии нет в ответе -> спроси человека одной строкой версию драйвера |
 | класс настройки сервиса | берёшь класс настройки из ответа как есть; свой класс создаёшь, только если ответ показывает свой класс-наследник, - в пакет, где лежит существующий `*EnvironmentConfiguration` (новый проект - `<корень пакетов>.config`) | имя и родитель - из ответа |
 | регистрация | метод `getServiceConfigurations()` существующего `*EnvironmentConfiguration` - там, где он лежит, класс не переносишь (правило 13 `autotest-rules.md`); класса нет - создаёшь в `<корень пакетов>.config` | одна строка `.put(ConfiguredServiceHolder.of(<Сервис>.class, new <класс настройки>()))` на сервис, как в ответе; уже зарегистрированные сервисы не трогаешь |
-| значения | `src/test/resources/perfeccionista.properties` | ключ из ответа, значение из строки `НУЖНО` дословно |
+| значения | свой файл настроек технологии в `src/test/resources/` (`database.properties`, `test.properties` - имя из ответа); в `perfeccionista.properties` - только ключ фрейма из ответа | ключ из ответа, значение из строки `НУЖНО` дословно; адрес стенда и sid - не сюда (правило 14 `autotest-rules.md`) |
 
 Нельзя: придумать регистрацию по памяти (`services()`, `.register(...)`, `ServicesConfiguration.builder()` -
 такого API во фрейме нет) или оставить класс конфигурации без нового сервиса - строка `сервис` останется.
@@ -214,8 +217,8 @@ public @NotNull ServiceConfigurationManager getServiceConfigurations() {
 }
 ```
 Имена в угловых скобках - из ответа `pvatf-docs`, по памяти не пишешь. Ответ показывает другую форму
-регистрации -> делаешь по ответу, пример выше не повторяешь. Значения - в `perfeccionista.properties`:
-ключи из ответа `pvatf-docs`, значения из строк `НУЖНО`.
+регистрации -> делаешь по ответу, пример выше не повторяешь. Значения - в файл настроек из ответа
+`pvatf-docs` (ключи фрейма - в `perfeccionista.properties`, свои параметры - в свой файл), значения из строк `НУЖНО`.
 
 Каждая правка - строка в `ENV-SETUP.md` (шаблон раздела 4), в колонке «Проблема» - `НУЖНО <что> · <чего>`.
 

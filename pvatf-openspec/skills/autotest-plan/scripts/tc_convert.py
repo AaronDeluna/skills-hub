@@ -2,6 +2,7 @@
 """Тест-кейс или другой артефакт -> единый TC.md (скилл autotest-plan). Запуск из корня проекта:
 
   python3 <скилл>/scripts/tc_convert.py <файл или каталог> [--key <ключ>] [--method <тест-метод>] [--name <имя теста>]
+  python3 <скилл>/scripts/tc_convert.py <файл или каталог> --no-tc --class <Имя>Test  - ТК ещё не заведён
 
 Понимает:
 - Markdown по шаблону ТК (поля **Название:**, **Ключ:**, таблица «Шаги выполнения», раздел «Тэги»);
@@ -13,7 +14,9 @@
 - код автотеста на любом фреймворке (.java, .kt): шаги из Allure.step, методов @Step, вызовов
   REST / SQL / Kafka, проверок; @BeforeEach / @BeforeAll - предусловия, @AfterEach / @AfterAll -
   шаги очистки; импорты - строка «Технологии источника». Несколько тестов в файле - нужен --method.
-HTML в полях (<br>, <pre>, <p>) превращается в текст. Ключа нет -> нужен --key.
+HTML в полях (<br>, <pre>, <p>) превращается в текст. Ключа нет -> нужен --key или, если ТК ещё не
+заведён, --no-tc --class <Имя>Test: служебный ключ NOTC-<n> (следующий свободный номер), имя тест-класса -
+из --class (строка «Класс теста» в TC.md), @TmsLink в тест не ставится.
 Пишет TC.md в рабочий каталог автотеста (OpenSpec: openspec/changes/<имя>/outputs/) и печатает: ТК, ШАГОВ,
 ИСТОЧНИК, ФАЙЛ. Секреты (sid, token, password, Authorization, cookie) в TC.md - ***.
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - записано, 1 - шагов нет или формат
@@ -34,7 +37,10 @@ KEY = re.compile(r"\b[A-Z][A-Z0-9]*-T[0-9]+\b")
 FIELDS = [("title", "Название"), ("key", "Ключ"), ("system", "КЭ"), ("priority", "Приоритет"),
           ("status", "Статус"), ("folder", "Папка"), ("kind", "Вид теста"), ("objective", "Цель"),
           ("precondition", "Предусловия"), ("test_data", "Требования к тестовым данным"), ("tags", "Тэги"),
-          ("source", "Источник"), ("source_tech", "Технологии источника"), ("origin", "Файл источника")]
+          ("source", "Источник"), ("source_tech", "Технологии источника"), ("origin", "Файл источника"),
+          ("test_class", "Класс теста")]
+NO_TC = "NOTC"  # префикс служебного ключа работы без ТК: NOTC-1, NOTC-2
+JAVA_CLASS = re.compile(r"[A-Z][A-Za-z0-9]*Test")
 TAG = re.compile(r"@[A-Za-z][\w]*(?:\([^)]*\))?")
 # импорт -> технология (строка «Технологии источника»; читает tc_plan.py, раздел «Окружение под ТК»)
 IMPORT_TECH = [("io.restassured", "rest"), ("okhttp", "rest"), ("org.apache.http", "rest"), ("java.net.http", "rest"),
@@ -366,13 +372,24 @@ def option(args, name):
     return args[args.index(name) + 1] if name in args and args.index(name) + 1 < len(args) else ""
 
 
+def next_no_tc():
+    """Следующий свободный служебный ключ NOTC-<n> среди работ автотестов."""
+    used = [int(k.split("-")[1]) for k in pp.autotest_keys() if re.fullmatch(NO_TC + r"-[0-9]+", k)]
+    return NO_TC + "-" + str(max(used, default=0) + 1)
+
+
 def main(args):
     if not args or args[0].startswith("-"):
         print("Использование: tc_convert.py <файл ТК (.md .xml .json), лог (.log .txt), тест (.java .kt) или каталог allure-results> "
-              "[--key <ключ>] [--method <тест-метод>] [--name <имя теста>]")
+              "[--key <ключ>] [--method <тест-метод>] [--name <имя теста>] [--no-tc --class <Имя>Test]")
         return 2
     path = Path(args[0])
     key_arg, method, name = option(args, "--key"), option(args, "--method"), option(args, "--name")
+    no_tc, test_class = "--no-tc" in args, option(args, "--class")
+    if no_tc and (key_arg or not JAVA_CLASS.fullmatch(test_class)):
+        print("Использование: --no-tc без --key и с --class <Имя>Test: имя Java латиницей с большой буквы и окончанием Test,"
+              " без транслита (PaymentLockTest)")
+        return 2
     suffix = path.suffix.lower()
     try:
         source = "" if path.is_dir() else path.read_text(encoding="utf-8-sig")
@@ -402,11 +419,14 @@ def main(args):
     tc["origin"] = path.as_posix().rstrip("/")  # по нему очередь генерации находит ключ ТК
     if key_arg:
         tc["key"] = key_arg
+    if no_tc:
+        tc["key"], tc["test_class"] = next_no_tc(), test_class
     if not tc.get("key"):
         found = KEY.search(source)
         tc["key"] = found.group() if found else ""
     if not tc.get("key"):
-        print("КЛЮЧА НЕТ: в файле нет ключа тест-кейса вида CODE-T123 - запусти с --key <ключ>")
+        print("КЛЮЧА НЕТ: в файле нет ключа тест-кейса вида CODE-T123 - спроси человека: ключ ТК (запусти с --key <ключ>)"
+              " или «ТК нет» (спроси имя тест-класса и запусти с --no-tc --class <Имя>Test)")
         return 1
     tc["key"] = re.sub(r"[^A-Za-z0-9_-]", "", tc["key"])
     steps = [s for s in tc["steps"] if s["action"] or s["expected"]]
@@ -421,8 +441,11 @@ def main(args):
         return 1
     target = pp.autotest_dir(tc["key"]) / "TC.md"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render(tc), encoding="utf-8")
-    print("ТК: " + tc["key"] + " · " + (tc.get("title") or "-"))
+    text = render(tc)
+    if no_tc:
+        text = text.replace("- Ключ: " + tc["key"] + "\n", "- Ключ: " + tc["key"] + " - ТК нет: служебный ключ, ТК ещё не заведён\n")
+    target.write_text(text, encoding="utf-8")
+    print("ТК: " + tc["key"] + " · " + (tc.get("title") or "-") + (" - ТК нет, служебный ключ" if no_tc else ""))
     print("ШАГОВ: " + str(len(steps)))
     print("ИСТОЧНИК: " + tc["source"] + (" - шаги восстановлены скриптом, сверь их с артефактом" if tc["source"] in ("log", "code") else ""))
     print("ФАЙЛ: " + str(target).replace("\\", "/"))

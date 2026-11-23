@@ -288,7 +288,9 @@ def cmd_find(target):
         if re.match(r"\s*@Test\b", line):
             block = "\n".join(lines[max(0, number - 8):number + 4])
             missing = [a for a in ("@TmsLink", "@DisplayName") if a not in block]
-            if missing:
+            if missing == ["@TmsLink"] and re.search(r"по тест-кейсу NOTC-[0-9]+", text):
+                add("MARKUP", rel + ":" + str(number), "ТК нет: заведите ТК в TMS и поставьте @TmsLink(\"<ключ>\")", "human")
+            elif missing:
                 add("MARKUP", rel + ":" + str(number), "у теста нет " + ", ".join(missing) + " - разметка тестов", "human")
     taken = set(re.findall(r"\b[A-Z][A-Z0-9_]*\b", text))
     for literal, where in sorted(literals(lines).items(), key=lambda kv: kv[1][0]):

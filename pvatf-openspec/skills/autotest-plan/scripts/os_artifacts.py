@@ -142,7 +142,7 @@ def cmd_proposal(args):
         "- Новый автотест по тест-кейсу " + key + "; классы шагов, данные и тест-класс - по design.md.", "",
         "## Вне scope",
         "- Правка тест-кейса в TMS.",
-        "- Запуск теста на стенде - только с согласия человека, после apply.", ""])
+        "- Запуск теста на стенде - последняя задача apply, без вопроса человеку.", ""])
     out("ИТОГ: proposal записан · ТК " + key, "ФАЙЛ: " + write(root / "proposal.md", text))
     return 0
 
@@ -241,12 +241,17 @@ def cmd_tasks(args):
     lines += ["## " + str(n) + ". Сборка и проверка",
               "- [ ] " + str(n) + ".1 `" + AT + " assemble " + key + "` (design.md:" + str(test_line) + ")",
               "- [ ] " + str(n) + ".2 `" + AT + " check " + key + "` -> ИТОГ: находок 0 (design.md:" + str(test_line) + ")", ""]
+    n += 1  # последняя задача всегда - запуск теста; без него изменение не архивируется
+    lines += ["## " + str(n) + ". Запуск теста",
+              "- [ ] " + str(n) + ".1 `" + AT + " run " + key + "` -> строка РЕЗУЛЬТАТ, человека не спрашивай"
+              " (design.md:" + str(test_line) + ")", ""]
     out("ИТОГ: tasks записан · групп " + str(n), "ФАЙЛ: " + write(root / "tasks.md", "\n".join(lines)))
     return sync(root)
 
 
 def sync(root):
-    """Чекбоксы tasks.md по статусам: G ok/stub в разделе 3 плана, сборка (CHECK.md), check (plan_status: checked)."""
+    """Чекбоксы tasks.md по статусам: G ok/stub в разделе 3 плана, сборка (CHECK.md), check (plan_status: checked),
+    запуск (run_status в шапке design.md при plan_status: checked)."""
     tasks = root / "tasks.md"
     text = read(tasks)
     if not text:
@@ -256,11 +261,13 @@ def sync(root):
     status = front(plan).get("plan_status", "")
     checked = status == "checked"
     assembled = status in ("assembled", "checked")
+    ran = checked and bool(front(plan).get("run_status"))
     lines, marked, cleared = [], 0, 0
     for line in text.splitlines():
         m = re.match(r"^- \[[ x]\] \S+ (G-\d+):", line)
         hit = (m.group(1) in done) if m else (assembled if "at_tools.py assemble" in line
-                                               else checked if "at_tools.py check" in line else None)
+                                               else checked if "at_tools.py check" in line
+                                               else ran if "at_tools.py run" in line else None)
         if hit is not None and line.startswith(("- [ ]", "- [x]")):
             if hit and line.startswith("- [ ]"):
                 marked += 1

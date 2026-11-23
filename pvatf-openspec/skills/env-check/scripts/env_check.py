@@ -31,6 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import frame_versions as frame_versions_module  # noqa: E402
 import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+import env_props  # noqa: E402 - эталон perfeccionista.properties
 
 OUT_DIR = pp.env_dir()
 OUT_FILE = OUT_DIR / "ENV.json"
@@ -43,7 +44,6 @@ RECOMMENDED_DEPS = ["allure-junit5", "aspectjweaver"]
 LOGGING_DEPS = ["slf4j-simple", "slf4j-api"]
 LOGGING_FILE = "simplelogger.properties"
 RECOMMENDED_PLUGINS = ["maven-surefire-plugin", "allure-maven", "maven-resources-plugin"]
-REQUIRED_PROPERTY_KEY = "perfeccionista.attachment.dir"
 DEFAULT_TIMEOUT = 540
 
 
@@ -325,10 +325,21 @@ def check_configuration(report, root, java_files):
         failed = True
         problem(report, "critical", "PERFECCIONISTA_PROPERTIES_MISSING", "Нет файла perfeccionista.properties",
                 "Искал в каталогах resources всех модулей")
-    elif not any(REQUIRED_PROPERTY_KEY in read(f) for f in properties):
-        failed = True
-        problem(report, "critical", "PERFECCIONISTA_REQUIRED_KEY_MISSING",
-                "В perfeccionista.properties нет ключа " + REQUIRED_PROPERTY_KEY, rel(root, properties[0]))
+    else:
+        have = env_props.parse(read(properties[0]))
+        missing = [k for k, _, values in env_props.STANDARD if k not in have
+                   or (k.endswith("scanPackages") and [v for v in values if v not in have[k]])]
+        if missing:
+            failed = True
+            problem(report, "critical", "PERFECCIONISTA_REQUIRED_KEY_MISSING",
+                    "В perfeccionista.properties не хватает ключей или пакетов эталона: " + ", ".join(missing),
+                    rel(root, properties[0]) + " - дописывает скрипт: env_props.py ensure")
+        unknown = [k for k in have if k.startswith("perfeccionista.") and k not in {s[0] for s in env_props.STANDARD}]
+        if unknown:
+            warned = True
+            problem(report, "warning", "PROPERTIES_UNKNOWN_KEYS",
+                    "В perfeccionista.properties ключи не из эталона проекта-примера: " + ", ".join(unknown),
+                    rel(root, properties[0]) + " - оставь, только если ключ есть в конспекте документации")
     for f in properties:
         foreign, stand = props_problems(read(f))
         if foreign:
@@ -367,6 +378,10 @@ def check_plugins(report, build_text, tool):
     if tool != "Maven":
         check(report, "E5", "плагины Maven", "skipped", "проект не Maven")
         return
+    if re.search(r"<testFailureIgnore>\s*true\s*</testFailureIgnore>|maven\.test\.failure\.ignore>\s*true", build_text):
+        problem(report, "critical", "SUREFIRE_FAILURE_IGNORE",
+                "В сборке testFailureIgnore=true: mvn test зелёный, даже если тест упал",
+                "удали строку <testFailureIgnore>true</testFailureIgnore> (и свойство maven.test.failure.ignore) из pom.xml")
     missing = [p for p in RECOMMENDED_PLUGINS if p not in build_text]
     if missing:
         problem(report, "warning", "MAVEN_PLUGINS_MISSING", "Нет рекомендуемых плагинов Maven", ", ".join(missing))
