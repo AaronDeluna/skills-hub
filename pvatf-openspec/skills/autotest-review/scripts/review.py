@@ -672,19 +672,29 @@ def cmd_rollback(target):
     if not (dest / "manifest.json").is_file():
         return fail("НЕТ КОПИИ: правки не начинались (start не запускался) - откатывать нечего", 1)
     changed, created = changed_files(target)
+    # откатываются только файлы этой проверки: тест-класс и файлы, названные в REVIEW-PLAN.md (правки,
+    # «Где», ответы агента); остальные изменения сделал человек или другой процесс - их не трогаем
+    plan_text = read(path) + "\n" + "\n".join(read(f) for f in sorted(folder(target).glob("*.md")))
+    own = lambda p: p == Path(target).as_posix() or p in plan_text or Path(p).name in plan_text
+    foreign = [p for p in changed + created if not own(p)]
+    changed = [p for p in changed if own(p)]
+    created = [p for p in created if own(p)]
     for p in changed:
         Path(p).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(dest / "files" / p, p)
     for p in created:
         Path(p).unlink()
     text = set_head(text, "review_status", "rolled-back")
-    path.write_text(journal(text, "rollback -> восстановлено " + str(len(changed)) + ", удалено новых " + str(len(created))), encoding="utf-8")
+    path.write_text(journal(text, "rollback -> восстановлено " + str(len(changed)) + ", удалено новых " + str(len(created))
+                            + ", не тронуто чужих " + str(len(foreign))), encoding="utf-8")
     report(target, read(path), head_of(read(path)), "rolled-back", "failed", [])
-    print("ОТКАТ: восстановлено " + str(len(changed)) + " · удалено новых " + str(len(created)))
+    print("ОТКАТ: восстановлено " + str(len(changed)) + " · удалено новых " + str(len(created)) + " · не тронуто " + str(len(foreign)))
     for p in changed:
         print("  восстановлен " + p)
     for p in created:
         print("  удалён " + p)
+    for p in foreign:
+        print("  НЕ ТРОНУТ " + p + " - изменён не этой проверкой (нет в плане проверки): решить человеку")
     return 0
 
 

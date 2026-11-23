@@ -418,7 +418,7 @@ def check_boundaries(step):
         status, path = entry[:2], entry[3:]
         if "R" in status or "C" in status:
             i += 1  # следующая запись - старый путь переименования
-        if path.startswith(".gigacode/"):
+        if path.startswith(".gigacode/") or path.startswith("openspec/"):
             continue
         if path not in step.files:
             print("ГРАНИЦЫ " + path + " - изменён, но его нет в файлах подшага: верни (git checkout -- " + path

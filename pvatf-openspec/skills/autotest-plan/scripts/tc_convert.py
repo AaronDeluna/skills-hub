@@ -8,12 +8,14 @@
 - выгрузки Zephyr Scale / TestOps в XML и JSON (testCase, testScript/steps, step/description/
   testData/expectedResult), ответ Jira MCP zephyr_get_testcase;
 - Allure: файл *-result.json или каталог allure-results/ (один тест; несколько - нужен --name или --key);
-- лог прогона (.log, .txt): шаги из @Step / Allure-шагов, HTTP-запросов, SQL, топиков Kafka, ошибок проверок;
+- лог прогона (.log, .txt): шаги из @Step / Allure-шагов, HTTP-запросов (и лог RestAssured, где метод, адрес,
+  заголовки и тело - на разных строках), SQL (и многострочного), топиков Kafka, ошибок проверок;
 - код автотеста на любом фреймворке (.java, .kt): шаги из Allure.step, методов @Step, вызовов
   REST / SQL / Kafka, проверок; @BeforeEach / @BeforeAll - предусловия, @AfterEach / @AfterAll -
   шаги очистки; импорты - строка «Технологии источника». Несколько тестов в файле - нужен --method.
 HTML в полях (<br>, <pre>, <p>) превращается в текст. Ключа нет -> нужен --key.
-Пишет .gigacode/data/autotest/<ключ>/TC.md и печатает: ТК, ШАГОВ, ИСТОЧНИК, ФАЙЛ.
+Пишет TC.md в рабочий каталог автотеста (OpenSpec: openspec/changes/<имя>/outputs/) и печатает: ТК, ШАГОВ,
+ИСТОЧНИК, ФАЙЛ. Секреты (sid, token, password, Authorization, cookie) в TC.md - ***.
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - записано, 1 - шагов нет или формат
 не распознан, 2 - неверные аргументы.
 """
@@ -26,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
+import log_parse as lp  # noqa: E402
 DATA = Path(".gigacode") / "data" / "autotest"
 KEY = re.compile(r"\b[A-Z][A-Z0-9]*-T[0-9]+\b")
 FIELDS = [("title", "Название"), ("key", "Ключ"), ("system", "КЭ"), ("priority", "Приоритет"),
@@ -33,10 +36,6 @@ FIELDS = [("title", "Название"), ("key", "Ключ"), ("system", "КЭ")
           ("precondition", "Предусловия"), ("test_data", "Требования к тестовым данным"), ("tags", "Тэги"),
           ("source", "Источник"), ("source_tech", "Технологии источника"), ("origin", "Файл источника")]
 TAG = re.compile(r"@[A-Za-z][\w]*(?:\([^)]*\))?")
-HTTP = re.compile(r"\b(GET|POST|PUT|PATCH|DELETE)\b[\s:]+[\"']?((?:https?://)?[\w.:\-]*/[\w/{}.\-?=&%]*)", re.I)
-SQL = re.compile(r"\b(SELECT\s+.+?\s+FROM\s+\S+|INSERT\s+INTO\s+\S+|UPDATE\s+\S+\s+SET|DELETE\s+FROM\s+\S+)", re.I)
-TOPIC = re.compile(r"(?:topic|топик)\s*[=:(]?\s*[\"']?([\w.\-]{3,})", re.I)
-STATUS = re.compile(r"(?:status(?:\s*code)?|statusCode|код ответа|response code|HTTP/\d(?:\.\d)?)\s*[:=(]?\s*([1-5]\d\d)\b", re.I)
 # импорт -> технология (строка «Технологии источника»; читает tc_plan.py, раздел «Окружение под ТК»)
 IMPORT_TECH = [("io.restassured", "rest"), ("okhttp", "rest"), ("org.apache.http", "rest"), ("java.net.http", "rest"),
                ("org.springframework.web.client", "rest"), ("io.grpc", "grpc"), ("graphql", "graphql"),
@@ -233,43 +232,33 @@ def from_allure_dir(folder, key, name):
 # ---------- лог прогона ----------
 
 def from_log(source):
-    """Лог CI/консоли -> шаги. Действие: строка шага Allure/@Step, HTTP-запрос, SQL, топик Kafka.
-    Ожидаемый результат последнего шага: код ответа, AssertionError expected/but was."""
+    """Лог CI/консоли -> шаги (разбор - log_parse.events). Действие: строка шага Allure/@Step, HTTP-запрос
+    (в том числе лог RestAssured, где метод, адрес, заголовки и тело - на разных строках), SQL
+    (в том числе многострочный), топик Kafka. Ожидаемый результат: код ответа, AssertionError expected/but was.
+    Тестовые данные запроса: хост, имена заголовков, тело (секреты - ***). Полная опись - artifacts.py."""
     tc = {"steps": [], "source": "log"}
     title = re.search(r"(?:Running|Test(?:ing)?|Тест)\s*[:=]?\s+([\w.$#]+(?:\(\))?)", source)
     tc["title"] = title.group(1) if title else ""
-    seen = set()
-
-    def add(action, expected=""):
-        if action and action not in seen:
-            seen.add(action)
-            tc["steps"].append(step(action, "", expected))
-        elif expected and tc["steps"] and not tc["steps"][-1]["expected"]:
-            tc["steps"][-1]["expected"] = text(expected)
-
-    for line in source.split("\n"):
-        stripped = re.sub(r"^\S*\d{2}:\d{2}:\d{2}\S*\s+(?:\[[^\]]*\]\s*)*(?:\w+\s+)?", "", line.strip())
-        m = re.search(r"(?:@Step|Allure\.step|\bStep|\bШаг)\s*[(:\-]\s*[\"«]?([^\"»)]{3,200})", stripped, re.I)
-        if m:
-            add(m.group(1).strip())
-            continue
-        m = HTTP.search(stripped)
-        if m and re.search(r"request|запрос|sending|calling|-->|>>|curl|\b" + m.group(1) + r"\b\s", stripped, re.I):
-            add("Отправить " + m.group(1).upper() + " " + m.group(2))
-        m = SQL.search(stripped)
-        if m:
-            add("Выполнить SQL: " + stripped[stripped.find(m.group(1)):][:200])
-        m = TOPIC.search(stripped)
-        if m and re.search(r"send|produc|publish|отправ", stripped, re.I):
-            add("Отправить сообщение в топик " + m.group(1))
-        elif m and re.search(r"consum|receiv|poll|получ|прочит", stripped, re.I):
-            add("Прочитать сообщение из топика " + m.group(1))
-        m = STATUS.search(stripped)
-        if m and re.search(r"response|ответ|<--|<<|status", stripped, re.I) and tc["steps"]:
-            add("", "код ответа " + m.group(1))
-        m = re.search(r"expected:?\s*<?\[?([^>\]]{1,80})\]?>?\s*but was:?\s*<?\[?([^>\]]{1,80})", stripped, re.I)
-        if m and tc["steps"]:
-            add("", "значение = " + m.group(1).strip())
+    for e in lp.events(source):
+        if e["kind"] == "step":
+            tc["steps"].append(step(e["action"]))
+        elif e["kind"] == "http":
+            data = []
+            if lp.host_of(e["url"]):
+                data.append("хост: " + lp.host_of(e["url"]))
+            if e["headers"]:
+                data.append("заголовки: " + ", ".join(n for n, _ in e["headers"]))
+            if e["body"]:
+                data.append("тело: " + re.sub(r"\s+", " ", lp.mask(e["body"]))[:1500])
+            tc["steps"].append(step("Отправить " + e["method"] + " " + (lp.path_of(e["url"]) or e["url"]), "\n".join(data),
+                                    "код ответа " + e["status"] if e["status"] else ""))
+        elif e["kind"] == "sql":
+            tc["steps"].append(step("Выполнить SQL", e["sql"].replace("\n", " ")[:1500]))
+        elif e["kind"] == "topic":
+            verb = "Отправить сообщение в топик " if e["direction"] == "send" else "Прочитать сообщение из топика "
+            tc["steps"].append(step(verb + e["topic"]))
+        elif e["kind"] == "expect" and tc["steps"] and not tc["steps"][-1]["expected"]:
+            tc["steps"][-1]["expected"] = text("значение = " + e["value"])
     return tc
 
 
@@ -369,7 +358,7 @@ def render(tc):
     out += ["", "## Шаги", "", "| № | Действие | Тестовые данные | Ожидаемый результат |",
             "|---|----------|-----------------|---------------------|"]
     for number, s in enumerate(tc["steps"], 1):
-        out.append("| %d | %s | %s | %s |" % (number, s["action"] or "-", s["data"] or "-", s["expected"] or "-"))
+        out.append("| %d | %s | %s | %s |" % (number, lp.mask(s["action"]) or "-", lp.mask(s["data"]) or "-", lp.mask(s["expected"]) or "-"))
     return "\n".join(out) + "\n"
 
 
@@ -424,6 +413,11 @@ def main(args):
     tc["steps"] = steps
     if not steps:
         print("ШАГОВ НЕТ: в файле не найдено ни одного шага (таблица «Шаги выполнения», steps, testScript)")
+        if tc.get("source") == "log":
+            print("ИСКАЛ: @Step / Allure-шаги; «Request method:» + «Request URI:» (RestAssured); «POST https://...» со словом"
+                  " request / запрос / --> в той же строке; SQL SELECT ... FROM; топики Kafka")
+            for hint in lp.looks_like_requests(source):
+                print("ПОХОЖЕ НА ЗАПРОС: " + hint)
         return 1
     target = pp.autotest_dir(tc["key"]) / "TC.md"
     target.parent.mkdir(parents=True, exist_ok=True)

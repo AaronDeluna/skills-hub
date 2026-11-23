@@ -74,8 +74,9 @@ Python 3.8+ (команды `python3 ...`; на Windows, где нет `python3`
 
 ## Правила карты
 
-1. **Код проекта не трогай.** Никаких правок, коммитов, веток. Пишешь только в
-   `openspec/changes/<имя>/outputs/`.
+1. **Код проекта не трогай.** Никаких правок, коммитов, веток. Пишешь только карту
+   `openspec/changes/<имя>/design.md`, файлы `openspec/changes/<имя>/outputs/` и конспект
+   `openspec/pvatf/migration/doc-notes/`.
 2. **Не читай проект целиком.** Считай и ищи командами (`find`, `grep`, `wc`), файлы
    целиком открывай только как образцы - не больше 3 на один шаблон использования
    (`references/inventory-guide.md`). Исключение - файлы настроек и подключений на Этапе 2.
@@ -124,7 +125,7 @@ python3 .gigacode/skills/migration-map/scripts/map.py log "Этап 3 для res
 ```
 
 Вход: просьба человека и ответы на вопросы (через orchestrator). Выход: файлы карты в
-`openspec/changes/<имя>/outputs/` (`design.md`, `ARCHITECTURE.md`, `CONNECTIONS.md`,
+`openspec/changes/<имя>/design.md` (карта) и `openspec/changes/<имя>/outputs/` (`ARCHITECTURE.md`, `CONNECTIONS.md`,
 `doc-notes/`, `units/`, `inventory/`). Итоговая сводка в чате:
 
 - какие этапы сделаны в этом чате, какой `map_stage` и `map_status` сейчас;

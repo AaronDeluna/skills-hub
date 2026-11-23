@@ -3,14 +3,20 @@
 
   python3 <скилл>/scripts/tc_plan.py build <ключ ТК> [--force]  - черновик плана design.md (plan_status: draft)
   python3 <скилл>/scripts/tc_plan.py validate <ключ ТК>         - проверка плана; всё сошлось -> plan_status: planned
+  python3 <скилл>/scripts/tc_plan.py style <ключ ТК> <steps|flow> - записать архитектуру тестов проекта (ответ человека)
 
 build: шаги TC.md делятся на подшаги (два действия в одном шаге), каждому - тип, группа,
 технология, уверенность, связь данных; шаги группируются в шаги генерации G-n; константы из
 данных и ожидаемых результатов - в матрицу с источником хранения; классы проекта по
 технологиям - в индекс для переиспользования. Читает ENV.json (паспорт проекта), если есть.
 Существующий план со статусом не draft не перезаписывает без --force.
+Опись артефактов ARTIFACTS.md (artifacts.py): служебные шаги - тип SERVICE (кода нет), связи шагов с
+запросами - раздел 9, значения из выборки - раздел 10 (в тесте - переменная шага-источника, не литерал).
+Архитектура тестов (steps - классы шагов, flow - FlowRunner): ответ человека (style, файл
+openspec/pvatf/env/STYLE.md или ENV-INIT.md) или код проекта (ENV.json).
 validate: нет UNKNOWN в шагах, каждый шаг в G, у каждой G есть справка, у констант есть источник,
-имя класса и пакет - допустимые имена Java, tc_status не FAIL.
+имя класса и пакет - допустимые имена Java, tc_status не FAIL, архитектура steps или flow, разбор
+артефактов закончен, у каждого запроса и SQL есть строка в разделе 9.
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - выполнено, 1 - план не сошёлся или
 ТК FAIL, 2 - неверные аргументы или нет TC.md.
 """
@@ -22,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tc_common as tcc  # noqa: E402
 import frame_versions  # noqa: E402 - копия shared/scripts
+import artifacts as art  # noqa: E402
 
 SKILLS = Path(__file__).resolve().parent.parent.parent
 GROUP_REF = {"integration": "tech-integration.md", "db": "tech-db.md", "kafka": "tech-kafka.md", "ui": "tech-ui.md",
@@ -169,9 +176,14 @@ def classify_rows(rows, ui_lib):
 
 def gen_steps(rows):
     """Шаги генерации: новая G при смене группы или технологии, при переходе на новый экран UI,
-    после 4 шагов в одной G. Проверка своего запроса остаётся в G запроса."""
+    после 4 шагов в одной G. Проверка своего запроса остаётся в G запроса. Служебный шаг (SERVICE) -
+    в текущую G, новую не открывает."""
     groups, current = [], None
     for r in rows:
+        if r["type"] == "SERVICE" and current is not None:
+            current["rows"].append(r)
+            r["g"] = current["id"]
+            continue
         fresh = (current is None or r["group"] != current["group"] or r["tech"] != current["tech"]
                  or (r["group"] in ("ui", "mobile") and r["type"] == "NAVIGATION")
                  or (len(current["rows"]) >= 4 and not r["bind"].startswith("uses")))
@@ -185,19 +197,34 @@ def gen_steps(rows):
 
 # ---------- константы ----------
 
-def constants(rows):
+def field_name(row):
+    """Поле, которое проверяет шаг: последний латинский идентификатор действия (result.accInfo.accState ->
+    ACC_STATE, acc_state -> ACC_STATE). Нет -> STEP_<id>. Имя константы - по смыслу, не по значению."""
+    names = re.findall(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*", row["action"])
+    names = [n for n in names if not re.fullmatch(r"(?i)get|post|put|patch|delete|http|https|json|jsonpath|sql|select|null|true|false|v\d+", n)]
+    if not names:
+        return "STEP_" + row["id"].replace(".", "_")
+    last = names[-1].split(".")[-1]
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", last).upper().strip("_") or "STEP_" + row["id"].replace(".", "_")
+
+
+def constants(rows, skip_values=()):
+    """Константы плана. Одно значение у разных полей - разные константы (имя по полю). Значения из выборки
+    (skip_values) константами не становятся: в тесте это переменная шага-источника."""
     found, names = [], set()
 
     def add(name, value, source, shape, row):
+        if value in skip_values:
+            return
+        for c in found:
+            if c["value"] == value and re.sub(r"_\d+$", "", c["name"]) == name:
+                if row["id"] not in c["used"]:
+                    c["used"].append(row["id"])
+                return
         base, k = name, 2
         while name in names:
             name = base + "_" + str(k)
             k += 1
-        for c in found:
-            if c["value"] == value:
-                if row["id"] not in c["used"]:
-                    c["used"].append(row["id"])
-                return
         names.add(name)
         found.append({"name": name, "value": value, "source": source, "shape": shape, "step": row["id"], "used": [row["id"]]})
 
@@ -228,13 +255,19 @@ def constants(rows):
             for m in re.finditer(r"[\"«]([^\"»]{1,60})[\"»]", expected):
                 value = m.group(1).strip()
                 if value and not value.startswith("__"):
-                    add("EXPECTED_" + (re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_").upper()[:30] or "VALUE"), value,
-                        "TEST_CLASS_STATIC_FINAL", "LOCAL_FIELD_REF", r)
+                    add("EXPECTED_" + field_name(r), value, "TEST_CLASS_STATIC_FINAL", "LOCAL_FIELD_REF", r)
     return found
 
 
-def variables(rows):
+def camel(field):
+    parts = [p for p in re.split(r"[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])", field) if p]
+    return (parts[0].lower() + "".join(p[:1].upper() + p[1:].lower() for p in parts[1:])) if parts else "value"
+
+
+def variables(rows, values=()):
     found = []
+    for v in values:
+        found.append((camel(v[2]), v[1], "результат шага " + v[1] + ": поле " + v[2] + " (в тесте вместо значения " + v[0] + ")"))
     for r in rows:
         for m in re.finditer(r"__([A-Za-z][A-Za-z0-9_]*)__", r["data"] + " " + r["action"]):
             name = m.group(1)[0].lower() + m.group(1)[1:]
@@ -279,7 +312,21 @@ def class_name(tc):
 
 # ---------- запись ----------
 
-def render(tc, check, env, rows, groups, consts, vars_, index, needs):
+def style_choice(env):
+    """Архитектура тестов: ответ человека (STYLE.md, ENV-INIT.md) или код проекта (ENV.json). Иначе «-»."""
+    for name in ("STYLE.md", "ENV-INIT.md"):
+        try:
+            text = (tcc.pp.env_dir() / name).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = re.search(r"(?m)^- Стиль шагов: (steps|flow)\s*$", text)
+        if m:
+            return m.group(1)
+    style = env.get("project", {}).get("step_style", "-")
+    return style if style in ("steps", "flow") else "-"
+
+
+def render(tc, check, env, rows, groups, consts, vars_, index, needs, arts=None):
     project = env.get("project", {})
     package = project.get("test_package") or project.get("base_package") or "-"
     roots = project.get("test_roots") or ["src/test/java"]
@@ -294,7 +341,7 @@ def render(tc, check, env, rows, groups, consts, vars_, index, needs):
             base_fqn = bases[0][len(prefix):].rsplit(".", 1)[0].replace("/", ".")
     out = ["---", "tc: " + tc["key"], "plan_status: draft", "tc_status: " + check["status"], "class: " + name,
            "package: " + package, "test_file: " + test_file, "base_class: " + base, "base_fqn: " + base_fqn,
-           "ui_lib: " + project.get("ui_lib", "-"), "step_style: " + project.get("step_style", "-"), "---", "",
+           "ui_lib: " + project.get("ui_lib", "-"), "step_style: " + style_choice(env), "---", "",
            "# План автотеста " + tc["key"] + " · " + tc["title"], "",
            "## 1. Проверка тест-кейса", "",
            "- Статус: " + check["status"] + " · средняя оценка " + check["avg"] + " · подробно: TC-CHECK.md",
@@ -339,9 +386,44 @@ def render(tc, check, env, rows, groups, consts, vars_, index, needs):
         out.append("| %s | %s | %s | %s | %s | %s |" % n)
     if not needs:
         out.append("| - | - | - | - | - | - |")
-    out += ["", "## 9. Журнал", "", "| Когда | Что |", "|-------|-----|",
+    arts = arts or {"links": [], "inventory": [], "values": [], "folder": ""}
+    inventory = {r[0]: r for r in arts["inventory"]}
+    out += ["", "## 9. Запросы из артефактов", "",
+            "| Шаг | ID | Метод | Адрес | Заголовки | Тело запроса | Код | Тело ответа |",
+            "|-----|----|-------|-------|-----------|--------------|-----|-------------|"]
+    for step_no, aid, why in arts["links"]:
+        r = inventory.get(aid)
+        if r:
+            path = lambda v: (arts["folder"] + "/" + v) if v not in ("-", "") and not v.startswith("/") else v
+            out.append("| %s | %s | %s | %s | %s | %s | %s | %s |" % (step_no, aid, r[2], esc(r[3]), esc(r[4]), path(r[5]), r[6], path(r[7])))
+        else:
+            out.append("| %s | - | - | %s | - | - | - | - |" % (step_no, esc(why)))
+    if not arts["links"]:
+        out.append("| - | - | - | - | - | - | - | - |")
+    out += ["", "## 10. Значения из выборки", "",
+            "| Значение | Шаг-источник | Поле | Шаги | Переменная |",
+            "|----------|--------------|------|------|------------|"]
+    for v in arts["values"]:
+        out.append("| %s | %s | %s | %s | %s |" % (esc(v[0]), v[1], esc(v[2]), esc(v[3]), camel(v[2])))
+    if not arts["values"]:
+        out.append("| - | - | - | - | - |")
+    out += ["", "## 11. Журнал", "", "| Когда | Что |", "|-------|-----|",
             "| build | черновик плана: шагов %d, G %d, констант %d |" % (len(rows), len(groups), len(consts))]
     return "\n".join(out) + "\n"
+
+
+def load_artifacts(folder):
+    """ARTIFACTS.md (artifacts.py) -> опись, связи, служебные шаги, значения из выборки, статус разбора."""
+    path = folder / "ARTIFACTS.md"
+    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    try:
+        where = str(path.parent.resolve().relative_to(Path.cwd().resolve())).replace("\\", "/")
+    except ValueError:
+        where = str(path.parent).replace("\\", "/")
+    return {"inventory": art.rows_of(text, "Опись"), "links": [r[:3] for r in art.rows_of(text, "Связь шагов") if len(r) >= 3],
+            "service": [r[:2] for r in art.rows_of(text, "Служебные шаги") if len(r) >= 2],
+            "values": [r[:4] for r in art.rows_of(text, "Значения из выборки") if len(r) >= 4],
+            "status": art.meta_line(text, "Разбор агентом") or "-", "folder": where}
 
 
 def read_check(folder):
@@ -374,18 +456,38 @@ def build(key, force):
     for s in tc["steps"]:
         rows.extend(split_step(s))
     rows = classify_rows(rows, env.get("project", {}).get("ui_lib", "-"))
+    arts = load_artifacts(folder)
+    service = {r[0]: r[1] for r in arts["service"]}
+    for r in rows:
+        reason = service.get(str(r["n"])) or tcc.service_reason(r["action"] + " " + r["expected"])
+        if reason:
+            r.update(type="SERVICE", conf="HIGH", bind="-", why="служебный: " + reason.replace("скрипт: ", "").replace("агент: ", ""))
+    by_n = {}
+    for r in rows:
+        by_n.setdefault(str(r["n"]), []).append(r)
+    for v in arts["values"]:
+        for r in by_n.get(v[1], [])[:1]:
+            r["bind"] = "produces"
+        for n in re.findall(r"\d+", v[3]):
+            for r in by_n.get(n, []):
+                if r["bind"] in ("-", "produces") and n != v[1]:
+                    r["bind"] = "uses " + v[1]
     groups = gen_steps(rows)
-    consts = constants(rows)
-    vars_ = variables(rows)
+    consts = constants(rows, {v[0] for v in arts["values"]})
+    vars_ = variables(rows, arts["values"])
     index = class_index(env, {g["group"] for g in groups})
     needs = env_needs(tc, rows, env)
-    plan.write_text(render(tc, check, env, rows, groups, consts, vars_, index, needs), encoding="utf-8")
+    plan.write_text(render(tc, check, env, rows, groups, consts, vars_, index, needs, arts), encoding="utf-8")
     low = [r["id"] for r in rows if r["conf"] == "LOW" or r["group"] == "UNKNOWN_GROUP" or r["type"] == "UNKNOWN_TYPE"]
     print("ФАЙЛ: " + str(plan).replace("\\", "/"))
     print("ШАГОВ: %d · G: %d · КОНСТАНТ: %d · ПЕРЕМЕННЫХ: %d" % (len(rows), len(groups), len(consts), len(vars_)))
     print("ПРОВЕРИТЬ: " + (", ".join(low) if low else "нет - все шаги с уверенностью HIGH или MEDIUM"))
     missing = [n[1] + " (" + n[0] + ")" for n in needs if n[5] == "нет" and n[2] != "RECOMMENDED"]
     print("ОКРУЖЕНИЕ: " + ("нет в сборке: " + ", ".join(missing) if missing else "все технологии ТК найдены в сборке или не проверяются"))
+    if style_choice(env) == "-":
+        print("АРХИТЕКТУРА: не выбрана - спроси человека «steps или flow», ответ: tc_plan.py style " + key + " <steps|flow>")
+    if arts["status"] == "нужен":
+        print("АРТЕФАКТЫ: разбор агентом не закончен - artifacts.py task " + key + " -> pvatf-artifacts -> artifacts.py merge " + key)
     if env == {}:
         print("ЗАМЕТКА: нет ENV.json - пакет, базовый класс и библиотека UI не определены (env-check не запускался)")
     return 0
@@ -396,9 +498,25 @@ def table(text, title):
     rows = []
     for line in (sect.group(1) if sect else "").split("\n"):
         cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
-        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя"):
+        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя", "Значение"):
             rows.append(cells)
     return rows
+
+
+def set_style(key, style):
+    """Ответ человека об архитектуре тестов -> openspec/pvatf/env/STYLE.md и шапка плана."""
+    if style not in ("steps", "flow"):
+        print("Использование: tc_plan.py style <ключ ТК> <steps|flow>")
+        return 2
+    target = tcc.pp.env_dir() / "STYLE.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("# Архитектура тестов проекта\n\n- Стиль шагов: " + style + "\n- Откуда: ответ человека\n", encoding="utf-8")
+    plan = tcc.pp.plan_file(key, create=False)
+    if plan.is_file():
+        text = plan.read_text(encoding="utf-8")
+        plan.write_text(re.sub(r"(?m)^step_style:.*$", "step_style: " + style, text, count=1), encoding="utf-8")
+    print("АРХИТЕКТУРА: " + style + " · ФАЙЛ: " + str(target).replace("\\", "/"))
+    return 0
 
 
 def validate(key):
@@ -420,8 +538,21 @@ def validate(key):
     pkg_path = head.get("package", "").replace(".", "/")
     if JAVA_PACKAGE.fullmatch(head.get("package", "")) and ("/" + pkg_path + "/") not in head.get("test_file", ""):
         problems.append("test_file не лежит в каталоге пакета " + pkg_path)
+    if head.get("step_style") not in ("steps", "flow"):
+        problems.append("архитектура тестов не выбрана (step_style «" + head.get("step_style", "-") + "») - спроси человека"
+                        " «Как писать тесты: steps - классы шагов, или flow - FlowRunner и классы-флоу?», ответ:"
+                        " tc_plan.py style " + key + " <steps|flow>")
+    arts = load_artifacts(tcc.pp.autotest_dir(key, create=False))
+    if arts["status"] == "нужен":
+        problems.append("разбор артефактов не закончен - artifacts.py task " + key + " -> агент pvatf-artifacts -> artifacts.py merge " + key)
     steps = table(text, "2. Шаги")
     gens = {r[0]: r for r in table(text, "3. Порядок генерации")}
+    linked = {r[0] for r in table(text, "9. Запросы из артефактов")}
+    if arts["inventory"]:
+        for r in steps:
+            if len(r) >= 11 and r[3] == "OPERATION" and r[4] in ("integration", "db", "kafka") and r[0].split(".")[0] not in linked:
+                problems.append("шаг " + r[0] + ": запрос без связи с описью артефактов (раздел 9) - разбор агентом pvatf-artifacts"
+                                " должен назвать A-n или «нет в артефактах»")
     if not steps:
         problems.append("раздел 2 пуст")
     for r in steps:
@@ -448,6 +579,8 @@ def validate(key):
         elif not ref.is_file():
             problems.append(g + ": нет файла справки " + str(ref) + " (скилл autotest-gen не установлен?)")
     for c in table(text, "4. Константы"):
+        if re.fullmatch(r"EXPECTED_[0-9_]+", c[0]):
+            problems.append("константа " + c[0] + ": имя по значению - назови по полю, которое проверяет шаг (EXPECTED_ACC_STATE)")
         if c[0] != "-" and (len(c) < 6 or c[2] not in ("GLOBAL_CONSTANTS_CLASS", "TEST_CLASS_STATIC_FINAL", "CONFIG_OWNER",
                                                      "PROPERTIES_FILE", "TESTDATA_FILE_REF", "ENUM", "REUSE_FRAGMENT")):
             problems.append("константа " + c[0] + ": источник «" + (c[2] if len(c) > 2 else "-") + "» - выбери по references/classify.md, раздел «Константы»")
@@ -464,9 +597,11 @@ def validate(key):
 
 
 def main(args):
-    if len(args) < 2 or args[0] not in ("build", "validate"):
-        print("Использование: tc_plan.py build <ключ ТК> [--force] | validate <ключ ТК>")
+    if len(args) < 2 or args[0] not in ("build", "validate", "style"):
+        print("Использование: tc_plan.py build <ключ ТК> [--force] | validate <ключ ТК> | style <ключ ТК> <steps|flow>")
         return 2
+    if args[0] == "style":
+        return set_style(args[1], args[2] if len(args) > 2 else "")
     return build(args[1], "--force" in args) if args[0] == "build" else validate(args[1])
 
 

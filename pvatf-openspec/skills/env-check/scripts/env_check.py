@@ -329,9 +329,38 @@ def check_configuration(report, root, java_files):
         failed = True
         problem(report, "critical", "PERFECCIONISTA_REQUIRED_KEY_MISSING",
                 "В perfeccionista.properties нет ключа " + REQUIRED_PROPERTY_KEY, rel(root, properties[0]))
+    for f in properties:
+        foreign, stand = props_problems(read(f))
+        if foreign:
+            warned = True
+            problem(report, "warning", "PROPERTIES_FOREIGN_KEYS",
+                    "В perfeccionista.properties ключи не фрейма: " + ", ".join(foreign[:8]),
+                    rel(root, f) + " - там только ключи фрейма (perfeccionista.*, session.*); свои параметры - отдельный"
+                    " файл и свой класс конфигурации, стенд - в app.properties, sid в настройки не пишется")
+        if stand:
+            warned = True
+            problem(report, "warning", "PROPERTIES_STAND_VALUE",
+                    "В perfeccionista.properties адрес или имя стенда: " + ", ".join(stand[:5]),
+                    rel(root, f) + " - стенд выбирается в app.properties, адреса - в своём файле настроек")
     status = "failed" if failed else ("warning" if warned else "ok")
     details = "конфигурация окружения: %d, perfeccionista.properties: %d" % (len(env_configs), len(properties))
     check(report, "E4", "конфигурация фрейма", status, details)
+
+
+def props_problems(text):
+    """perfeccionista.properties -> (ключи не фрейма, ключи со значением-адресом или именем стенда)."""
+    foreign, stand = [], []
+    logical = re.sub(r"\\\s*\n\s*", "", text)
+    for line in logical.splitlines():
+        line = line.strip()
+        if not line or line.startswith(("#", "!")) or not re.search(r"[=:]", line):
+            continue
+        key, value = re.split(r"\s*[=:]\s*", line, maxsplit=1)
+        if not key.startswith(("perfeccionista.", "session.")):
+            foreign.append(key)
+        if re.search(r"https?://|(?:^|[_.\-])(ift|psi|uat|preprod|prom)(?:$|[_.\-])", value, re.I):
+            stand.append(key)
+    return foreign, stand
 
 
 def check_plugins(report, build_text, tool):

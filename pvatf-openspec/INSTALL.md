@@ -55,7 +55,7 @@ gigacode
 openspec --version
 openspec schema validate pvatf-autotests
 openspec schema validate pvatf-work
-ls .gigacode/skills/orchestrator/SKILL.md .gigacode/agents/pvatf-generator.md
+ls .gigacode/skills/orchestrator/SKILL.md .gigacode/agents/pvatf-generator.md .gigacode/agents/pvatf-artifacts.md
 python3 .gigacode/skills/orchestrator/scripts/os_work.py next
 ```
 Последняя команда печатает `ИЗМЕНЕНИЯ: нет` и `ДЕЙСТВИЕ: создай изменение ...` - всё стоит.

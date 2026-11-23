@@ -26,6 +26,7 @@ CHECKS = [
     ("MR-48", r"implements [A-Za-z.]*(Matcher|Condition)\b|List<[A-Za-z.]*Matcher>|matchers\.add\(|JacksonHelper|JsonNode|textOrNull|intOrNull|assertAll\(", "своя конструкция вокруг matcher или разбор ответа руками"),
     ("MR-49", r"^\s+(public |private |protected )?(static )?(final )?(class|interface|enum|record) [A-Z]", "вложенный класс"),
     ("MR-47", r"ConfigFactory\.create|new Properties\(\)|getResourceAsStream\(|ResourceBundle\.getBundle|System\.(getProperty|getenv)\(", "своё чтение настроек"),
+    ("MR-47", r"readOptionalPropertyFileFromClasspath\(|readPropertyFileFromClasspath\(|\"perfeccionista\.properties\"", "свои настройки читают из perfeccionista.properties: там только ключи фрейма, свои - отдельный файл и своя конфигурация"),
     ("MR-15", r"\"https?://|\"(jdbc|kafka|ldap)s?:|(password|passwd|token|secret)\s*=\s*\"[^\"]+\"", "адрес или секрет прямо в коде - только ключ настроек"),
     ("MR-45", r"(^|[ .(])[a-z][A-Za-z0-9]*_[A-Za-z0-9_]*( *\(| *=| *;|,|\))", "имя с нижним подчёркиванием"),
     ("MR-14", r"Thread\.sleep|TimeUnit\.[A-Z]+\.sleep", "sleep вместо ожидания фрейма"),

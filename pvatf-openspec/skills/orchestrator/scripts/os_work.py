@@ -373,6 +373,16 @@ def cmd_next(args):
     name, root, kind, obj = t
     sync(root, kind)
     for aid, done in artifact_status(root):
+        head = front(read(root / "design.md")) if aid == "design" and done else {}
+        if aid == "design" and done and kind == "migration" and head.get("map_status") != "approved":
+            done = False  # карта ещё строится - design не готов
+        if aid == "design" and done and kind == "autotest" and head.get("plan_status", "draft") == "draft":
+            done = False  # черновик плана - design не готов
+        if aid == "tc" and done and re.search(r"\*\*Проверка ТК:\*\*\s*FAIL\b", read(root / "tc" / (obj + ".md"))):
+            out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог проверки ТК",
+                "КОМАНДА: покажи человеку tc/" + obj + ".md - тест-кейс FAIL, автотест не пишется; автор исправляет ТК в TMS,"
+                " потом «/orchestrator продолжи " + name + "» с новым файлом ТК")
+            return 0
         if not done:
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: артефакт " + aid,
                 "КОМАНДА: openspec instructions " + aid + " --change \"" + name + "\" --json - выполни поле instruction")

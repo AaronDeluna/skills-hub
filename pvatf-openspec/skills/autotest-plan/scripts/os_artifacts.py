@@ -68,8 +68,13 @@ def run_script(skill, script, args):
 
 
 def field(text, name):
-    m = re.search(r"\*\*" + re.escape(name) + r":\*\*\s*(.+)", text)
-    return m.group(1).strip() if m else "-"
+    """Поле ТК: строка «- Название: x» (TC.md от tc_convert) или «**Название:** x»."""
+    m = re.search(r"(?m)^- " + re.escape(name) + r":\s*(.+)$", text) or re.search(r"\*\*" + re.escape(name) + r":\*\*\s*(.+)", text)
+    value = m.group(1).strip() if m else "-"
+    if value in ("", "-") and name == "Название":
+        head = re.match(r"#\s*\S+\s*·\s*(.+)", text)
+        value = head.group(1).strip() if head else "-"
+    return value or "-"
 
 
 def front(text):
@@ -124,7 +129,8 @@ def cmd_proposal(args):
         return 2
     tc = read(root / "outputs" / "TC.md")
     if not tc:
-        out("НУЖНО: тест-кейс " + key + " не загружен - шаг 1 скилла autotest-plan (MCP TMS по ключу -> tc_convert.py), потом снова")
+        out("НУЖНО: тест-кейс " + key + " не загружен - шаг 1 скилла autotest-plan: человек дал файл (ТК, лог, Allure, код теста)"
+            " -> tc_convert.py <этот файл> --key " + key + "; дал только ключ -> ТК из TMS по ключу (MCP) -> tc_convert.py; потом снова")
         return 1
     title = field(tc, "Название")
     text = "\n".join([
@@ -151,7 +157,11 @@ def cmd_tc(args):
         return 1
     code, output = run_script("autotest-plan", "tc_check.py", [key])
     status = re.search(r"СТАТУС:\s*(\w+)", output)
-    status = status.group(1) if status else ("FAIL" if code == 1 else "?")
+    if code not in (0, 1) or not status or status.group(1) not in ("PASS", "WARNING", "FAIL"):
+        out("ОШИБКА ПРОВЕРКИ ТК: tc_check.py вернул " + str(code) + " без статуса PASS / WARNING / FAIL - артефакт tc не записан",
+            *output.strip().splitlines()[-10:])
+        return 2
+    status = status.group(1)
     findings = [l[len("НАХОДКА:"):].strip() for l in output.splitlines() if l.startswith("НАХОДКА:")]
     steps = re.search(r"(?ms)^(\|\s*№.*?)(?=^\s*$|\Z)", tc)
     body = ["# ТК " + key + ": " + field(tc, "Название"), "",
@@ -176,9 +186,16 @@ def cmd_design(args):
     if not root:
         return 2
     design = root / "design.md"
+    arts = root / "outputs" / "ARTIFACTS.md"
+    if not arts.is_file():
+        run_script("autotest-plan", "artifacts.py", ["scan", key])
+    if "- Разбор агентом: нужен" in read(arts):
+        out("НУЖНО: разбор артефактов - шаг 1б скилла autotest-plan: artifacts.py task " + key + " -> агент pvatf-artifacts"
+            " -> artifacts.py merge " + key + ", потом снова")
+        return 1
     if not design.is_file():
         code, text = run_script("autotest-plan", "tc_plan.py", ["build", key])
-        lines = [l for l in text.splitlines() if l.split(":", 1)[0] in ("ФАЙЛ", "ШАГОВ", "ПРОВЕРИТЬ", "ОКРУЖЕНИЕ", "ЗАМЕТКА", "НЕТ TC.md", "НЕТ TC-CHECK.md")]
+        lines = [l for l in text.splitlines() if l.split(":", 1)[0] in ("ФАЙЛ", "ШАГОВ", "ПРОВЕРИТЬ", "ОКРУЖЕНИЕ", "ЗАМЕТКА", "НЕТ TC.md", "НЕТ TC-CHECK.md", "АРХИТЕКТУРА")]
         out(*lines)
         if code != 0:
             return 1
@@ -188,6 +205,8 @@ def cmd_design(args):
     code, text = run_script("autotest-plan", "tc_plan.py", ["validate", key])
     if code != 0:
         out(*[l for l in text.splitlines() if l.startswith(("ПРОБЛЕМА", "ИТОГ"))])
+        if "архитектура тестов не выбрана" in text:
+            out("НУЖНО: шаг 1в скилла autotest-plan - спроси человека «steps или flow», ответ: tc_plan.py style " + key + " <steps|flow>")
         out("НУЖНО: шаги 6-7 скилла autotest-plan - исправь в design.md строки ПРОБЛЕМА, потом снова (не больше 3 кругов)")
         return 1
     code, env_out = run_script("env-check", "env_tc.py", [key, "--no-compile"])
@@ -234,19 +253,23 @@ def sync(root):
         return 0
     plan = read(root / "design.md")
     done = {g[0] for _, g in gen_rows(plan) if len(g) > 7 and g[7] in ("ok", "stub")}
-    checked = front(plan).get("plan_status", "") == "checked"
-    assembled = checked or "| at_tools | assemble ->" in plan
-    lines, marked = [], 0
+    status = front(plan).get("plan_status", "")
+    checked = status == "checked"
+    assembled = status in ("assembled", "checked")
+    lines, marked, cleared = [], 0, 0
     for line in text.splitlines():
-        m = re.match(r"^- \[ \] \S+ (G-\d+):", line)
-        hit = (m and m.group(1) in done) or ("at_tools.py assemble" in line and assembled) \
-            or ("at_tools.py check" in line and checked)
-        if hit and line.startswith("- [ ]"):
-            line = "- [x]" + line[5:]
-            marked += 1
+        m = re.match(r"^- \[[ x]\] \S+ (G-\d+):", line)
+        hit = (m.group(1) in done) if m else (assembled if "at_tools.py assemble" in line
+                                               else checked if "at_tools.py check" in line else None)
+        if hit is not None and line.startswith(("- [ ]", "- [x]")):
+            if hit and line.startswith("- [ ]"):
+                marked += 1
+            if not hit and line.startswith("- [x]"):
+                cleared += 1  # G вернули в todo или план снова генерируется - отметка снимается
+            line = ("- [x]" if hit else "- [ ]") + line[5:]
         lines.append(line)
     tasks.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    out("СИНХРОНИЗАЦИЯ: tasks.md · отмечено сейчас " + str(marked))
+    out("СИНХРОНИЗАЦИЯ: tasks.md · отмечено сейчас " + str(marked) + (" · снято " + str(cleared) if cleared else ""))
     return 0
 
 

@@ -80,7 +80,7 @@ def section_rows(text, title):
     rows = []
     for line in (sect.group(1) if sect else "").split("\n"):
         cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
-        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя"):
+        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя", "Значение"):
             rows.append(cells)
     return rows
 
@@ -181,6 +181,19 @@ def cmd_next(key):
             data = re.search(r"(?m)^\| " + re.escape(number) + r" \|(?:[^|\\]|\\.)*\|((?:[^|\\]|\\.)*)\|", tc)
             lines.append("  - Шаг " + sid + " · " + r[3] + ": " + r[1] + " · данные: " + (data.group(1).strip() if data else "-")
                          + " · ожидается: " + r[2] + " · связь данных: " + r[9])
+    ids = {s.strip().split(".")[0] for s in g[1].split(",")}
+    service = [sid for sid in [s.strip() for s in g[1].split(",")] if steps.get(sid) and steps[sid][3] == "SERVICE"]
+    if service:
+        lines.append("- Служебные шаги старой реализации (кода нет, только комментарий «// Шаг <n>: <действие> - служебный шаг,"
+                     " кода нет»): " + ", ".join(service))
+    reqs = [r for r in section_rows(text, "9. Запросы из артефактов") if r[0] in ids and len(r) >= 8 and r[1] != "-"]
+    lines.append("- Запросы из артефактов (метод, адрес, все заголовки и тело - отсюда; секрет *** - значение из сессии или"
+                 " настроек по конспекту, не из артефакта):")
+    lines += ["  - шаг %s · %s · %s %s · заголовки: %s · тело запроса: %s · код ответа: %s · тело ответа: %s" % (
+        r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]) for r in reqs] or ["  - нет"]
+    values = [v for v in section_rows(text, "10. Значения из выборки") if len(v) >= 5 and v[0] != "-"]
+    lines.append("- Значения из выборки (в коде и в файлах данных - переменная шага-источника, литерал значения запрещён):")
+    lines += ["  - " + v[0] + " -> переменная " + v[4] + " (шаг " + v[1] + ", поле " + v[2] + "; шаги " + v[3] + ")" for v in values] or ["  - нет"]
     lines.append("- Константы этого G (имя - значение - источник - форма):")
     lines += ["  - " + c[0] + " - " + c[1] + " - " + c[2] + " - " + c[3] for c in consts] or ["  - нет"]
     lines.append("- Переменные теста (имя - шаг - откуда):")
@@ -226,7 +239,22 @@ def cmd_mark(key, gid, status):
     path.write_text(journal(text, gid + " -> " + status), encoding="utf-8")
     left = [g[0] for g in section_rows(text, "3. Порядок генерации") if len(g) >= 8 and g[7] == "todo"]
     print("ОТМЕЧЕНО: " + gid + " " + status + " · осталось todo: " + (", ".join(left) or "нет - дальше assemble"))
+    sync_tasks(key)
     return 0
+
+
+def sync_tasks(key):
+    """OpenSpec: чекбоксы tasks.md изменения - сразу по статусам плана (os_artifacts.py sync)."""
+    change = pp.find_change("autotest", key) if pp.on() else None
+    script = SKILL.parent / "autotest-plan" / "scripts" / "os_artifacts.py"
+    if change is None or not script.is_file() or not (change / "tasks.md").is_file():
+        return
+    import subprocess
+    try:
+        r = subprocess.run([sys.executable, str(script), "sync", change.name], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
+        print(r.stdout.decode("utf-8", "replace").strip())
+    except (OSError, subprocess.TimeoutExpired):
+        print("СИНХРОНИЗАЦИЯ: не выполнена - запусти os_artifacts.py sync " + change.name)
 
 
 # ---------- assemble ----------
@@ -347,6 +375,7 @@ def cmd_assemble(key):
     stubs = [g[0] for g, p in zip(gens, parts) if p["status"] != "ok" or not p["body"].strip() or re.search(r"//\s*STUB\b", p["body"])]
     text = set_head(text, "plan_status", "assembled")
     path.write_text(journal(text, "assemble -> " + str(target)), encoding="utf-8")
+    sync_tasks(key)
     print("СОБРАНО: " + str(target) + " · фрагментов " + str(len(parts)) + " · импортов " + str(len(imports)) + " · полей " + str(len(fields)))
     print("ЗАГЛУШКИ: " + (", ".join(stubs) or "нет"))
     print("МЕТОДЫ: @BeforeEach %s · @Test · @AfterEach %s" % ("есть" if phases["before"] else "нет", "есть" if phases["after"] else "нет"))
@@ -354,6 +383,127 @@ def cmd_assemble(key):
 
 
 # ---------- check ----------
+
+STAND_NAME = re.compile(r"(?i)(?:^|[_.\-/])(ift|psi|uat|preprod|prom|dev)(?:$|[_.\-/])")
+LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
+MATCHER_PATH = re.compile(r"\b(?:have|notHave)\w*\(\s*\"([^\"]+)\"")
+SHOULD = re.compile(r"^\s*(.+?)\.should\w*\(")
+STD_HEADERS = {"content-type", "accept", "content-length", "host", "user-agent", "accept-encoding", "connection", "accept-charset"}
+
+
+def code_lines(lines):
+    """(номер, строка) без комментариев, import и package."""
+    skip = set()
+    in_block = False
+    for number, line in enumerate(lines, 1):
+        t = line.strip()
+        if t.startswith("/*"):
+            in_block = True
+        if in_block or t.startswith("//") or t.startswith("*") or t.startswith("import ") or t.startswith("package "):
+            skip.add(number)
+        if "*/" in t:
+            in_block = False
+    return [(n, re.sub(r"\s//.*$", "", l)) for n, l in enumerate(lines, 1) if n not in skip]
+
+
+def repeated_checks(path, lines):
+    """Одно поле одного объекта проверено дважды -> ПОВТОР."""
+    found, seen, receiver = [], {}, ""
+    for number, line in code_lines(lines):
+        m = SHOULD.match(line)
+        if m:
+            receiver = re.sub(r"\s+", "", m.group(1))
+        for field in MATCHER_PATH.findall(line):
+            key = (receiver, field)
+            if key in seen:
+                found.append("ПОВТОР %s:%d - поле «%s» у «%s» уже проверено в строке %d: оставь одну проверку, повторный шаг ТК -"
+                             " только комментарий «// Шаг <n>: ... - проверено в шаге <m>»" % (path, number, field, receiver, seen[key]))
+            else:
+                seen[key] = number
+    return found
+
+
+def value_names(path, lines):
+    """Константа названа по значению (EXPECTED_38_00, EXPECTED_513438364090) -> ИМЯ."""
+    found = []
+    for number, line in code_lines(lines):
+        m = re.search(r"static\s+final\s+[\w<>\[\], ?]+\s+([A-Z][A-Z0-9_]*)\s*=\s*(.+);", line)
+        if not m:
+            continue
+        name, value = m.group(1), m.group(2)
+        literal = re.sub(r"[^A-Za-z0-9]", "", "".join(LITERAL.findall(value)) or value).upper()
+        if re.fullmatch(r"[A-Z]+_[0-9_]+", name) or (len(literal) >= 4 and literal in name.replace("_", "")):
+            found.append("ИМЯ %s:%d - константа %s названа по значению: назови по полю или смыслу (EXPECTED_ACC_STATE)" % (path, number, name))
+    return found
+
+
+def stand_names(path, lines):
+    found = []
+    for number, line in code_lines(lines):
+        for lit in LITERAL.findall(line):
+            if STAND_NAME.search(lit) and not lit.endswith((".json", ".sql", ".properties")):
+                found.append("СТЕНД %s:%d - имя стенда в «%s»: стенд выбирается в настройках (app.properties), в коде и алиасах его нет" % (path, number, lit))
+    return found
+
+
+def run_literals(path, lines, values):
+    found = []
+    for number, line in code_lines(lines):
+        for v in values:
+            if re.search(r"(?<![\w.])" + re.escape(v[0]) + r"(?![\w]|\.\d)", line):
+                found.append("ЛИТЕРАЛ %s:%d - значение %s из выборки шага %s (поле %s): в коде - переменная %s, не литерал" % (
+                    path, number, v[0], v[1], v[2], v[4]))
+    return found
+
+
+def unused_methods(files):
+    """public-методы классов шагов из этой генерации, которые нигде в тестах проекта не вызываются -> НЕ ИСПОЛЬЗУЕТСЯ."""
+    texts = {}
+    for p in list(Path(".").glob("**/src/test/java/**/*.java")) + [Path(f) for f in files]:
+        if "target" not in p.parts and "build" not in p.parts:
+            texts[str(p.resolve())] = read(p)
+    found = []
+    for f in files:
+        text = read(f)
+        if re.search(r"@(Test|ParameterizedTest)\b", text):
+            continue
+        for m in re.finditer(r"(?m)^\s*public\s+(?:static\s+)?[\w<>\[\], ?]+\s+([a-z]\w*)\s*\(", text):
+            name = m.group(1)
+            calls = sum(len(re.findall(r"\b" + name + r"\s*\(", t)) for t in texts.values())
+            if calls <= 1:
+                found.append("НЕ ИСПОЛЬЗУЕТСЯ %s - метод %s() нигде не вызывается: удали его" % (f, name))
+    return found
+
+
+def artifact_checks(key, text, target, step_files):
+    """Проверки по описи артефактов и правилам набора: повтор, имена констант, стенд, литералы выборки,
+    заголовки запросов, неиспользуемые методы."""
+    findings = []
+    files = [str(target)] + [f for f in sorted(step_files) if Path(f).is_file()]
+    resources = set()
+    for f in files:
+        for lit in LITERAL.findall(read(f)):
+            if lit.endswith(".json"):
+                for found in Path(".").glob("**/src/test/resources/" + lit.lstrip("/")):
+                    resources.add(str(found))
+    values = [v for v in section_rows(text, "10. Значения из выборки") if len(v) >= 5 and v[0] != "-"]
+    for f in files:
+        lines = read(f).splitlines()
+        if f == str(target):
+            findings += repeated_checks(f, lines)
+        findings += value_names(f, lines) + stand_names(f, lines) + run_literals(f, lines, values)
+    for f in sorted(resources):
+        findings += run_literals(f, read(f).splitlines(), values)
+    blob = "\n".join(read(f) for f in files + sorted(resources)).lower()
+    for r in section_rows(text, "9. Запросы из артефактов"):
+        if len(r) < 5 or r[1] == "-":
+            continue
+        for name in [h.split("=", 1)[0].strip() for h in r[4].split(",") if "=" in h]:
+            if name and name.lower() not in STD_HEADERS and name.lower() not in blob:
+                findings.append("ЗАГОЛОВОК шаг %s - заголовка «%s» запроса %s (%s %s) нет в коде: перенеси все заголовки из"
+                                " описи артефактов" % (r[0], name, r[1], r[2], r[3]))
+    findings += unused_methods([f for f in files if f != str(target)])
+    return findings
 
 def cmd_check(key, compile_on):
     path, text, head = plan(key)
@@ -376,6 +526,7 @@ def cmd_check(key, compile_on):
             findings += scan(item, read(item).splitlines(), CHECKS)
         else:
             findings.append("ФАЙЛ %s - назван во фрагменте, но его нет" % item)
+    findings += artifact_checks(key, text, target, steps_files)
     body = read(target)
     for row in section_rows(text, "2. Шаги"):
         if not re.search(r"//\s*Шаг\s+" + re.escape(row[0]) + r"(?=\s|:|$)", body, re.M):
@@ -394,6 +545,7 @@ def cmd_check(key, compile_on):
     if not [f for f in findings if not f.startswith("STUB ")] and status in ("ok", "skipped"):
         path.write_text(journal(set_head(text, "plan_status", "checked"), "check -> чисто"), encoding="utf-8")
         print("plan_status: checked")
+        sync_tasks(key)
     return 0 if not findings and status in ("ok", "skipped") else 1
 
 

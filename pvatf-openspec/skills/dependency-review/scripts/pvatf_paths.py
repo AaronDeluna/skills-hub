@@ -79,6 +79,9 @@ def change_name(kind, obj, task=""):
     if kind == "autotest-review":
         obj = Path(obj).stem
     slug = re.sub(r"[^a-z0-9]+", "-", str(obj).lower()).strip("-")
+    if not slug and str(obj).strip() not in ("", "-"):
+        # объект без латиницы и цифр («тест один») - короткий хэш, иначе разные объекты получат одно имя
+        slug = __import__("hashlib").sha256(str(obj).encode("utf-8")).hexdigest()[:8]
     return "-".join(p for p in (task.lower(), kind, "" if slug in ("", "-") else slug) if p)
 
 
