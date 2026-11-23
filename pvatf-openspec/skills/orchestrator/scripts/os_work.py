@@ -144,9 +144,17 @@ def cmd_new(args):
     if not pp.on():
         out("НЕТ OPENSPEC: в корне нет openspec/config.yaml - установите по INSTALL.md пакета")
         return 2
+    if kind == "autotest" and obj == "--no-tc":
+        obj = pp.next_no_tc_key()  # ТК ещё не заведён: служебный ключ, @TmsLink в тест не ставится
+        root = pp.ensure_change("autotest", obj, task)
+        out("ИЗМЕНЕНИЕ: " + root.name, "ВИД: autotest", "ТК НЕТ: служебный ключ " + obj,
+            "ДАЛЬШЕ: спроси имя тест-класса, потом tc_convert.py <файл> --key " + obj + " --class <Имя>Test",
+            "ФАЙЛ: " + rel(root / ".openspec.yaml"))
+        return 0
     if kind in ("autotest", "tc-check"):
         if not KEY.match(obj):
-            out("НУЖНО: ключ ТК вида ABC-T123")
+            out("НУЖНО: ключ ТК вида ABC-T123 - спроси человека одной строкой: «Ключ ТК? Дайте ключ вида CODE-T123 или"
+                " ответьте «ТК нет»»; ответ «ТК нет» -> os_work.py new autotest --no-tc")
             return 2
         root = pp.find_change("autotest", obj) or pp.ensure_change("autotest", obj, task)
         if kind == "tc-check" and "x-pvatf-stop" not in pp.meta(root) and not (root / "design.md").is_file():

@@ -372,12 +372,6 @@ def option(args, name):
     return args[args.index(name) + 1] if name in args and args.index(name) + 1 < len(args) else ""
 
 
-def next_no_tc():
-    """Следующий свободный служебный ключ NOTC-<n> среди работ автотестов."""
-    used = [int(k.split("-")[1]) for k in pp.autotest_keys() if re.fullmatch(NO_TC + r"-[0-9]+", k)]
-    return NO_TC + "-" + str(max(used, default=0) + 1)
-
-
 def main(args):
     if not args or args[0].startswith("-"):
         print("Использование: tc_convert.py <файл ТК (.md .xml .json), лог (.log .txt), тест (.java .kt) или каталог allure-results> "
@@ -385,8 +379,8 @@ def main(args):
         return 2
     path = Path(args[0])
     key_arg, method, name = option(args, "--key"), option(args, "--method"), option(args, "--name")
-    no_tc, test_class = "--no-tc" in args, option(args, "--class")
-    if no_tc and (key_arg or not JAVA_CLASS.fullmatch(test_class)):
+    no_tc, test_class = "--no-tc" in args or bool(re.fullmatch(NO_TC + r"-[0-9]+", key_arg)), option(args, "--class")
+    if no_tc and ((key_arg and not re.fullmatch(NO_TC + r"-[0-9]+", key_arg)) or not JAVA_CLASS.fullmatch(test_class)):
         print("Использование: --no-tc без --key и с --class <Имя>Test: имя Java латиницей с большой буквы и окончанием Test,"
               " без транслита (PaymentLockTest)")
         return 2
@@ -420,7 +414,7 @@ def main(args):
     if key_arg:
         tc["key"] = key_arg
     if no_tc:
-        tc["key"], tc["test_class"] = next_no_tc(), test_class
+        tc["key"], tc["test_class"] = key_arg or pp.next_no_tc_key(), test_class
     if not tc.get("key"):
         found = KEY.search(source)
         tc["key"] = found.group() if found else ""

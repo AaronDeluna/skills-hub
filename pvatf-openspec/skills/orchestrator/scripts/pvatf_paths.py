@@ -124,6 +124,16 @@ def autotest_keys():
     return sorted(m.get("x-pvatf-tc", "") for f, m in changes("autotest") if (f / "outputs" / "TC.md").is_file())
 
 
+def next_no_tc_key():
+    """Следующий свободный служебный ключ работы без ТК: NOTC-<n> (среди активных, архивных и обычных работ)."""
+    used = list(autotest_keys())
+    if on():
+        used += [m.get("x-pvatf-tc", "") for f, m in changes("autotest")]
+        used += [meta(f).get("x-pvatf-tc", "") for f in (OPENSPEC / "changes" / "archive").glob("*") if f.is_dir()]
+    numbers = [int(k.split("-")[1]) for k in used if re.fullmatch(r"NOTC-[0-9]+", k or "")]
+    return "NOTC-" + str(max(numbers, default=0) + 1)
+
+
 def plan_files():
     """Все планы автотестов: [(ключ, путь)]."""
     if not on():
