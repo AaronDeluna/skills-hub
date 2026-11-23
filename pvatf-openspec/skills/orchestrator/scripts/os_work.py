@@ -386,6 +386,8 @@ def cmd_next(args):
             done = False  # карта ещё строится - design не готов
         if aid == "design" and done and kind == "autotest" and head.get("plan_status", "draft") == "draft":
             done = False  # черновик плана - design не готов
+        if aid == "design" and done and kind == "autotest" and not head.get("approved", "no").startswith("yes"):
+            done = False  # человек не подтвердил план - код не пишется
         if aid == "tc" and done and re.search(r"\*\*Проверка ТК:\*\*\s*FAIL\b", read(root / "tc" / (obj + ".md"))):
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог проверки ТК",
                 "КОМАНДА: покажи человеку tc/" + obj + ".md - тест-кейс FAIL, автотест не пишется; автор исправляет ТК в TMS,"

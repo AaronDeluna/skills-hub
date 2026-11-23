@@ -4,6 +4,7 @@
   python3 <скилл>/scripts/tc_plan.py build <ключ ТК> [--force]  - черновик плана design.md (plan_status: draft)
   python3 <скилл>/scripts/tc_plan.py validate <ключ ТК>         - проверка плана; всё сошлось -> plan_status: planned
   python3 <скилл>/scripts/tc_plan.py style <ключ ТК> <steps|flow> - записать архитектуру тестов проекта (ответ человека)
+  python3 <скилл>/scripts/tc_plan.py approve <ключ ТК>          - человек подтвердил разделы 11-14 -> approved: yes
 
 build: шаги TC.md делятся на подшаги (два действия в одном шаге), каждому - тип, группа,
 технология, уверенность, связь данных; шаги группируются в шаги генерации G-n; константы из
@@ -16,7 +17,9 @@ build: шаги TC.md делятся на подшаги (два действи�
 openspec/pvatf/env/STYLE.md или ENV-INIT.md) или код проекта (ENV.json).
 validate: нет UNKNOWN в шагах, каждый шаг в G, у каждой G есть справка, у констант есть источник,
 имя класса и пакет - допустимые имена Java, tc_status не FAIL, архитектура steps или flow, разбор
-артефактов закончен, у каждого запроса и SQL есть строка в разделе 9.
+артефактов закончен, у каждого запроса и SQL есть строка в разделе 9; разделы 11-14 (файлы, методы шагов,
+проверки, настройки) заполнены без ЗАПОЛНИТЬ и сходятся друг с другом и с разделами 2-5 (references/design-rules.md).
+Генерация - только по плану, который человек подтвердил (approve -> approved: yes); validate сбрасывает approved.
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - выполнено, 1 - план не сошёлся или
 ТК FAIL, 2 - неверные аргументы или нет TC.md.
 """
@@ -46,6 +49,10 @@ TRANSLIT = dict(zip("абвгдеёжзийклмнопрстуфхцчшщъы�
                      "h", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya"]))
 JAVA_NAME = re.compile(r"[A-Z][A-Za-z0-9]*")
 JAVA_PACKAGE = re.compile(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*")
+FILL = "ЗАПОЛНИТЬ"  # клетка, которую дописывает модель по references/design-rules.md
+FILE_ACTIONS = ("создать", "дополнить", "не трогать", "скрипт", "env-check")
+CHECK_KINDS = ("равно", "не равно", "содержит", "ключ есть", "ключа нет", "не пусто", "пусто", "статус", "больше", "меньше",
+               "по шаблону", "проверено в шаге")
 
 
 # Окружение под ТК (раздел 8 плана): метка -> слова, которые ищутся в файлах сборки (подсказка, не имя артефакта:
@@ -329,6 +336,103 @@ def style_choice(env):
     return style if style in ("steps", "flow") else "-"
 
 
+def project_layout(env, package):
+    """Корень пакетов, каталоги кода и ресурсов тестов (правило 13 autotest-rules.md)."""
+    roots = env.get("project", {}).get("test_roots") or ["src/test/java"]
+    java = roots[0].rstrip("/")
+    root = package[:-len(".tests")] if package.endswith(".tests") else package
+    resources = java[:-len("java")] + "resources" if java.endswith("java") else "src/test/resources"
+    return {"java": java, "resources": resources, "root": root,
+            "dir": lambda pkg: java + "/" + pkg.replace(".", "/") if pkg not in ("", "-") else java}
+
+
+def find_files(pattern, text_re=None):
+    found = []
+    for path in sorted(Path(".").glob(pattern)):
+        if any(part in ("target", "build", ".gigacode", "openspec", "node_modules") for part in path.parts):
+            continue
+        if text_re:
+            try:
+                if not re.search(text_re, path.read_text(encoding="utf-8", errors="replace")):
+                    continue
+            except OSError:
+                continue
+        found.append(str(path).replace("\\", "/"))
+    return found
+
+
+def detail_sections(test_file, package, env, rows, groups, consts, index, arts):
+    """Черновик разделов 11-14: файлы, методы шагов, проверки, настройки. Клетки, которые скрипт не решает, - ЗАПОЛНИТЬ."""
+    lay = project_layout(env, package)
+    steps_dir = lay["dir"](lay["root"] + ".steps" if lay["root"] not in ("", "-") else "-")
+    files, methods, checks, settings = [], [], [], []
+    files.append((test_file, "создать", "тест-метод; ожидаемые значения ТК (константы раздела 4 TEST_CLASS_STATIC_FINAL)", "все"))
+    g_class = {}
+    for g in groups:
+        work = [r for r in g["rows"] if r["type"] != "SERVICE"]
+        if not work:
+            continue
+        found = index.get(g["group"], [])
+        if found:
+            path, stem = found[0][0], found[0][1]
+            files.append((path, "дополнить", "методы шагов " + g["id"] + " (раздел 12) - или " + FILL + ": путь нового класса", g["id"]))
+        else:
+            stem = FILL
+            files.append((steps_dir + "/" + FILL + ".java", "создать", "методы шагов " + g["id"] + " (раздел 12)", g["id"]))
+        g_class[g["id"]] = stem
+        reqs = sorted({l[1] for l in arts.get("links", []) if l[0] in {str(r["n"]) for r in work} and l[1].startswith(("A-", "N-"))})
+        methods.append((g["id"], stem, FILL, ", ".join(r["id"] for r in work), ", ".join(reqs) or "-", FILL))
+    bodies = {c["value"]: c["step"] for c in consts if c["source"] == "TESTDATA_FILE_REF"}
+    for l in arts.get("links", []):
+        inv = {r[0]: r for r in arts.get("inventory", [])}.get(l[1])
+        if inv and len(inv) > 5 and inv[5] not in ("-", "") and inv[2].upper() in ("POST", "PUT", "PATCH"):
+            bodies.setdefault("testdata/" + l[0] + "-body.json", l[0])
+    for value, step in bodies.items():
+        files.append((lay["resources"] + "/" + value, "создать", "тело запроса шага " + step + " (из описи артефактов)", "-"))
+    own = [f for f in find_files(lay["resources"] + "/*.properties")
+           if not f.endswith(("perfeccionista.properties", "simplelogger.properties", "allure.properties"))]
+    props_file = own[0] if own else lay["resources"] + "/test.properties"
+    prop_consts = [c for c in consts if c["source"] == "PROPERTIES_FILE"]
+    if prop_consts:
+        files.append((props_file, "дополнить" if own else "создать", "ключи раздела 14", "-"))
+    perf = find_files("**/src/test/resources/perfeccionista.properties")
+    files.append(((perf or [lay["resources"] + "/perfeccionista.properties"])[0], "скрипт",
+                  "ключи фрейма по эталону: env_props.py ensure (руками не пишется)", "-"))
+    env_cfg = find_files("**/src/test/java/**/*.java", r"extends\s+DefaultEnvironmentConfiguration")
+    files.append(((env_cfg or [lay["dir"](lay["root"] + ".config") + "/" + FILL + "EnvironmentConfiguration.java"])[0],
+                  "env-check", "регистрация сервисов технологий раздела 8 (настраивает env-check, генерация не трогает)", "-"))
+    for c in prop_consts:
+        settings.append((FILL, props_file, c["value"], FILL))
+    expected = {}
+    for c in consts:
+        if c["name"].startswith("EXPECTED_"):
+            for sid in c["used"]:
+                expected.setdefault(sid, []).append(c["name"])
+    for r in rows:
+        if r["type"] == "SERVICE" or not r["expected"].strip():
+            continue
+        names = expected.get(r["id"], [])
+        for name in names or [FILL]:
+            checks.append((r["id"], FILL, FILL, FILL, name))
+    return files, methods, checks, settings
+
+
+def render_detail(files, methods, checks, settings):
+    out = ["", "## 11. Файлы", "",
+           "| Файл | Действие | Что в нём | G |", "|------|----------|-----------|---|"]
+    out += ["| %s | %s | %s | %s |" % f for f in files]
+    out += ["", "## 12. Методы шагов", "",
+            "| G | Класс | Метод | Шаги ТК | Запрос | Параметры |", "|---|-------|-------|---------|--------|-----------|"]
+    out += ["| %s | %s | %s | %s | %s | %s |" % m for m in methods] or ["| - | - | - | - | - | - |"]
+    out += ["", "## 13. Проверки", "",
+            "| Шаг | Объект | Поле | Как | Ожидаемое |", "|-----|--------|------|-----|-----------|"]
+    out += ["| %s | %s | %s | %s | %s |" % c for c in checks] or ["| - | - | - | - | - |"]
+    out += ["", "## 14. Настройки", "",
+            "| Ключ | Файл | Значение | Кто читает |", "|------|------|----------|------------|"]
+    out += ["| %s | %s | %s | %s |" % tuple(esc(x) for x in st) for st in settings] or ["| - | - | - | - |"]
+    return out
+
+
 def render(tc, check, env, rows, groups, consts, vars_, index, needs, arts=None):
     project = env.get("project", {})
     package = project.get("test_package") or project.get("base_package") or "-"
@@ -342,7 +446,7 @@ def render(tc, check, env, rows, groups, consts, vars_, index, needs, arts=None)
         prefix = test_root.rstrip("/") + "/"
         if bases and bases[0].startswith(prefix):
             base_fqn = bases[0][len(prefix):].rsplit(".", 1)[0].replace("/", ".")
-    out = ["---", "tc: " + tc["key"], "plan_status: draft", "tc_status: " + check["status"], "class: " + name,
+    out = ["---", "tc: " + tc["key"], "plan_status: draft", "approved: no", "tc_status: " + check["status"], "class: " + name,
            "package: " + package, "test_file: " + test_file, "base_class: " + base, "base_fqn: " + base_fqn,
            "ui_lib: " + project.get("ui_lib", "-"), "step_style: " + style_choice(env), "---", "",
            "# План автотеста " + tc["key"] + " · " + tc["title"], "",
@@ -410,7 +514,8 @@ def render(tc, check, env, rows, groups, consts, vars_, index, needs, arts=None)
         out.append("| %s | %s | %s | %s | %s |" % (esc(v[0]), v[1], esc(v[2]), esc(v[3]), camel(v[2])))
     if not arts["values"]:
         out.append("| - | - | - | - | - |")
-    out += ["", "## 11. Журнал", "", "| Когда | Что |", "|-------|-----|",
+    out += render_detail(*detail_sections(test_file, package, env, rows, groups, consts, index, arts))
+    out += ["", "## 15. Журнал", "", "| Когда | Что |", "|-------|-----|",
             "| build | черновик плана: шагов %d, G %d, констант %d |" % (len(rows), len(groups), len(consts))]
     return "\n".join(out) + "\n"
 
@@ -501,7 +606,7 @@ def table(text, title):
     rows = []
     for line in (sect.group(1) if sect else "").split("\n"):
         cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
-        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя", "Значение"):
+        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя", "Значение", "Файл", "Ключ"):
             rows.append(cells)
     return rows
 
@@ -519,6 +624,114 @@ def set_style(key, style):
         text = plan.read_text(encoding="utf-8")
         plan.write_text(re.sub(r"(?m)^step_style:.*$", "step_style: " + style, text, count=1), encoding="utf-8")
     print("АРХИТЕКТУРА: " + style + " · ФАЙЛ: " + str(target).replace("\\", "/"))
+    return 0
+
+
+def plan_hash(text):
+    """Отпечаток содержания плана: без статусов (plan_status, approved, статусы G) и журнала."""
+    import hashlib
+    body = re.sub(r"(?ms)^## 15\. Журнал.*\Z", "", text)
+    body = re.sub(r"(?m)^(plan_status|approved|run_status):.*$", "", body)
+    body = re.sub(r"(?m)\| (todo|ok|stub|blocked) \|\s*$", "| |", body)
+    return hashlib.sha1(body.encode("utf-8")).hexdigest()[:12]
+
+
+def detail_problems(text, head, steps):
+    """Разделы 11-14 заполнены и сходятся друг с другом и с разделами 2-5, 9-10 (references/design-rules.md)."""
+    problems = []
+    for title in ("11. Файлы", "12. Методы шагов", "13. Проверки", "14. Настройки"):
+        if not re.search(r"(?m)^## " + re.escape(title) + r"\s*$", text):
+            problems.append("нет раздела «" + title + "» - перестрой план: tc_plan.py build " + head.get("tc", "<ключ>") + " --force")
+            return problems
+        for r in table(text, title):
+            if FILL in " ".join(r):
+                problems.append("раздел " + title + ": строка «" + " | ".join(r)[:120] + "» - заполни " + FILL
+                                + " по references/design-rules.md")
+    package = head.get("package", "-")
+    root = package[:-len(".tests")] if package.endswith(".tests") else package
+    files = [r for r in table(text, "11. Файлы") if len(r) >= 4 and r[0] != "-"]
+    stems = {}
+    for f in files:
+        if f[1] not in FILE_ACTIONS:
+            problems.append("файл " + f[0] + ": действие «" + f[1] + "» - одно из: " + ", ".join(FILE_ACTIONS))
+        if f[0].endswith(".java") and f[1] == "создать" and f[0] != head.get("test_file"):
+            pkg = "/" + root.replace(".", "/") + "/"
+            config = f[0].endswith("Configuration.java")
+            want = pkg + ("config/" if config else "steps/")
+            if root not in ("", "-") and want not in f[0] and (pkg + "data/") not in f[0]:
+                problems.append("файл " + f[0] + ": новый " + ("класс конфигурации - в пакете " + root + ".config" if config else
+                                "класс шагов - в пакете " + root + ".steps (данные - " + root + ".data)") + ", не в пакете тестов")
+        if f[0].endswith(".java"):
+            stems[Path(f[0]).stem] = f
+        if f[0].endswith("perfeccionista.properties") and f[1] != "скрипт":
+            problems.append("файл " + f[0] + ": perfeccionista.properties пишет только скрипт env_props.py - действие «скрипт»")
+    if head.get("test_file") and head["test_file"] not in [f[0] for f in files]:
+        problems.append("раздел 11: нет строки тест-класса " + head["test_file"])
+    gens = {r[0]: r for r in table(text, "3. Порядок генерации")}
+    types = {r[0]: r[3] for r in steps if len(r) > 3}
+    methods = [m for m in table(text, "12. Методы шагов") if len(m) >= 6 and m[0] != "-"]
+    for g, row in gens.items():
+        need = {sid.strip() for sid in row[1].split(",") if types.get(sid.strip()) not in ("SERVICE", None)}
+        got = {sid.strip() for m in methods if m[0] == g for sid in m[3].split(",")}
+        if need - got:
+            problems.append(g + ": шаги " + ", ".join(sorted(need - got)) + " не названы ни в одном методе раздела 12")
+    for m in methods:
+        if m[1] not in stems and FILL not in m[1]:
+            problems.append("метод " + m[2] + ": класс «" + m[1] + "» не назван файлом .java в разделе 11")
+        if FILL not in m[2] and not re.fullmatch(r"[a-z][A-Za-z0-9]*", m[2]):
+            problems.append("метод «" + m[2] + "»: имя Java с маленькой буквы, латиницей, без скобок и транслита")
+    consts = {c[0] for c in table(text, "4. Константы") if c and c[0] != "-"}
+    variables = {v[0] for v in table(text, "5. Переменные") if v and v[0] != "-"}
+    variables |= {v[4] for v in table(text, "10. Значения из выборки") if len(v) >= 5 and v[0] != "-"}
+    seen = {}
+    checks = [c for c in table(text, "13. Проверки") if len(c) >= 5 and c[0] != "-"]
+    for c in checks:
+        sid, obj, field, how, expected = c[:5]
+        if FILL in " ".join(c):
+            continue
+        if not how.startswith(CHECK_KINDS):
+            problems.append("проверка шага " + sid + ": «Как» = «" + how + "» - одно из: " + ", ".join(CHECK_KINDS))
+        if how.startswith("проверено в шаге"):
+            continue
+        key = (obj.lower(), field.lower())
+        if key in seen:
+            problems.append("проверка шага " + sid + ": поле «" + field + "» у «" + obj + "» уже проверяется в шаге " + seen[key]
+                            + " - вторую строку замени на «проверено в шаге " + seen[key] + "»")
+        seen.setdefault(key, sid)
+        if re.fullmatch(r"[A-Z][A-Z0-9_]*", expected) and expected not in consts:
+            problems.append("проверка шага " + sid + ": константы " + expected + " нет в разделе 4")
+        elif re.fullmatch(r"[a-z][A-Za-z0-9]*", expected) and expected not in variables:
+            problems.append("проверка шага " + sid + ": переменной " + expected + " нет в разделах 5 и 10")
+        elif expected == "-" and not how.startswith(("ключ есть", "ключа нет", "не пусто", "пусто")):
+            problems.append("проверка шага " + sid + ": у «" + how + "» нужно ожидаемое: константа раздела 4, переменная или \"значение\"")
+    checked = {c[0] for c in checks}
+    for r in steps:
+        if len(r) > 3 and r[3] != "SERVICE" and r[2] not in ("", "-") and r[0] not in checked:
+            problems.append("шаг " + r[0] + ": ожидаемый результат «" + r[2][:60] + "» без строки в разделе 13")
+    file_names = {f[0] for f in files}
+    for st in [x for x in table(text, "14. Настройки") if len(x) >= 4 and x[0] != "-"]:
+        if FILL in " ".join(st):
+            continue
+        if st[0].startswith(("perfeccionista.", "session.")) or st[1].endswith("perfeccionista.properties"):
+            problems.append("настройка " + st[0] + ": свои ключи - в своём файле настроек, не perfeccionista.* и не в perfeccionista.properties")
+        if st[1] not in file_names:
+            problems.append("настройка " + st[0] + ": файла " + st[1] + " нет в разделе 11")
+    return problems
+
+
+def approve(key):
+    """Человек подтвердил план (разделы 11-14) -> approved: yes <отпечаток>. План изменится - подтверждение снимается."""
+    plan = tcc.pp.plan_file(key, create=False)
+    text = plan.read_text(encoding="utf-8") if plan.is_file() else ""
+    head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
+    if head.get("plan_status") not in ("planned", "generating", "assembled", "checked"):
+        print("НЕЛЬЗЯ: plan_status " + head.get("plan_status", "-") + " - сначала tc_plan.py validate " + key + " (план должен сойтись)")
+        return 1
+    mark = "approved: yes " + plan_hash(text)
+    text = re.sub(r"(?m)^approved:.*$", mark, text, count=1) if re.search(r"(?m)^approved:", text) \
+        else re.sub(r"(?m)^(plan_status:[^\n]*)$", r"\1\n" + mark, text, count=1)
+    plan.write_text(text.rstrip("\n") + "\n| approve | план подтверждён человеком |\n", encoding="utf-8")
+    print("ПОДТВЕРЖДЕНО: " + mark)
     return 0
 
 
@@ -587,22 +800,34 @@ def validate(key):
         if c[0] != "-" and (len(c) < 6 or c[2] not in ("GLOBAL_CONSTANTS_CLASS", "TEST_CLASS_STATIC_FINAL", "CONFIG_OWNER",
                                                      "PROPERTIES_FILE", "TESTDATA_FILE_REF", "ENUM", "REUSE_FRAGMENT")):
             problems.append("константа " + c[0] + ": источник «" + (c[2] if len(c) > 2 else "-") + "» - выбери по references/classify.md, раздел «Константы»")
+    problems += detail_problems(text, head, steps)
     if problems:
         for p in problems:
             print("ПРОБЛЕМА: " + p)
         print("ИТОГ: план не сошёлся, проблем " + str(len(problems)))
         return 1
+    approved = head.get("approved", "no").split()
+    still = len(approved) == 2 and approved[0] == "yes" and approved[1] == plan_hash(text)
+    mark = "approved: " + ("yes " + approved[1] if still else "no")
+    text = re.sub(r"(?m)^approved:.*$", mark, text, count=1) if re.search(r"(?m)^approved:", text) \
+        else re.sub(r"(?m)^(plan_status:[^\n]*)$", r"\1\n" + mark, text, count=1)
     text = re.sub(r"(?m)^plan_status:\s*\S+", "plan_status: planned", text, count=1)
     text = text.rstrip("\n") + "\n| validate | план сошёлся: шагов %d, G %d |\n" % (len(steps), len(gens))
     plan.write_text(text, encoding="utf-8")
     print("ИТОГ: план сошёлся, plan_status: planned · шагов %d · G %d" % (len(steps), len(gens)))
+    if not still:
+        print("ПОДТВЕРЖДЕНИЕ: нужно - покажи человеку разделы 11-14 design.md (файлы, методы шагов, проверки, настройки) и"
+              " спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve " + key)
     return 0
 
 
 def main(args):
-    if len(args) < 2 or args[0] not in ("build", "validate", "style"):
-        print("Использование: tc_plan.py build <ключ ТК> [--force] | validate <ключ ТК> | style <ключ ТК> <steps|flow>")
+    if len(args) < 2 or args[0] not in ("build", "validate", "style", "approve"):
+        print("Использование: tc_plan.py build <ключ ТК> [--force] | validate <ключ ТК> | style <ключ ТК> <steps|flow>"
+              " | approve <ключ ТК>")
         return 2
+    if args[0] == "approve":
+        return approve(args[1])
     if args[0] == "style":
         return set_style(args[1], args[2] if len(args) > 2 else "")
     return build(args[1], "--force" in args) if args[0] == "build" else validate(args[1])

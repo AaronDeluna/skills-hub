@@ -554,6 +554,10 @@ def autotest_step(tc, status, tc_status):
                 + ", нужен исправленный ТК")
     if status not in PLAN_STATUSES or status == "draft":
         return ("autotest-plan " + tc, "plan_status: " + status + " - план не утверждён, достроить и проверить")
+    approved = front_matter(read(pp.plan_file(tc, create=False)) or "").get("approved", "no")
+    if status == "planned" and not approved.startswith("yes"):
+        return ("autotest-plan " + tc, "план сошёлся, но не подтверждён человеком - шаг 8 autotest-plan: показать разделы 11-14,"
+                " после «да» tc_plan.py approve " + tc)
     if status in ("planned", "generating") and not env_tc_ready(tc):
         return ("env-setup " + tc, "окружение под ТК не готово (нет " + str(pp.autotest_dir(tc, create=False) / "ENV-TC.md").replace("\\", "/")
                 + " с env_tc: ready) - модули фрейма, драйвер, сервисы и подключения по документации, потом генерация")

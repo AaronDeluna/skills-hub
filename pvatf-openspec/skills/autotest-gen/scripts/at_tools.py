@@ -80,7 +80,7 @@ def section_rows(text, title):
     rows = []
     for line in (sect.group(1) if sect else "").split("\n"):
         cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
-        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя", "Значение"):
+        if cells and not set(cells[0]) <= set("-:") and cells[0] not in ("Шаг", "G", "Имя", "Значение", "Файл", "Ключ"):
             rows.append(cells)
     return rows
 
@@ -150,6 +150,9 @@ def cmd_next(key):
         return fail("НЕТ ПЛАНА (design.md изменения): сначала артефакт design / autotest-plan")
     if head.get("plan_status") not in ("planned", "generating"):
         return fail("plan_status " + head.get("plan_status", "-") + " - генерация только по плану planned или generating", 1)
+    if not head.get("approved", "no").startswith("yes"):
+        return fail("ПЛАН НЕ ПОДТВЕРЖДЁН: approved " + head.get("approved", "no") + " - человек подтверждает разделы 11-14"
+                    " design.md (tc_plan.py approve " + key + "), код до этого не пишется", 1)
     gens = section_rows(text, "3. Порядок генерации")
     steps = {r[0]: r for r in section_rows(text, "2. Шаги")}
     todo = [g for g in gens if len(g) >= 8 and g[7] == "todo"]
@@ -200,6 +203,22 @@ def cmd_next(key):
     lines += ["  - " + v[0] + " - " + v[1] + " - " + v[2] for v in variables] or ["  - нет"]
     lines.append("- Готовые фрагменты прошлых G (их переменные доступны): " + (", ".join(
         p.stem for p in sorted((folder(key) / "fragments").glob("G-*.md"))) or "нет"))
+    files = [r for r in section_rows(text, "11. Файлы") if len(r) >= 4 and r[0] != "-"]
+    if files:
+        stems = {m[1] for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[0] == g[0]}
+        lines.append("- ДОГОВОР ПЛАНА (подтверждён человеком; код только так, ничего сверх):")
+        lines.append("  - файлы этого G (путь - действие - что в нём):")
+        lines += ["    - " + r[0] + " - " + r[1] + " - " + r[2] for r in files
+                  if r[3] == g[0] or Path(r[0]).stem in stems or (r[1] == "создать" and "testdata/" in r[0])] or ["    - нет"]
+        lines.append("  - методы (класс - метод - шаги ТК - запрос - параметры):")
+        lines += ["    - " + m[1] + " - " + m[2] + "() - " + m[3] + " - " + m[4] + " - " + m[5]
+                  for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[0] == g[0]] or ["    - нет"]
+        lines.append("  - проверки (шаг - объект - поле - как - ожидаемое; одна строка = одна проверка в коде):")
+        lines += ["    - " + " - ".join(c[:5]) for c in section_rows(text, "13. Проверки")
+                  if len(c) >= 5 and c[0].split(".")[0] in ids] or ["    - нет"]
+        lines.append("  - настройки (ключ - файл - кто читает):")
+        lines += ["    - " + st[0] + " - " + st[1] + " - " + st[3] for st in section_rows(text, "14. Настройки")
+                  if len(st) >= 4 and st[0] != "-"] or ["    - нет"]
     lines.append("- Классы шагов проекта для этой технологии (переиспользуй, если подходят):")
     lines += ["  - " + c for c in classes] or ["  - нет"]
     print("\n".join(lines))
@@ -565,6 +584,53 @@ def artifact_checks(key, text, target, step_files):
     findings += unused_methods([f for f in files if f != str(target)])
     return findings
 
+def plan_checks(text, target, step_files):
+    """Код против разделов 11-14 плана: файлы, методы, проверки, настройки. План - договор, код от него не отходит."""
+    findings = []
+    files = [r for r in section_rows(text, "11. Файлы") if len(r) >= 4 and r[0] != "-"]
+    if not files:
+        return findings  # план старого формата: разделов 11-14 нет
+    planned = {r[0] for r in files}
+    for f in sorted(step_files):
+        if f not in planned:
+            findings.append("ВНЕ ПЛАНА %s - файла нет в разделе 11 плана: код только в файлах плана (новый файл - сначала"
+                            " правка плана и подтверждение человека)" % f)
+    by_stem = {Path(r[0]).stem: r for r in files if r[0].endswith(".java")}
+    methods = [m for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[0] != "-"]
+    for m in methods:
+        row = by_stem.get(m[1])
+        if row and Path(row[0]).is_file() and not re.search(r"\b" + re.escape(m[2]) + r"\s*\(", read(row[0])):
+            findings.append("МЕТОД НЕТ %s - метода %s() из раздела 12 (шаги %s) нет в классе" % (row[0], m[2], m[3]))
+    for r in files:
+        if r[1] == "создать" and r[0].endswith(".java") and r[0] != str(target) and Path(r[0]).is_file():
+            names = {m[2] for m in methods if m[1] == Path(r[0]).stem}
+            for name in re.findall(r"(?m)^\s*public\s+(?:static\s+)?[\w<>\[\], ?]+\s+([a-z]\w*)\s*\(", read(r[0])):
+                if name not in names:
+                    findings.append("МЕТОД ВНЕ ПЛАНА %s - public-метода %s() нет в разделе 12 плана" % (r[0], name))
+    code_fields = set()
+    for f in [str(target)] + sorted(step_files):
+        if Path(f).is_file():
+            lines = read(f).splitlines()
+            consts = file_constants(lines)
+            for _, line in code_lines(lines):
+                code_fields.update(x.lower() for x in checked_fields(line, consts))
+    plan_fields = set()
+    for c in section_rows(text, "13. Проверки"):
+        if len(c) < 5 or c[0] == "-" or c[3].startswith(("проверено в шаге", "статус")):
+            continue
+        field = c[2].strip("`").lstrip("$.").lower()
+        plan_fields.add(field)
+        if field not in code_fields:
+            findings.append("ПРОВЕРКА НЕТ шаг %s - поле «%s» (%s %s) из раздела 13 в коде не проверяется" % (c[0], c[2], c[3], c[4]))
+    for field in sorted(code_fields - plan_fields):
+        findings.append("ПРОВЕРКА ВНЕ ПЛАНА - поле «%s» проверяется в коде, а в разделе 13 плана его нет: убери проверку или"
+                        " добавь строку в план с подтверждением человека" % field)
+    for st in section_rows(text, "14. Настройки"):
+        if len(st) >= 4 and st[0] != "-" and Path(st[1]).is_file() and not re.search(r"(?m)^\s*" + re.escape(st[0]) + r"\s*[=:]", read(st[1])):
+            findings.append("НАСТРОЙКА НЕТ %s - ключа %s из раздела 14 в файле нет" % (st[1], st[0]))
+    return findings
+
+
 def cmd_check(key, compile_on):
     path, text, head = plan(key)
     if text is None:
@@ -587,6 +653,7 @@ def cmd_check(key, compile_on):
         else:
             findings.append("ФАЙЛ %s - назван во фрагменте, но его нет" % item)
     findings += artifact_checks(key, text, target, steps_files)
+    findings += plan_checks(text, target, steps_files)
     body = read(target)
     for row in section_rows(text, "2. Шаги"):
         if not re.search(r"//\s*Шаг\s+" + re.escape(row[0]) + r"(?=\s|:|$)", body, re.M):

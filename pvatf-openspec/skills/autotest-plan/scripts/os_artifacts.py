@@ -215,6 +215,11 @@ def cmd_design(args):
         out("НУЖНО: окружение под ТК не готово - скилл env-check, режим setup " + key + ", потом снова")
         return 1
     head = front(read(design))
+    if not head.get("approved", "no").startswith("yes"):
+        out("НУЖНО: подтверждение плана - шаг 8 скилла autotest-plan: покажи человеку разделы 11-14 design.md (файлы, методы"
+            " шагов, проверки, настройки) и спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve "
+            + key + "; правки -> исправь строки, потом снова. Код не пишется до подтверждения")
+        return 1
     out("ИТОГ: design готов · plan_status " + head.get("plan_status", "-") + " · G " + str(len(gen_rows(read(design))))
         + " · окружение готово", "ФАЙЛ: " + rel(design))
     return 0
@@ -227,6 +232,9 @@ def cmd_tasks(args):
     plan = read(root / "design.md")
     if front(plan).get("plan_status") not in ("planned", "generating", "checked"):
         out("НУЖНО: design.md не готов (plan_status: " + front(plan).get("plan_status", "нет") + ") - сначала артефакт design")
+        return 1
+    if not front(plan).get("approved", "no").startswith("yes"):
+        out("НУЖНО: план не подтверждён человеком (approved: no) - сначала артефакт design, шаг подтверждения")
         return 1
     gens = gen_rows(plan)
     test_line = next((no for no, l in enumerate(plan.splitlines(), 1) if l.startswith("test_file:")), 1)
