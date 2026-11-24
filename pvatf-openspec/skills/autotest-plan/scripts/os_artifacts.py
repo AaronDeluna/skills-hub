@@ -187,7 +187,8 @@ def cmd_proposal(args):
              "3. " + ("Без `@TmsLink`: ТК нет, ключ служебный." if no_tc else "`@TmsLink(\"" + key + "\")` на тест-методе."),
              "4. Компиляция тестов `" + (" ".join(project.get("compile_argv") or []) or project.get("compile_command") or "командой из ENV.json") + "` - без ошибок.",
              "5. `" + AT + " check " + key + "` - ИТОГ: находок 0.",
-             "6. `" + AT + " run " + key + "` - строка РЕЗУЛЬТАТ; тест запускается последней задачей, без вопроса человеку.", "",
+             "6. `" + AT + " run " + key + "` - РЕЗУЛЬТАТ: passed; тест запускается последней задачей, без вопроса человеку."
+             " Не прошёл - отчёт RUN.md человеку, изменение без passed архивирует только человек.", "",
              "## Вне scope",
              "- Правка тест-кейса в TMS.",
              "- Шаги, проверки, очистка данных и подготовка, которых нет в ТК.",
@@ -253,18 +254,27 @@ def cmd_design(args):
         out("НУЖНО: разбор артефактов - шаг 1б скилла autotest-plan: artifacts.py task " + key + " -> агент pvatf-artifacts"
             " -> artifacts.py merge " + key + ", потом снова")
         return 1
-    if not design.is_file():
-        code, text = run_script("autotest-plan", "tc_plan.py", ["build", key])
-        lines = [l for l in text.splitlines() if l.split(":", 1)[0] in ("ФАЙЛ", "ШАГОВ", "ПРОВЕРИТЬ", "ОКРУЖЕНИЕ", "ЗАМЕТКА", "НЕТ TC.md", "НЕТ TC-CHECK.md", "АРХИТЕКТУРА")]
+    changed = design.is_file() and tc_plan.tc_changed(read(design))
+    if changed:
+        out("ТК ИЗМЕНЁН: TC.md новее плана - план строится заново по новому ТК (прошлые правки плана и подтверждение не в счёт)")
+    if not design.is_file() or changed:
+        code, text = run_script("autotest-plan", "tc_plan.py", ["build", key] + (["--force"] if changed else []))
+        lines = [l for l in text.splitlines() if l.split(":", 1)[0] in ("ФАЙЛ", "ШАГОВ", "ПРОВЕРИТЬ", "ОКРУЖЕНИЕ", "ЗАМЕТКА", "НЕТ TC.md", "НЕТ TC-CHECK.md", "АРХИТЕКТУРА", "СБРОС")]
         out(*lines)
         if code != 0:
             return 1
         if any(l.startswith("ПРОВЕРИТЬ:") and "нет -" not in l for l in lines):
             out("НУЖНО: шаг 5 скилла autotest-plan - исправь в design.md только строки из ПРОВЕРИТЬ, потом снова")
             return 1
+    # знакомство с технологиями ТК до разделов 11-14: обзор документации и образцы проекта-примера
+    code, text = run_script("autotest-plan", "intro.py", ["todo", key])
+    out(*[l for l in text.splitlines() if l.startswith(("ДРАФТА НЕТ", "ПРОЕКТ", "НУЖНО", "ЗНАКОМСТВО", "ДАЛЬШЕ"))])
+    if code == 1:
+        out("НУЖНО: шаг 4б скилла autotest-plan - сделай строки НУЖНО знакомства по порядку, потом снова")
+        return 1
     code, text = run_script("autotest-plan", "tc_plan.py", ["validate", key])
     if code != 0:
-        out(*[l for l in text.splitlines() if l.startswith(("ПРОБЛЕМА", "ИТОГ"))])
+        out(*[l for l in text.splitlines() if l.startswith(("ПРОБЛЕМА", "ИТОГ", "СБРОС"))])
         if "архитектура тестов не выбрана" in text:
             out("НУЖНО: шаг 1в скилла autotest-plan - спроси человека «steps или flow», ответ: tc_plan.py style " + key + " <steps|flow>")
         out("НУЖНО: шаги 6-7 скилла autotest-plan - исправь в design.md строки ПРОБЛЕМА, потом снова (не больше 3 кругов)")
@@ -339,7 +349,7 @@ def cmd_tasks(args):
     if not root:
         return 2
     plan = read(root / "design.md")
-    if front(plan).get("plan_status") not in ("planned", "generating", "checked"):
+    if front(plan).get("plan_status") not in ("planned", "generating", "assembled", "checked"):
         out("НУЖНО: design.md не готов (plan_status: " + front(plan).get("plan_status", "нет") + ") - сначала артефакт design")
         return 1
     import tc_plan
@@ -386,24 +396,43 @@ def cmd_tasks(args):
     return sync(root)
 
 
-def code_fields(paths):
-    """Поля, которые проверяет код файлов (те же правила, что у at_tools.py check). Нет at_tools - пустое множество."""
+def fragment_code(root, done):
+    """Блоки fields и body фрагментов готовых G: проверки тест-метода видны в них ещё до assemble."""
+    lines = []
+    for g in sorted(done):
+        text = read(root / "outputs" / "fragments" / (g + ".md"))
+        for m in re.finditer(r"(?ms)^## (?:fields|body)\s*\n```(?:java|kotlin)?\n(.*?)```", text):
+            lines += m.group(1).splitlines()
+    return lines
+
+
+def code_fields(paths, extra=()):
+    """Поля, которые проверяет код файлов и строк extra (те же правила, что у at_tools.py check). Нет at_tools - None."""
     try:
         sys.path.insert(0, str(SKILLS / "autotest-gen" / "scripts"))
         import at_tools
     except Exception:  # noqa: BLE001 - скилл autotest-gen не установлен
         return None
     found = set()
-    for f in paths:
-        if Path(f).is_file():
-            lines = read(f).splitlines()
-            consts = at_tools.file_constants(lines)
-            for _, line in at_tools.code_lines(lines):
-                found.update(x.lower() for x in at_tools.checked_fields(line, consts))
+    for lines in [read(f).splitlines() for f in paths if Path(f).is_file()] + [list(extra)]:
+        consts = at_tools.file_constants(lines)
+        for _, line in at_tools.code_lines(lines):
+            found.update(x.lower() for x in at_tools.checked_fields(line, consts))
     return found
 
 
-def item_done(line, plan, fields):
+def code_lines_of(paths, extra=()):
+    """Строки кода файлов и строк extra без комментариев (правила at_tools.py). Нет at_tools - None."""
+    try:
+        sys.path.insert(0, str(SKILLS / "autotest-gen" / "scripts"))
+        import at_tools
+    except Exception:  # noqa: BLE001 - скилл autotest-gen не установлен
+        return None
+    return [l for f in paths if Path(f).is_file() for _, l in at_tools.code_lines(read(f).splitlines())] \
+        + [l for _, l in at_tools.code_lines(list(extra))]
+
+
+def item_done(line, plan, fields, code=None):
     """Задача из раздела 11-14 сделана по коду: файл есть, метод объявлен, поле проверяется, ключ в файле."""
     m = re.search(r"(?:Создать|Дополнить) `([^`]+)`", line)
     if m:
@@ -412,9 +441,14 @@ def item_done(line, plan, fields):
     if m:
         path = next((f[0] for _, f in section_lines(plan, "11.") if f[0].endswith("/" + m.group(1) + ".java")), "")
         return bool(path) and Path(path).is_file() and re.search(r"\b" + m.group(2) + r"\s*\(", read(path)) is not None
-    m = re.search(r"Проверка шага \S+: .*? · поле `([^`]+)` · ([^·]+) ·", line)
+    m = re.search(r"Проверка шага \S+: .*? · поле `([^`]+)` · ([^·]+) · (.*?) \(design\.md:", line)
+    if m and m.group(2).strip() == "статус":  # код ответа: в коде должно быть ожидаемое (константа или значение)
+        if code is None:
+            return True
+        import at_tools
+        return at_tools.status_checked(m.group(3), code)
     if m:
-        return m.group(2).strip() == "статус" or fields is None or m.group(1).strip("`").lstrip("$.").lower() in fields
+        return fields is None or m.group(1).strip("`").lstrip("$.").lower() in fields
     m = re.search(r"Настройка `([^`]+)` = .* в `([^`]+)`", line)
     if m:
         return Path(m.group(2)).is_file() and re.search(r"(?m)^\s*" + re.escape(m.group(1)) + r"\s*[=:]", read(m.group(2))) is not None
@@ -423,20 +457,23 @@ def item_done(line, plan, fields):
 
 def sync(root):
     """Чекбоксы tasks.md по статусам и коду: G ok/stub в разделе 3 плана; задачи файлов, методов, проверок и настроек -
-    G готова и это видно в коде; компиляция G - outputs/compile/G-n.md с «Компиляция: ok»; сборка (plan_status assembled), check (checked), запуск (run_status: passed при checked)."""
+    G готова и это видно в коде; компиляция G - outputs/compile/G-n.md с «Компиляция: ok» или «заглушки»; сборка (plan_status assembled), check (checked), запуск (run_status: passed при checked)."""
     tasks = root / "tasks.md"
     text = read(tasks)
     if not text:
         return 0
     plan = read(root / "design.md")
-    done = {g[0] for _, g in gen_rows(plan) if len(g) > 7 and g[7] in ("ok", "stub")}
-    stub = {g[0] for _, g in gen_rows(plan) if len(g) > 7 and g[7] == "stub"}  # заглушка: код G допишет человек
+    done = {g[0] for _, g in gen_rows(plan) if len(g) > 7 and g[7] in ("ok", "stub", "manual")}
+    # заглушка (stub) и код, который дописал человек (manual): задачи G - за человеком, check сверит код
+    stub = {g[0] for _, g in gen_rows(plan) if len(g) > 7 and g[7] in ("stub", "manual")}
     status = front(plan).get("plan_status", "")
     checked = status == "checked"
     assembled = status in ("assembled", "checked")
     ran = checked and front(plan).get("run_status") == "passed"  # отметка - только тест прошёл, не «запускали»
     code = [f[0] for _, f in section_lines(plan, "11.") if f[0].endswith(".java")]
-    fields = code_fields(code)
+    frags = fragment_code(root, done)
+    fields = code_fields(code, frags)
+    lines_of_code = code_lines_of(code, frags)
     lines, marked, cleared, group = [], 0, 0, ""
     for line in text.splitlines():
         head = re.match(r"^## \d+\. (G-\d+)\b", line)
@@ -446,8 +483,8 @@ def sync(root):
         if m:
             hit = m.group(1) in done
         elif "at_tools.py compile" in line:
-            hit = bool(group) and (group in stub or group in done
-                                   and "- Компиляция: ok" in read(root / "outputs" / "compile" / (group + ".md")))
+            result = read(root / "outputs" / "compile" / (group + ".md"))
+            hit = bool(group) and (group in stub or group in done and re.search(r"(?m)^- Компиляция: (ok|заглушки)\b", result) is not None)
         elif "at_tools.py assemble" in line:
             hit = assembled
         elif "at_tools.py check" in line:
@@ -455,7 +492,7 @@ def sync(root):
         elif "at_tools.py run" in line:
             hit = ran
         else:
-            hit = item_done(line, plan, fields)
+            hit = item_done(line, plan, fields, lines_of_code)
             if hit is not None:
                 hit = group in stub or (hit and (group in done if group else assembled))
         if hit is not None and line.startswith(("- [ ]", "- [x]")):

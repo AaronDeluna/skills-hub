@@ -100,4 +100,9 @@ def compile_project(timeout, env_json=ENV_JSON):
         return "ok", [command]
     output = result.stdout.decode("utf-8", "replace").splitlines()
     errors = [l.strip() for l in output if re.search(r"\bERROR\b|error:|cannot find symbol|FAILED", l)]
-    return "failed", (errors or output[-20:])[:20]
+    if len(errors) > 20:  # вывод обрезан: по 20 строкам нельзя сказать, что ошибки только в одном месте
+        return "failed", errors[:20] + [TRUNCATED + str(len(errors) - 20) + " - полный вывод даёт команда " + command]
+    return "failed", errors or output[-20:]
+
+
+TRUNCATED = "ОБРЕЗАНО: строк ошибок ещё "

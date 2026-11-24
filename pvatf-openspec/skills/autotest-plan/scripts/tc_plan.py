@@ -597,8 +597,10 @@ def build(key, force):
     vars_ = variables(rows, arts["values"])
     index = class_index(env, {g["group"] for g in groups})
     needs = env_needs(tc, rows, env)
-    plan.write_text(render(tc, check, env, rows, groups, consts, vars_, index, needs, arts,
-                           old_package.group(1) if old_package else "-"), encoding="utf-8")
+    text = render(tc, check, env, rows, groups, consts, vars_, index, needs, arts, old_package.group(1) if old_package else "-")
+    plan.write_text(re.sub(r"(?m)^(tc_status:[^\n]*)$", r"\1\ntc_hash: " + tc_hash(key), text, count=1), encoding="utf-8")
+    if force and reset_generation(key):
+        print("СБРОС: план перестроен - прошлые фрагменты, компиляция и находки удалены, все G todo, генерация заново")
     low = [r["id"] for r in rows if r["conf"] == "LOW" or r["group"] == "UNKNOWN_GROUP" or r["type"] == "UNKNOWN_TYPE"]
     print("ФАЙЛ: " + str(plan).replace("\\", "/"))
     print("ШАГОВ: %d · G: %d · КОНСТАНТ: %d · ПЕРЕМЕННЫХ: %d" % (len(rows), len(groups), len(consts), len(vars_)))
@@ -705,18 +707,73 @@ def rename_class(key, name):
 
 
 def approved_ok(text):
-    """План подтверждён человеком и с тех пор не менялся: approved: yes <отпечаток текущего текста>."""
-    m = re.search(r"(?m)^approved:\s*yes\s+(\w+)\s*$", text.split("\n---", 1)[0] if text.startswith("---") else "")
-    return bool(m) and m.group(1) == plan_hash(text)
+    """План подтверждён человеком и с тех пор не менялся: approved: yes <отпечаток текущего текста>, и ТК тот же,
+    по которому план построен (tc_hash в шапке; старый план без tc_hash - только отпечаток плана)."""
+    head = text.split("\n---", 1)[0] if text.startswith("---") else ""
+    m = re.search(r"(?m)^approved:\s*yes\s+(\w+)\s*$", head)
+    return bool(m) and m.group(1) == plan_hash(text) and not tc_changed(text)
+
+
+def contract_hash(text):
+    """Отпечаток договора для кода G: план без шапки, имя и путь тест-класса заменены меткой. Новое имя тест-класса
+    (rename) договор G не меняет - код G остаётся; правка шагов, файлов, методов, проверок, настроек - меняет."""
+    head = dict(re.findall(r"(?m)^(\w+):[ \t]*(.*)$", text.split("\n---", 1)[0]))
+    body = text.split("\n---", 1)[1] if text.startswith("---") and "\n---" in text else text
+    for name, mark in (("test_file", "<TEST_FILE>"), ("class", "<CLASS>")):
+        if head.get(name, "-") not in ("-", ""):
+            body = body.replace(head[name], mark)
+    return plan_hash(body)
+
+
+def tc_hash(key):
+    """Отпечаток TC.md изменения: новый ТК (исправленный после FAIL, другой файл) меняет его."""
+    import hashlib
+    path = tcc.pp.autotest_dir(key, create=False) / "TC.md"
+    try:
+        data = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    except OSError:
+        return "-"
+    return hashlib.sha1(data.encode("utf-8")).hexdigest()[:12]
+
+
+def tc_changed(text):
+    """ТК изменился после построения плана: tc_hash шапки не равен отпечатку TC.md."""
+    head = dict(re.findall(r"(?m)^(\w+):[ \t]*(.*)$", text.split("\n---", 1)[0]))
+    return head.get("tc_hash", "-") not in ("-", "") and head.get("tc_hash") != tc_hash(head.get("tc", "-"))
+
+
+def reset_generation(key):
+    """План изменён после генерации: все G -> todo, фрагменты, компиляция, находки, CHECK.md и запуск - удаляются
+    (какие G задела правка, по тексту плана надёжно не определить). Было что сбрасывать - True."""
+    plan = tcc.pp.plan_file(key, create=False)
+    text = plan.read_text(encoding="utf-8") if plan.is_file() else ""
+    gens = table(text, "3. Порядок генерации")
+    busy = [g[0] for g in gens if len(g) >= 8 and g[7] != "todo"]
+    folder = tcc.pp.autotest_dir(key, create=False)
+    old = [f for d in ("fragments", "compile", "fix") if (folder / d).is_dir() for f in (folder / d).glob("G-*.md")]
+    old += [folder / n for n in ("CHECK.md", "RUN.md") if (folder / n).is_file()]
+    if not busy and not old:
+        return False
+    for f in old:
+        f.unlink()
+    for g in busy:
+        text = re.sub(r"(?m)^(\| " + re.escape(g) + r" \|(?:[^|\n]*\|){6}) *\w+ *\|$", lambda m: m.group(1) + " todo |", text, count=1)
+    text = re.sub(r"(?m)^(run_status|assembled|test_owner):.*\n", "", text)
+    if re.search(r"(?m)^plan_status:\s*(generating|assembled|checked)\s*$", text):
+        text = re.sub(r"(?m)^plan_status:\s*\S+", "plan_status: planned", text, count=1)
+    plan.write_text(text.rstrip("\n") + "\n| reset | план изменён после генерации: G " + (", ".join(busy) or "-") + " -> todo |\n",
+                    encoding="utf-8")
+    return True
 
 
 def plan_hash(text):
     """Отпечаток содержания плана: без статусов (plan_status, approved, статусы G) и журнала."""
     import hashlib
     body = re.sub(r"(?ms)^## \d+\. Журнал.*\Z", "", strip_derived(text))
-    body = re.sub(r"(?m)^run_status:.*\n", "", body)  # строка запуска появляется и исчезает - на отпечаток не влияет
-    body = re.sub(r"(?m)^(plan_status|approved|run_status):.*$", "", body)
-    body = re.sub(r"(?m)\| (todo|ok|stub|blocked) \|\s*$", "| |", body)
+    # строки запуска и сборки появляются и исчезают - на отпечаток не влияют
+    body = re.sub(r"(?m)^(run_status|assembled|test_owner|contract):.*\n", "", body)
+    body = re.sub(r"(?m)^(plan_status|approved):.*$", "", body)
+    body = re.sub(r"(?m)\| (todo|ok|stub|blocked|manual) \|\s*$", "| |", body)
     return hashlib.sha1(body.encode("utf-8")).hexdigest()[:12]
 
 
@@ -963,6 +1020,9 @@ def approve(key):
     mark = "approved: yes " + plan_hash(text)
     text = re.sub(r"(?m)^approved:.*$", mark, text, count=1) if re.search(r"(?m)^approved:", text) \
         else re.sub(r"(?m)^(plan_status:[^\n]*)$", r"\1\n" + mark, text, count=1)
+    contract = "contract: " + contract_hash(text)  # по нему validate решает, сбрасывать ли G после правки плана
+    text = re.sub(r"(?m)^contract:.*$", contract, text, count=1) if re.search(r"(?m)^contract:", text) \
+        else re.sub(r"(?m)^(approved:[^\n]*)$", r"\1\n" + contract, text, count=1)
     plan.write_text(text.rstrip("\n") + "\n| approve | план подтверждён человеком |\n", encoding="utf-8")
     print("ПОДТВЕРЖДЕНО: " + mark)
     return 0
@@ -976,6 +1036,9 @@ def validate(key):
     text = plan.read_text(encoding="utf-8")
     head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
     problems = []
+    if tc_changed(text):
+        problems.append("ТК изменён после построения плана (tc_hash) - план по старому ТК: tc_plan.py build " + key
+                        + " --force (os_artifacts.py design делает это сам), потом validate и новое «да» человека")
     if head.get("tc_status") == "FAIL":
         problems.append("tc_status FAIL - тест-кейс не прошёл проверку, нужен исправленный ТК")
     if not JAVA_NAME.fullmatch(head.get("class", "")) or not head.get("class", "").endswith("Test"):
@@ -1011,6 +1074,9 @@ def validate(key):
             continue
         if r[3] == "UNKNOWN_TYPE" or r[4] == "UNKNOWN_GROUP" or r[5] == "UNKNOWN_TECHNOLOGY":
             problems.append("шаг " + r[0] + ": тип или группа UNKNOWN - выбери по references/classify.md")
+        elif r[7] == "LOW" and "выбрано по" not in r[8]:
+            problems.append("шаг " + r[0] + ": уверенность LOW - проверь тип, группу, технологию и G по references/classify.md"
+                            " (шаг 5 скилла autotest-plan) и допиши в колонку «Основание» «выбрано по <маркер>»")
         if r[4] not in GROUP_REF:
             problems.append("шаг " + r[0] + ": группа «" + r[4] + "» не из списка " + ", ".join(GROUP_REF))
         if r[10] not in gens:
@@ -1045,14 +1111,23 @@ def validate(key):
         return 1
     approved = head.get("approved", "no").split()
     still = len(approved) == 2 and approved[0] == "yes" and approved[1] == plan_hash(text)
+    same_contract = head.get("contract", "-") == contract_hash(text)  # изменилось только имя тест-класса (rename)
+    if not still and not same_contract and reset_generation(key):  # договор изменился: старый код G - по старому договору
+        print("СБРОС: план изменён после генерации - все G снова todo, фрагменты, компиляция и находки удалены;"
+              " генерация заново после «да» человека")
+        text = plan.read_text(encoding="utf-8")
+        head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
     mark = "approved: " + ("yes " + approved[1] if still else "no")
     text = re.sub(r"(?m)^approved:.*$", mark, text, count=1) if re.search(r"(?m)^approved:", text) \
         else re.sub(r"(?m)^(plan_status:[^\n]*)$", r"\1\n" + mark, text, count=1)
-    text = re.sub(r"(?m)^plan_status:\s*\S+", "plan_status: planned", text, count=1)
+    if not (still and head.get("plan_status") in ("generating", "assembled", "checked")):
+        # план тот же, что подтвердил человек, - генерация продолжается с того же места, иначе снова planned
+        text = re.sub(r"(?m)^plan_status:\s*\S+", "plan_status: planned", text, count=1)
     text = put_derived(text)
     text = text.rstrip("\n") + "\n| validate | план сошёлся: шагов %d, G %d |\n" % (len(steps), len(gens))
     plan.write_text(text, encoding="utf-8")
-    print("ИТОГ: план сошёлся, plan_status: planned · шагов %d · G %d" % (len(steps), len(gens)))
+    now = re.search(r"(?m)^plan_status:\s*(\S+)", text)
+    print("ИТОГ: план сошёлся, plan_status: %s · шагов %d · G %d" % (now.group(1) if now else "planned", len(steps), len(gens)))
     if not still:
         print("ПОДТВЕРЖДЕНИЕ: нужно - покажи человеку разделы 11-16 design.md (файлы, методы шагов, проверки, настройки, привязка шагов, планируемые изменения) и"
               " спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve " + key)

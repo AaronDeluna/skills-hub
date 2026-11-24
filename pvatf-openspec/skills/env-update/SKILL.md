@@ -34,7 +34,7 @@ description: 'Обновление фрейма PVATF в проекте авто
 
 **Скрипты лежат в `.gigacode/skills/env-update/scripts/` и `.gigacode/skills/env-check/scripts/`.**
 Скрипта по этому пути нет -> найди один раз:
-`find . ~/.gigacode -path "*env-*/scripts/env_*.py" 2>/dev/null | head -2` - и подставляй найденное.
+инструментом поиска файлов: файлы `env_update.py` и `env_check.py` в каталоге проекта и в `~/.gigacode` (работает и на Windows) - и подставляй найденное.
 
 ## Шаги
 

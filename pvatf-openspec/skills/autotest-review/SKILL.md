@@ -34,7 +34,7 @@ description: 'Проверка и оптимизация существующе�
 - Python 3.8+ (команды `python3 ...`; на Windows, где нет `python3`, - `python ...` или `py -3 ...`).
 
 **Скрипт - `.gigacode/skills/autotest-review/scripts/review.py`.** Нет по этому пути -> найди
-один раз: `find . ~/.gigacode -path "*autotest-review/scripts/review.py" 2>/dev/null | head -1`.
+один раз инструментом поиска файлов: файл `review.py` в каталоге проекта и в `~/.gigacode` (работает и на Windows).
 
 ## Шаги
 

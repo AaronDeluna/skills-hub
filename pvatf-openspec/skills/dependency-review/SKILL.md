@@ -34,7 +34,7 @@ description: 'Ревью управления зависимостями про�
 - Агент `pvatf-docs` в `.gigacode/agents/` (из папки `agents/` набора) - только для строки D-P2.
 
 **Скрипт - `.gigacode/skills/dependency-review/scripts/deps.py`.** Нет по этому пути -> найди
-один раз: `find . ~/.gigacode -path "*dependency-review/scripts/deps.py" 2>/dev/null | head -1`.
+один раз инструментом поиска файлов: файл `deps.py` в каталоге проекта и в `~/.gigacode` (работает и на Windows).
 
 ## Шаги
 

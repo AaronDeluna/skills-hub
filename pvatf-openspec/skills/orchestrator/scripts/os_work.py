@@ -9,6 +9,7 @@
   python3 <скилл>/scripts/os_work.py tasks <имя изменения>                        - tasks.md
   python3 <скилл>/scripts/os_work.py sync <имя изменения>                         - чекбоксы tasks.md по статусам
   python3 <скилл>/scripts/os_work.py next [<имя изменения>]                      - что делать дальше
+  python3 <скилл>/scripts/os_work.py steps-ok <имя изменения>                     - человек подтвердил шаги из лога или кода
 
 Виды (x-pvatf-kind) и объект:
   autotest <ключ ТК>       - автотест по ТК: схема pvatf-autotests, артефакты пишет os_artifacts.py
@@ -385,6 +386,44 @@ def plan_hash(text):
     return tc_plan.plan_hash(text)
 
 
+def file_hash(path):
+    import hashlib
+    return hashlib.sha1(read(path).replace("\r\n", "\n").encode("utf-8")).hexdigest()[:12]
+
+
+def steps_unconfirmed(root):
+    """Шаги TC.md восстановлены скриптом из лога или кода (Источник: log / code), а человек их не подтвердил для этой
+    версии TC.md (x-pvatf-steps-ok в .openspec.yaml - отпечаток TC.md на момент «да»)."""
+    tc_md = root / "outputs" / "TC.md"
+    source = re.search(r"(?m)^- Источник:\s*(\w+)", read(tc_md))
+    return bool(source) and source.group(1) in ("log", "code") and pp.meta(root).get("x-pvatf-steps-ok") != file_hash(tc_md)
+
+
+def cmd_steps_ok(args):
+    t = target(args)
+    if not t:
+        return 2
+    root = t[1]
+    tc_md = root / "outputs" / "TC.md"
+    if not tc_md.is_file():
+        out("НЕТ TC.md: " + rel(tc_md))
+        return 2
+    meta = re.sub(r"(?m)^x-pvatf-steps-ok:.*\n?", "", read(root / ".openspec.yaml"))
+    (root / ".openspec.yaml").write_text(meta.rstrip("\n") + '\nx-pvatf-steps-ok: "' + file_hash(tc_md) + '"\n', encoding="utf-8")
+    out("ИТОГ: шаги TC.md подтверждены человеком", "ДАЛЬШЕ: os_work.py next " + t[0])
+    return 0
+
+
+def check_rows(root):
+    """Находки последнего check (outputs/CHECK.md), если он новее тест-класса; старый итог - None."""
+    check_md = root / "outputs" / "CHECK.md"
+    test = Path(front(read(root / "design.md")).get("test_file", "-"))
+    if not check_md.is_file() or (test.is_file() and test.stat().st_mtime > check_md.stat().st_mtime):
+        return None
+    return [l.strip()[2:-2].strip() for l in read(check_md).splitlines()
+            if l.startswith("| ") and l.strip() not in ("| Находка |", "| нет |")]
+
+
 def cmd_next(args):
     if not pp.on():
         out("НЕТ OPENSPEC: в корне нет openspec/config.yaml - установите по INSTALL.md пакета")
@@ -403,6 +442,13 @@ def cmd_next(args):
     name, root, kind, obj = t
     sync(root, kind)
     tc_md = root / "outputs" / "TC.md"
+    if kind == "autotest" and steps_unconfirmed(root):
+        out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: подтверждение шагов",
+            "КОМАНДА: шаги TC.md восстановлены скриптом из лога или кода - покажи человеку таблицу шагов из " + rel(tc_md)
+            + " и спроси «Шаги восстановлены верно? Да / номер шага и как исправить»; правки -> исправь в TC.md только"
+            " названные строки и спроси снова; «да» -> python3 .gigacode/skills/orchestrator/scripts/os_work.py steps-ok "
+            + name + ", потом os_work.py next " + name)
+        return 0
     newer = lambda f: tc_md.is_file() and f.is_file() and tc_md.stat().st_mtime > f.stat().st_mtime
     for aid, done in artifact_status(root):
         head = front(read(root / "design.md")) if aid == "design" and done else {}
@@ -436,11 +482,42 @@ def cmd_next(args):
             return 0
     tasks_text = read(root / "tasks.md")
     left = len(re.findall(r"(?m)^- \[ \]", tasks_text))
+    other = len([l for l in tasks_text.splitlines() if l.startswith("- [ ]") and "at_tools.py run" not in l])
     design = read(root / "design.md")
     run = front(design).get("run_status", "")
     if kind == "autotest":
-        other = len([l for l in tasks_text.splitlines() if l.startswith("- [ ]") and "at_tools.py run" not in l])
-        stubs = [g[0] for g in table(design, "3. Порядок генерации") if len(g) >= 8 and g[7] == "stub"]
+        test_file = Path(front(design).get("test_file", "-"))
+        test_code = read(test_file)
+        gens = [g for g in table(design, "3. Порядок генерации") if len(g) >= 8]
+        built = test_file.is_file() and front(design).get("plan_status") in ("assembled", "checked")
+        # заглушка - пока строка STUB этой G в тест-классе; человек дописал код и убрал её -> accept
+        stubs = [g[0] for g in gens if g[7] == "stub" and re.search(r"//\s*STUB\s+" + re.escape(g[0]) + r"\b", test_code)]
+        written = [g[0] for g in gens if g[7] == "stub" and g[0] not in stubs] if built else []
+        gap = [g[0] for g in gens if g[7] == "blocked"
+               and re.search(r"(?mi)^- Причина:\s*план\s*[-:]", read(root / "outputs" / "fragments" / (g[0] + ".md")))]
+        rows = check_rows(root) if built else None
+        person = [r for r in rows or [] if r.startswith("ЧЕЛОВЕК ")]
+        if gap:
+            out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: правка плана · " + ", ".join(gap),
+                "КОМАНДА: агент ответил, что в плане не хватает файла, метода или проверки (fragments/" + gap[0] + ".md, строка"
+                " «Причина: план - ...»). Документация это не решит, stub не ставь: покажи человеку причину и спроси «В плане"
+                " не хватает: <причина>. Добавить в design.md? да / как иначе»; ответ -> правка строки раздела 11-14"
+                " design.md, os_work.py design " + name + " (validate и новое «да»), потом os_work.py next " + name)
+            return 0
+        if written:
+            out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: приём кода человека · " + ", ".join(written),
+                "КОМАНДА: человек дописал заглушки и убрал строки // STUB - python3 .gigacode/skills/autotest-gen/scripts/"
+                "at_tools.py accept " + obj + " (код G -> фрагменты, статус manual), потом at_tools.py check " + obj
+                + ", потом os_work.py next " + name)
+            return 0
+        if person and not [r for r in rows if not r.startswith(("STUB ", "ЧЕЛОВЕК "))]:
+            out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог · находки в коде человека",
+                "КОМАНДА: check нашёл ошибки в коде, который дописал человек (строки ЧЕЛОВЕК в outputs/CHECK.md) - сам их не"
+                " исправляешь. Покажи человеку эти строки и спроси «Находки в вашем коде: исправите сами или архивировать"
+                " как есть?»; «исправил» -> python3 .gigacode/skills/autotest-gen/scripts/at_tools.py check " + obj
+                + " (assemble не запускай), потом os_work.py next " + name + "; «архивировать» -> openspec archive "
+                + name + " --yes")
+            return 0
         if other:
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · задач осталось " + str(left),
                 "КОМАНДА: openspec instructions apply --change \"" + name + "\" --json - выполни поле instruction")
@@ -448,8 +525,10 @@ def cmd_next(args):
         if stubs:
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог · заглушки " + ", ".join(stubs),
                 "КОМАНДА: тест не запускается - в нём заглушки (строки STUB). Покажи человеку итог скилла autotest-gen и спроси"
-                " «Заглушки " + ", ".join(stubs) + ": допишете код сами или архивировать как есть?»; дописал -> at_tools.py check "
-                + obj + ", потом at_tools.py run " + obj + "; «архивировать» -> openspec archive " + name + " --yes")
+                " «Заглушки " + ", ".join(stubs) + ": допишете код сами (в тест-классе и классах шагов, строки // STUB убрать)"
+                " или архивировать как есть?»; «дописал» -> os_work.py next " + name + " (даст приём кода: at_tools.py"
+                " accept; assemble не запускай)"
+                + "; «архивировать» -> openspec archive " + name + " --yes")
             return 0
         if run == "env":
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: env-setup " + obj,
@@ -458,32 +537,33 @@ def cmd_next(args):
             return 0
     if kind == "autotest" and run and run != "passed":
         out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: тест не прошёл · " + run + " · отчёт openspec/changes/" + name + "/outputs/RUN.md",
-            "КОМАНДА: скилл autotest-gen, шаг 8: падения КОД - исправь, check, снова at_tools.py run " + obj
+            "КОМАНДА: скилл autotest-gen, шаг 8: падения КОД - исправление по шагу 8 (тест-класс - через фрагмент, класс шагов -"
+            " агент), check, снова at_tools.py run " + obj
             + " (не больше 2 кругов); СТЕНД, ПРОВЕРКА, окружение - покажи человеку RUN.md и спроси «Тест не прошёл: <причина>."
             " Исправить и запустить снова или архивировать как есть?»; «архивировать» -> openspec archive " + name + " --yes")
         return 0
-    if left:
+    if left and not (kind == "autotest" and not other):  # автотест: осталась только задача запуска - ниже «запуск теста»
         out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · задач осталось " + str(left),
             "КОМАНДА: openspec instructions apply --change \"" + name + "\" --json - выполни поле instruction")
         return 0
     head = front(read(root / "design.md"))
-    if kind == "autotest" and not head.get("run_status"):
+    if kind == "autotest" and (not head.get("run_status") or left):
         out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · запуск теста",
             "КОМАНДА: скилл autotest-gen, шаги 7-9: python3 .gigacode/skills/autotest-gen/scripts/at_tools.py run " + obj
             + " - тест не запускался, архив только после запуска")
         return 0
     out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: архив",
-        "КОМАНДА: openspec archive " + name + " --yes (или скилл openspec-de-archive-change, если стоит)")
+        "КОМАНДА: openspec archive " + name + " --yes")
     return 0
 
 
 COMMANDS = {"new": cmd_new, "proposal": cmd_proposal, "design": cmd_design, "tasks": cmd_tasks,
-            "sync": cmd_sync, "next": cmd_next}
+            "sync": cmd_sync, "next": cmd_next, "steps-ok": cmd_steps_ok}
 
 
 def main(argv):
     if not argv or argv[0] not in COMMANDS:
-        out("Использование: os_work.py new <вид> [<объект>] | proposal | design | tasks | sync | next <имя изменения>")
+        out("Использование: os_work.py new <вид> [<объект>] | proposal | design | tasks | sync | next | steps-ok <имя изменения>")
         return 2
     return COMMANDS[argv[0]](argv[1:])
 

@@ -5,7 +5,8 @@
   python3 <скилл>/scripts/at_tools.py next <ключ ТК>               - задание агенту pvatf-generator на следующий G
   python3 <скилл>/scripts/at_tools.py mark <ключ ТК> <G-n> <статус> - статус G в плане: ok / stub / blocked / todo
   python3 <скилл>/scripts/at_tools.py compile <ключ ТК> <G-n>      - компиляция после G (mvn -q test-compile из ENV.json)
-  python3 <скилл>/scripts/at_tools.py assemble <ключ ТК>           - собрать тест-класс из фрагментов
+  python3 <скилл>/scripts/at_tools.py assemble <ключ ТК> [--force] - собрать тест-класс из фрагментов
+  python3 <скилл>/scripts/at_tools.py accept <ключ ТК>             - человек дописал заглушки: G stub -> manual
   python3 <скилл>/scripts/at_tools.py check <ключ ТК> [--no-compile] - самопроверка кода, покрытие шагов, компиляция
   python3 <скилл>/scripts/at_tools.py run <ключ ТК> [--dry-run | --report-only] - запуск тест-класса, разбор отчёта JUnit
 
@@ -16,7 +17,8 @@ run: команда - из команды компиляции ENV.json (Maven: 
 
 Файлы - в openspec/changes/<имя>/: design.md (план), outputs/: fragments/G-<n>.md (фрагменты от
 агента), rules-now.md, docs-now.md, CHECK.md (итог проверки). Повторный запуск любой команды
-ничего не ломает: assemble переписывает только файл, который сам создал (есть строка-метка).
+ничего не ломает: assemble переписывает только файл, который сам создал (есть строка-метка) и
+который после сборки не правили руками (отпечаток assembled в шапке плана).
 Python 3.8+, только стандартная библиотека. Код выхода: 0 - выполнено / чисто, 1 - есть
 находки или нечего делать, 2 - неверные аргументы или нет файлов.
 """
@@ -26,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from java_checks import CHECKS, TEST_ONLY, compile_project, scan  # noqa: E402 - общий модуль набора
+from java_checks import CHECKS, TEST_ONLY, TRUNCATED, compile_project, scan  # noqa: E402 - общий модуль набора
 import pvatf_paths as pp  # noqa: E402 - копия shared/scripts
 
 DATA = Path(".gigacode") / "data" / "autotest"
@@ -36,11 +38,13 @@ MARK = "// Сгенерировано autotest-gen по тест-кейсу "
 GEN_RULES = ["MR-1", "MR-2", "MR-3", "MR-4", "MR-5", "MR-8", "MR-12", "MR-13", "MR-14", "MR-15", "MR-19", "MR-20",
              "MR-21", "MR-22", "MR-29", "MR-48", "MR-41", "MR-43", "MR-42", "MR-30", "MR-49", "MR-50", "MR-33", "MR-34",
              "MR-35", "MR-46", "MR-47", "MR-37", "MR-38", "MR-39", "MR-40", "MR-45"]
-STATUSES = ("todo", "ok", "stub", "blocked")
+STATUSES = ("todo", "ok", "stub", "blocked")  # manual ставит только accept: код G дописал человек
+READY = ("ok", "stub", "manual")
 GLOSSARY = """Правила общие с миграцией. При генерации автотеста слова в них значат:
 - «карточка», «юнит», «подшаг» - задание агенту на один G и план design.md;
 - «Файлы юнита», «файлы подшага» - файлы, которые ты создаёшь или меняешь в этом G (классы шагов,
-  страниц, файлы данных); существующие методы проекта не меняешь, только добавляешь новые;
+  страниц, файлы данных); методы, которые были в проекте до этого изменения, не меняешь; методы
+  своей G из договора плана - твои: на повторном круге (раздел ИСПРАВЬ) правишь их тело;
 - «Таблица подтверждений», «конспект» - docs-now.md (записи D-<tech>-<n>);
 - «Входящие», «решить человеку» - строка «Причина» фрагмента со статусом stub или blocked;
 - «старый код», «legacy», «удаляется» - к генерации не относится: ничего не удаляешь;
@@ -191,6 +195,8 @@ def cmd_next(key):
              "- Справка технологии: " + str(SKILL / "references" / g[5]),
              "- Правила кода: " + root + "/" + str(folder(key) / "rules-now.md"),
              "- Конспект документации: " + root + "/" + str(folder(key) / "docs-now.md"),
+             "- Образец из проекта-примера (драфт; как раскладывают тест, шаги и проверки - не основание для имён): "
+             + example_file(g[4], root),
              "- Как писать проверки: " + str(SKILL / "references" / "matchers.md"),
              "- Стиль шагов проекта: " + head.get("step_style", "-") + " · библиотека UI: " + head.get("ui_lib", "-"),
              "- Тест-класс (собирает скрипт, ты его не пишешь): " + head.get("test_file", "-") + " · пакет " + head.get("package", "-"),
@@ -220,8 +226,11 @@ def cmd_next(key):
     lines += ["  - " + c[0] + " - " + c[1] + " - " + c[2] + " - " + c[3] for c in consts] or ["  - нет"]
     lines.append("- Переменные теста (имя - шаг - откуда):")
     lines += ["  - " + v[0] + " - " + v[1] + " - " + v[2] for v in variables] or ["  - нет"]
-    lines.append("- Готовые фрагменты прошлых G (их переменные доступны): " + (", ".join(
-        p.stem for p in sorted((folder(key) / "fragments").glob("G-*.md"))) or "нет"))
+    order = [x[0] for x in gens]
+    ready = [folder(key) / "fragments" / (x[0] + ".md") for x in gens[:order.index(g[0])]
+             if len(x) >= 8 and x[7] in READY and (folder(key) / "fragments" / (x[0] + ".md")).is_file()]
+    lines.append("- Готовые фрагменты прошлых G (стоят в плане раньше этой; прочитай, их переменные доступны в теле теста): " + (", ".join(
+        root + "/" + str(p).replace("\\", "/") for p in ready) or "нет"))
     files = [r for r in section_rows(text, "11. Файлы") if len(r) >= 4 and r[0] != "-"]
     if files:
         stems = {m[1] for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[0] == g[0]}
@@ -229,8 +238,10 @@ def cmd_next(key):
         lines.append("  - файлы этого G (путь - действие - что в нём):")
         lines += ["    - " + r[0] + " - " + r[1] + " - " + r[2] for r in files
                   if r[3] == g[0] or Path(r[0]).stem in stems or (r[1] == "создать" and "testdata/" in r[0])] or ["    - нет"]
-        lines.append("  - методы (класс - метод - шаги ТК - запрос - параметры):")
-        lines += ["    - " + m[1] + " - " + m[2] + "() - " + m[3] + " - " + m[4] + " - " + m[5]
+        lines.append("  - методы (класс - сигнатура - шаги ТК - запрос - параметры и откуда):")
+        lines += ["    - " + m[1] + " - " + m[2] + "(" + ", ".join(
+                      p.strip().split()[1] + " " + p.strip().split()[0] for p in m[5].split(";")
+                      if len(p.strip().split()) >= 2 and p.strip() != "нет") + ") - " + m[3] + " - " + m[4] + " - " + m[5]
                   for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[0] == g[0]] or ["    - нет"]
         lines.append("  - проверки (шаг - объект - поле - как - ожидаемое; одна строка = одна проверка в коде):")
         lines += ["    - " + " - ".join(c[:5]) for c in section_rows(text, "13. Проверки")
@@ -247,10 +258,17 @@ def cmd_next(key):
                 lines += ["    " + ("### " if i == 0 else "") + l for i, l in enumerate(b.rstrip().splitlines())]
     fixes = [l for f in fix_files(key, g[0]) for l in read(f).splitlines() if l.startswith("- ")]
     if fixes:
-        lines.append("- ИСПРАВЬ (прошлый круг этого G: ошибки компиляции и находки check в твоих файлах; договор плана не меняй):")
+        lines.append("- ИСПРАВЬ (прошлый круг этого G: ошибки компиляции и находки check в твоих файлах; методы этого G из"
+                     " договора правь, договор плана и методы, которые были в проекте до изменения, не меняй):")
         lines += ["  " + l for l in fixes]
     print("\n".join(lines))
     return 0
+
+
+def example_file(label, root):
+    """Файл образцов проекта-примера по метке (intro.py скилла autotest-plan) или «нет»."""
+    path = pp.root() / "examples" / (label + ".md")
+    return (root + "/" + path.as_posix() if not path.is_absolute() else path.as_posix()) if path.is_file() else "нет"
 
 
 def cmd_mark(key, gid, status):
@@ -267,6 +285,11 @@ def cmd_mark(key, gid, status):
         return fail("ПЛАН НЕ ПОДТВЕРЖДЁН или изменён после подтверждения - os_work.py design <имя изменения>", 1)
     if status == "ok" and not frag.is_file():
         return fail("нет фрагмента fragments/" + gid + ".md - агент его не записал; статус не меняю", 1)
+    if status == "stub" and frag.is_file() and not (fragment(frag)["status"] == "stub"
+                                                    and re.search(r"//\s*STUB\b", fragment(frag)["body"])):
+        # фрагмент ok не прошёл компиляцию или check за 2 круга, фрагмент blocked без кода: в тест-класс -
+        # заглушка с комментарием на каждый шаг G, код агента - рядом для человека
+        frag.replace(frag.with_name(gid + ".rejected.md"))
     if status in ("stub", "blocked") and not frag.is_file():
         # заглушка с комментарием «// Шаг <n>» на каждый шаг G: проверка покрытия видит шаг,
         # а строка STUB уходит в итог человеку
@@ -276,9 +299,10 @@ def cmd_mark(key, gid, status):
         for sid in (row[1].replace(" ", "").split(",") if row else []):
             action = steps[sid][1] if sid in steps and len(steps[sid]) > 1 else "-"
             body += ["// Шаг " + sid + ": " + action,
-                     "// STUB " + gid + ": фрагмент не получен, шаг дописать вручную"]
+                     "// STUB " + gid + ": код не получен, шаг дописать вручную"
+                     + (" (код агента - fragments/" + gid + ".rejected.md)" if frag.with_name(gid + ".rejected.md").is_file() else "")]
         if not body:
-            body = ["// STUB " + gid + ": фрагмент не получен, шаг дописать вручную"]
+            body = ["// STUB " + gid + ": код не получен, шаг дописать вручную"]
         frag.parent.mkdir(parents=True, exist_ok=True)
         frag.write_text("# " + gid + "\n\n- Статус: " + status + "\n- Файлы шагов: -\n\n## imports\n```java\n```\n\n"
                         "## fields\n```java\n```\n\n## body\n```java\n" + "\n".join(body) + "\n```\n", encoding="utf-8")
@@ -298,7 +322,21 @@ def cmd_mark(key, gid, status):
     left = [g[0] for g in section_rows(text, "3. Порядок генерации") if len(g) >= 8 and g[7] == "todo"]
     print("ОТМЕЧЕНО: " + gid + " " + status + " · осталось todo: " + (", ".join(left) or "нет - дальше assemble"))
     sync_tasks(key)
+    gap = plan_gap(key, gid) if status == "blocked" else ""
+    if gap:
+        print("СТОП: " + gid + " - в плане не хватает: " + gap + ". Документация это не решит, stub не ставь: покажи человеку"
+              " и спроси «В плане не хватает: " + gap + ". Добавить в design.md? да / как иначе»; ответ -> правка строки"
+              " раздела 11-14 design.md, os_work.py design <имя изменения> (validate и новое «да»), потом снова next")
+        return 1
     return 0
+
+
+def plan_gap(key, gid):
+    """Фрагмент blocked с «Причина: план - <чего нет>» -> текст после «план -»; иначе ''."""
+    frag = folder(key) / "fragments" / (gid + ".md")
+    reason = fragment(frag)["reason"] if frag.is_file() else ""
+    m = re.match(r"(?i)план\s*[-:]\s*(.+)", reason)
+    return m.group(1).strip() if m and fragment(frag)["status"] == "blocked" else ""
 
 
 def cmd_compile(key, gid):
@@ -309,7 +347,7 @@ def cmd_compile(key, gid):
     row = next((g for g in section_rows(text, "3. Порядок генерации") if g[0] == gid), None)
     if not row:
         return fail("в разделе 3 плана нет строки " + gid, 1)
-    if len(row) < 8 or row[7] not in ("ok", "stub"):
+    if len(row) < 8 or row[7] not in READY:
         return fail(gid + " не готов (статус " + (row[7] if len(row) > 7 else "-") + ") - сначала задание агенту и mark " + gid + " ok", 1)
     status, details = compile_project(540)
     target = folder(key) / "compile" / (gid + ".md")
@@ -319,6 +357,21 @@ def cmd_compile(key, gid):
     if status == "skipped":
         print("НУЖНО: нет команды компиляции в ENV.json - скилл env-check, режим check, потом снова compile " + key + " " + gid)
         return 1
+    if status == "failed" and details and details[0].startswith("таймаут"):
+        print("КОМПИЛЯЦИЯ: timeout · " + gid + " · " + details[0])
+        print("НУЖНО: compile " + key + " " + gid + " ещё раз (сборка продолжит со скачанного); снова timeout - mark " + key
+              + " " + gid + " stub, в итоге «компиляция " + gid + " не проверена»")
+        return 1
+    owners = human_owners(text, head.get("test_file", "-"), details) if status == "failed" else set()
+    if owners and gid not in owners:
+        # каждая строка ошибки - в файле прошлой заглушки или кода человека (или итоговая строка сборки): их допишет
+        # человек, эта G не виновата. Сборка всё равно упала - статус «заглушки», не ok
+        target.write_text("# Компиляция после " + gid + "\n\n- Компиляция: заглушки " + ", ".join(sorted(owners))
+                          + " - сборка упала только в их файлах\n\n" + "\n".join("- " + d for d in details) + "\n", encoding="utf-8")
+        print("КОМПИЛЯЦИЯ: заглушки · " + gid + " · сборка упала только в файлах " + ", ".join(sorted(owners))
+              + " (заглушки или код человека) - уходят человеку, эту G не трогай, дальше next")
+        sync_tasks(key)
+        return 0
     fix = fix_files(key, gid)[0]
     if status == "failed":
         fix.parent.mkdir(parents=True, exist_ok=True)
@@ -360,7 +413,9 @@ def fragment(path):
         blocks[name] = m.group(1).rstrip() if m else ""
     status = re.search(r"(?m)^- Статус:\s*(\w+)", text)
     files = re.search(r"(?m)^- Файлы шагов:\s*(.*)$", text)
-    return {"status": status.group(1) if status else "-", "files": files.group(1) if files else "-", **blocks}
+    reason = re.search(r"(?m)^- Причина:\s*(.*)$", text)
+    return {"status": status.group(1) if status else "-", "files": files.group(1) if files else "-",
+            "reason": reason.group(1).strip() if reason else "-", **blocks}
 
 
 STEP_MARK = re.compile(r"^\s*//\s*Шаг\s+([0-9]+(?:\.[0-9]+)?)\s*:")
@@ -404,18 +459,8 @@ def lift_shared(phases):
     return fields
 
 
-def cmd_assemble(key):
-    path, text, head = plan(key)
-    if text is None:
-        return fail("НЕТ ПЛАНА (design.md изменения)")
-    gens = section_rows(text, "3. Порядок генерации")
-    not_ready = [g[0] + " " + g[7] for g in gens if len(g) >= 8 and g[7] not in ("ok", "stub", "blocked")]
-    if not_ready:
-        return fail("НЕ ГОТОВЫ: " + ", ".join(not_ready) + " - сначала next/mark по каждому G", 1)
-    if "run_status:" in text.split("\n---", 1)[0]:
-        text = drop_run(text)
-        path.write_text(text, encoding="utf-8")
-    parts = [fragment(folder(key) / "fragments" / (g[0] + ".md")) for g in gens]
+def render_class(key, text, head, parts):
+    """Текст тест-класса из фрагментов (parts - по порядку раздела 3). Возвращает (текст, импорты, поля, фазы)."""
     imports, fields, field_names = [], [], set()
     for p in parts:
         for line in p["imports"].split("\n"):
@@ -464,13 +509,43 @@ def cmd_assemble(key):
         out += ["", "    @AfterEach", "    void after" + suffix + "() {"]
         out += [("        " + l if l.strip() else "") for l in phases["after"]] + ["    }"]
     out += ["}", ""]
+    return "\n".join(out), imports, fields, phases
+
+
+def code_hash(path):
+    """Отпечаток файла кода: ручная правка тест-класса после assemble меняет его."""
+    import hashlib
+    return hashlib.sha1(read(path).replace("\r\n", "\n").encode("utf-8")).hexdigest()[:12]
+
+
+def cmd_assemble(key, force=False):
+    path, text, head = plan(key)
+    if text is None:
+        return fail("НЕТ ПЛАНА (design.md изменения)")
+    gens = section_rows(text, "3. Порядок генерации")
+    not_ready = [g[0] + " " + g[7] for g in gens if len(g) >= 8 and g[7] not in READY]
+    if not_ready:
+        return fail("НЕ ГОТОВЫ: " + ", ".join(not_ready) + " - todo: next и агент; blocked: вопросы документации и снова"
+                    " задание, после 2 кругов mark <G-n> stub", 1)
     target = Path(head["test_file"])
     if target.is_file() and MARK + key not in [line.strip() for line in read(target).splitlines()]:
         return fail("ФАЙЛ ЕСТЬ: " + str(target) + " создан не autotest-gen - не перезаписываю; поменяй class в плане", 1)
+    if head.get("test_owner") == "human":
+        return fail("ТЕСТ-КЛАСС ВЕДЁТ ЧЕЛОВЕК: " + str(target) + " - код человека не перенёсся во фрагменты (accept), assemble"
+                    " его не перезаписывает. Находки тест-класса - человеку; дальше check " + key, 1)
+    if target.is_file() and head.get("assembled", "-") != "-" and code_hash(target) != head["assembled"] and not force:
+        return fail("ИЗМЕНЁН ВРУЧНУЮ: " + str(target) + " правили после assemble - не перезаписываю. Код дописал человек"
+                    " (заглушка) -> at_tools.py accept " + key + "; правку делала модель -> перенеси её во фрагмент G"
+                    " и assemble " + key + " --force (правка в самом файле пропадёт)", 1)
+    if "run_status:" in text.split("\n---", 1)[0]:
+        text = drop_run(text)
+        path.write_text(text, encoding="utf-8")
+    parts = [fragment(folder(key) / "fragments" / (g[0] + ".md")) for g in gens]
+    content, imports, fields, phases = render_class(key, text, head, parts)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(out), encoding="utf-8")
-    stubs = [g[0] for g, p in zip(gens, parts) if p["status"] != "ok" or not p["body"].strip() or re.search(r"//\s*STUB\b", p["body"])]
-    text = set_head(text, "plan_status", "assembled")
+    target.write_text(content, encoding="utf-8")
+    stubs = [g[0] for g, p in zip(gens, parts) if g[7] == "stub" or not p["body"].strip() or re.search(r"//\s*STUB\b", p["body"])]
+    text = set_or_add_head(set_head(text, "plan_status", "assembled"), "assembled", code_hash(target))
     path.write_text(journal(text, "assemble -> " + str(target)), encoding="utf-8")
     sync_tasks(key)
     print("СОБРАНО: " + str(target) + " · фрагментов " + str(len(parts)) + " · импортов " + str(len(imports)) + " · полей " + str(len(fields)))
@@ -479,14 +554,98 @@ def cmd_assemble(key):
     return 0
 
 
+def squeeze(text):
+    """Строки кода без пустых и концевых пробелов - для сравнения тест-класса с собранным из фрагментов."""
+    return [l.rstrip() for l in text.replace("\r\n", "\n").split("\n") if l.strip()]
+
+
+def cmd_accept(key):
+    """Человек дописал заглушки и убрал строки // STUB G-n: код G из тест-класса -> фрагмент, статус manual.
+    Собранный из фрагментов класс совпал с файлом - фрагменты снова единственный источник кода (assemble ничего не
+    сотрёт). Не совпал - test_owner: human: тест-класс ведёт человек, assemble его не трогает."""
+    path, text, head = plan(key)
+    if text is None:
+        return fail("НЕТ ПЛАНА (design.md изменения)")
+    target = Path(head.get("test_file", "-"))
+    if not target.is_file():
+        return fail("НЕТ ТЕСТ-КЛАССА " + str(target) + " - сначала assemble")
+    gens = section_rows(text, "3. Порядок генерации")
+    code = read(target)
+    stubs = [g[0] for g in gens if len(g) >= 8 and g[7] == "stub"]
+    left = [g for g in stubs if re.search(r"//\s*STUB\s+" + re.escape(g) + r"\b", code)]
+    done = [g for g in stubs if g not in left]
+    if not stubs:
+        return fail("ЗАГЛУШЕК НЕТ: G со статусом stub нет - дальше check " + key, 1)
+    if not done:
+        return fail("ЗАГЛУШКИ НЕ ДОПИСАНЫ: в тест-классе строки // STUB " + ", ".join(left) + " - человек убирает строку"
+                    " STUB, когда дописал код этой G", 1)
+    steps_g, lines = step_groups(text), code.replace("\r\n", "\n").split("\n")
+    bodies, current = {}, None
+    for line in lines:  # код шага - от «// Шаг <n>:» до следующего шага или конца метода
+        mark = STEP_MARK.match(line)
+        if mark:
+            current = steps_g.get(mark.group(1))
+        elif re.match(r"^ {0,4}\S", line):
+            current = None
+        if current in done:
+            bodies.setdefault(current, []).append(line[8:] if line.startswith(" " * 8) else line.strip())
+    parts = {g[0]: fragment(folder(key) / "fragments" / (g[0] + ".md")) for g in gens}
+    known_imports = {l.strip() for g, p in parts.items() if g not in done for l in p["imports"].split("\n")}
+    known_fields = {l.strip() for g, p in parts.items() if g not in done for l in p["fields"].split("\n")}
+    cls = next((i for i, l in enumerate(lines) if re.match(r"^public class ", l)), len(lines))
+    first = next((i for i in range(cls + 1, len(lines)) if re.match(r"^    (@|\w[^=;]*\()", lines[i])), len(lines))
+    extra_imports = [l.strip() for l in lines[:cls] if l.startswith("import ") and l.strip() not in known_imports]
+    extra_fields = [l.strip() for l in lines[cls + 1:first] if l.strip() and l.strip() not in known_fields
+                    and "=" in l]  # поле без «=» assemble делает сам из общей переменной фаз
+    file_g = file_groups(text, target)
+    new_parts = dict(parts)
+    for i, gid in enumerate(done):
+        files = [f for f, gs in file_g.items() if gid in gs and Path(f).is_file()]
+        new_parts[gid] = {"status": "manual", "files": "; ".join(files) or "-", "reason": "код дописал человек",
+                          "imports": "\n".join(extra_imports) if i == 0 else "",
+                          "fields": "\n".join(extra_fields) if i == 0 else "",
+                          "body": "\n".join(bodies.get(gid, [])).strip("\n")}
+    rebuilt = render_class(key, text, head, [new_parts[g[0]] for g in gens])[0]
+    same = squeeze(rebuilt) == squeeze(code)
+    if same:
+        for gid in done:
+            p = new_parts[gid]
+            frag = folder(key) / "fragments" / (gid + ".md")
+            frag.write_text("# " + gid + " · код человека\n\n- Статус: manual\n- Причина: код дописал человек (accept)\n"
+                            "- Файлы шагов: " + p["files"] + "\n\n## imports\n```java\n" + p["imports"] + "\n```\n\n"
+                            "## fields\n```java\n" + p["fields"] + "\n```\n\n## body\n```java\n" + p["body"] + "\n```\n",
+                            encoding="utf-8")
+        text = set_or_add_head(text, "assembled", code_hash(target))
+    else:
+        text = set_or_add_head(text, "test_owner", "human")
+    for gid in done:
+        text = re.sub(r"(?m)^(\| " + re.escape(gid) + r" \|(?:[^|\n]*\|){6}) *\w+ *\|$", lambda m: m.group(1) + " manual |", text, count=1)
+        for f in fix_files(key, gid) + [folder(key) / "compile" / (gid + ".md")]:
+            if f.is_file():
+                f.unlink()
+    if head.get("plan_status") == "checked":  # код изменился - запуск только после нового check
+        text = set_head(text, "plan_status", "assembled")
+    path.write_text(journal(drop_run(text), "accept -> " + ", ".join(done) + " manual"), encoding="utf-8")
+    sync_tasks(key)
+    print("ПРИНЯТО: " + ", ".join(done) + " -> manual (код дописал человек)")
+    print("ФРАГМЕНТЫ: " + ("код человека перенесён во fragments/, assemble его сохранит" if same else
+                           "тест-класс не совпал со сборкой из фрагментов - его ведёт человек (test_owner: human), assemble"
+                           " его не перезаписывает"))
+    if left:
+        print("ОСТАЛИСЬ ЗАГЛУШКИ: " + ", ".join(left))
+    print("НУЖНО: at_tools.py check " + key + " (находки в коде человека - строки ЧЕЛОВЕК), потом os_work.py next")
+    return 0
+
+
 # ---------- check ----------
 
 STAND_NAME = re.compile(r"(?i)(?:^|[_.\-/])(ift|psi|uat|preprod|prom|dev)(?:$|[_.\-/])")
 LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
-MATCHER_PATH = re.compile(r"\b(?:have|notHave)\w*\(\s*\"([^\"]+)\"")
+# код ответа (haveStatusCode) - не поле ответа: его сверяет проверка «статус» раздела 13
+MATCHER_PATH = re.compile(r"\b(?:have|notHave)(?!StatusCode)\w*\(\s*\"([^\"]+)\"")
 SHOULD = re.compile(r"^\s*(.+?)\.should\w*\(")
 CONST_DEF = re.compile(r"static\s+final\s+([\w<>\[\], ?]+?)\s+([A-Z][A-Z0-9_]*)\s*=\s*(.+?);")
-MATCHER_CONST = re.compile(r"\b(?:have|notHave)\w*\(\s*([A-Z][A-Z0-9_]*)\b")
+MATCHER_CONST = re.compile(r"\b(?:have|notHave)(?!StatusCode)\w*\(\s*([A-Z][A-Z0-9_]*)\b")
 EXPRESSION_FIELD = re.compile(r"^\s*\$?\.?([A-Za-z_][\w.\[\]]*)\s*(?:[!=<>]=?|>|<)")
 STD_HEADERS = {"content-type", "accept", "content-length", "host", "user-agent", "accept-encoding", "connection", "accept-charset"}
 
@@ -692,7 +851,10 @@ def plan_checks(text, target, step_files):
             for _, line in code_lines(lines):
                 code_fields.update(x.lower() for x in checked_fields(line, consts))
     plan_fields = set()
+    code = [l for f in [str(target)] + sorted(step_files) if Path(f).is_file() for _, l in code_lines(read(f).splitlines())]
     for c in section_rows(text, "13. Проверки"):
+        if len(c) >= 5 and c[0] != "-" and c[3] == "статус" and not status_checked(c[4], code):
+            findings.append("ПРОВЕРКА НЕТ шаг %s - статус %s (%s) из раздела 13: в коде нет ни константы, ни значения" % (c[0], c[4], c[1]))
         if len(c) < 5 or c[0] == "-" or c[3].startswith(("проверено в шаге", "статус")):
             continue
         field = c[2].strip("`").lstrip("$.").lower()
@@ -708,26 +870,152 @@ def plan_checks(text, target, step_files):
     return findings
 
 
-def route_findings(key, text, target, findings):
-    """Находки в классах шагов -> fix/G-n-check.md: их исправляет агент pvatf-generator в задании своего G.
-    Модель правит только тест-класс (через фрагменты). Возвращает {G: [находки]}."""
-    step_g = {r[0].split(".")[0]: r[10] for r in section_rows(text, "2. Шаги") if len(r) >= 11}
-    file_g = {}
+def step_groups(text):
+    """Шаг ТК -> G по разделу 2 плана; ключи - номер шага как в плане («3», «3.1») и номер без подшага («3»)."""
+    result = {}
+    for r in section_rows(text, "2. Шаги"):
+        if len(r) >= 11:
+            result[r[0]] = r[10]
+            result.setdefault(r[0].split(".")[0], r[10])
+    return result
+
+
+def gen_order(text):
+    return [g[0] for g in section_rows(text, "3. Порядок генерации")]
+
+
+def status_checked(expected, lines):
+    """Проверка кода ответа (Как = статус) есть в коде: ожидаемое - константа, и её имя стоит в строке кода кроме
+    объявления, или значение (число, строка), и оно стоит в строке кода или в константе, которую код использует.
+    К какому ответу относится проверка, не сверяет (полная сверка проверок - отдельная задача)."""
+    value = expected.strip().strip("`")
+    decl = {}
+    for line in lines:
+        m = CONST_DEF.search(line)
+        if m:
+            decl[m.group(2)] = m.group(3).strip().strip('"')
+    used = lambda name: any(re.search(r"\b" + name + r"\b", l) and not re.search(r"\b" + name + r"\s*=", l) for l in lines)
+    if re.fullmatch(r"[A-Z][A-Z0-9_]*", value):
+        return used(value)
+    value = value.strip('"')
+    if not value:
+        return False
+    pattern = r"(?<![\w.])" + re.escape(value) + r"(?![\w.])"
+    return any(re.search(pattern, l) and not CONST_DEF.search(l) for l in lines) \
+        or any(v == value and used(n) for n, v in decl.items())
+
+
+def file_groups(text, target):
+    """Файлы классов шагов и данных из раздела 11 -> список G, которые их пишут (тест-класс не входит), по порядку
+    раздела 3. G - из колонки G раздела 11, из строк раздела 12 (класс -> G метода) и для файла тела запроса - G шага.
+    Общий класс шагов - у нескольких G."""
+    order, steps, file_g = gen_order(text), step_groups(text), {}
     for r in section_rows(text, "11. Файлы"):
-        if len(r) >= 4 and r[0] != str(target) and re.fullmatch(r"G-\d+(\s*,\s*G-\d+)*", r[3].strip()):
-            file_g[r[0]] = r[3].split(",")[0].strip()
+        if len(r) >= 4 and r[0] != "-" and r[0] != str(target):
+            gs = set(re.findall(r"G-\d+", r[3]))
+            step = re.search(r"шага ([\d.]+)", r[2])
+            if not gs and step and steps.get(step.group(1)):
+                gs.add(steps[step.group(1)])
+            file_g.setdefault(r[0], set()).update(gs)
     for m in section_rows(text, "12. Методы шагов"):
         if len(m) >= 6:
             for path in [f for f in file_g if Path(f).stem == m[1]]:
-                file_g[path] = m[0]
-    routed = {}
+                file_g[path].add(m[0])
+    return {f: sorted(gs, key=lambda g: order.index(g) if g in order else 999) for f, gs in file_g.items() if gs}
+
+
+def human_groups(text):
+    """G, код которых пишет человек: stub (заглушка) -> «STUB», manual (человек дописал заглушку, accept) -> «ЧЕЛОВЕК»."""
+    return {g[0]: ("STUB" if g[7] == "stub" else "ЧЕЛОВЕК") for g in section_rows(text, "3. Порядок генерации")
+            if len(g) >= 8 and g[7] in ("stub", "manual")}
+
+
+PLACE = re.compile(r"([\w./\\:-]+\.(?:java|kt))(?::\[?(\d+))?")
+METHOD_DECL = re.compile(r"^\s*(?:(?:public|protected|private|static|final)\s+)*([\w<>\[\], ?]+?)\s+([a-z]\w*)\s*\([^;]*$")
+NOT_TYPE = {"return", "new", "else", "throw", "case", "if", "for", "while", "switch", "catch", "do", "try"}
+# итоговые строки Maven и Gradle без своей ошибки: их можно не относить ни к одному файлу
+BUILD_SUMMARY = re.compile(r"^\[ERROR\]\s*$|COMPILATION ERROR|Failed to execute goal \S*maven-compiler-plugin|Compilation failure"
+                           r"|-> \[Help 1\]|^\[ERROR\]\s+(To see the full stack trace|Re-run Maven|For more information about"
+                           r"|\[Help 1\])|^\[ERROR\]\s+(symbol|location|required|found|reason)\s*:|^\s*(symbol|location)\s*:"
+                           r"|BUILD FAILED|BUILD FAILURE|FAILURE: Build failed|Execution failed for task '[^']*compile\w*'"
+                           r"|Compilation failed; see the compiler|^\d+ errors?$")
+
+
+def method_at(path, number):
+    """Метод, внутри которого строка number файла: ближайшее объявление выше; нет - ''."""
+    lines = read(path).splitlines()
+    for i in range(min(number, len(lines)) - 1, -1, -1):
+        m = METHOD_DECL.match(lines[i])
+        if m and m.group(1).split()[-1] not in NOT_TYPE and "=" not in lines[i].split("(")[0]:
+            return m.group(2)
+    return ""
+
+
+def place_owners(text, target, path, number=0, method=""):
+    """G, которой может принадлежать место «файл:строка»: тест-класс - G шага по комментарию «// Шаг» выше строки;
+    класс шагов - одна G файла, иначе G метода по разделу 12. Не определить точно - все G файла; файл не из плана - []."""
+    path = path.replace("\\", "/")
+    target = str(target).replace("\\", "/")
+    if path.endswith(target) or target.endswith(path):
+        lines = read(target).splitlines()
+        for i in range(min(number, len(lines)) - 1, -1, -1):
+            m = STEP_MARK.match(lines[i])
+            if m:
+                gid = step_groups(text).get(m.group(1), "")
+                return [gid] if gid else []
+        return []
+    file_g = file_groups(text, target)
+    known = next((f for f in file_g if path.endswith(f) or f.endswith(path)), None)
+    if not known:
+        return []
+    if len(file_g[known]) == 1:
+        return file_g[known]
+    name = method or (method_at(known, number) if number else "")
+    exact = [m[0] for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[1] == Path(known).stem and m[2] == name]
+    return exact[:1] or file_g[known]
+
+
+def finding_owners(text, target, finding):
+    """G находки check: по номеру шага (ПРОВЕРКА НЕТ, ТЕЛО, ЗАГОЛОВОК, ПОКРЫТИЕ), иначе по файлу, строке и методу."""
+    step = re.match(r"(?:ПРОВЕРКА НЕТ|ТЕЛО|ЗАГОЛОВОК|ПОКРЫТИЕ) шаг ([\d.]+)", finding)
+    if step:
+        gid = step_groups(text).get(step.group(1), "")
+        return [gid] if gid else []
+    m = PLACE.search(finding)
+    if not m:
+        return []
+    method = re.search(r"\bметода? (\w+)\(\)", finding)
+    return place_owners(text, target, m.group(1), int(m.group(2) or 0), method.group(1) if method else "")
+
+
+def human_owners(text, target, details):
+    """Ошибки компиляции только в коде заглушек и человека -> их G (уходят человеку). Хоть одна строка в файле другой G,
+    в файле без точной G, без файла и не итоговая строка сборки, или вывод обрезан - пустое множество: обычная ошибка."""
+    humans, owners = human_groups(text), set()
+    for d in details:
+        if d.startswith(TRUNCATED):
+            return set()
+        m = PLACE.search(d)
+        if not m:
+            if BUILD_SUMMARY.search(d):
+                continue
+            return set()
+        gs = place_owners(text, target, m.group(1), int(m.group(2) or 0))
+        if not gs or not all(g in humans for g in gs):
+            return set()
+        owners.update(gs)
+    return owners
+
+
+def route_findings(key, text, target, findings):
+    """Находки в классах шагов -> fix/G-n-check.md: их исправляет агент pvatf-generator в задании своего G.
+    Модель правит только тест-класс (через фрагменты). G stub и manual не получают находок: их код пишет
+    человек. Возвращает {G: [находки]}."""
+    humans, routed = human_groups(text), {}
     for f in findings:
-        if f.startswith("STUB ") or str(target) in f:
+        if f.startswith(("STUB ", "ЧЕЛОВЕК ")) or str(target) in f:
             continue
-        gid = next((g for path, g in file_g.items() if path in f), None)
-        if not gid:
-            step = re.match(r"(?:ПРОВЕРКА НЕТ|ТЕЛО) шаг (\d+)", f)
-            gid = step_g.get(step.group(1)) if step else None
+        gid = next((g for g in finding_owners(text, target, f) if g not in humans), None)
         if gid:
             routed.setdefault(gid, []).append(f)
     for old in (folder(key) / "fix").glob("G-*-check.md") if (folder(key) / "fix").is_dir() else []:
@@ -746,9 +1034,11 @@ def cmd_check(key, compile_on):
     target = Path(head.get("test_file", "-"))
     if not target.is_file():
         return fail("НЕТ ТЕСТ-КЛАССА " + str(target) + " - сначала assemble")
-    if "run_status:" in text.split("\n---", 1)[0]:
-        text = drop_run(text)
+    if "run_status:" in text.split("\n---", 1)[0] or head.get("plan_status") == "checked":
+        # прошлый итог не в счёт: checked вернётся, только если чист этот check
+        text = set_head(drop_run(text), "plan_status", "assembled") if head.get("plan_status") == "checked" else drop_run(text)
         path.write_text(text, encoding="utf-8")
+        sync_tasks(key)
     findings = []
     lines = read(target).splitlines()
     findings += scan(str(target), lines, CHECKS + TEST_ONLY)
@@ -756,6 +1046,8 @@ def cmd_check(key, compile_on):
         findings.append("ПАКЕТ %s - первая строка не package %s" % (target, head.get("package")))
     steps_files = set()
     for frag in sorted((folder(key) / "fragments").glob("G-*.md")):
+        if frag.name.endswith(".rejected.md"):
+            continue
         for item in re.findall(r"`?([\w./\\-]+\.(?:java|kt))`?", fragment(frag)["files"]):
             steps_files.add(item)
     for item in sorted(steps_files):
@@ -770,8 +1062,23 @@ def cmd_check(key, compile_on):
         if not re.search(r"//\s*Шаг\s+" + re.escape(row[0]) + r"(?=\s|:|$)", body, re.M):
             findings.append("ПОКРЫТИЕ шаг %s - в тест-методе нет комментария «// Шаг %s: ...»: шаг не сгенерирован" % (row[0], row[0]))
     status, details = ("skipped", ["--no-compile"]) if not compile_on else compile_project(540)
-    if status == "failed":
+    humans = human_groups(text)
+    owners = human_owners(text, target, details) if status == "failed" else set()
+    if owners:  # ошибки только в коде заглушек и человека: уходят человеку
+        label = "STUB" if all(humans[o] == "STUB" for o in owners) else "ЧЕЛОВЕК"
+        findings += [label + " " + ", ".join(sorted(owners)) + ": КОМПИЛЯЦИЯ " + d for d in details]
+    elif status == "failed":
         findings += ["КОМПИЛЯЦИЯ " + d for d in details]
+    by_hand = head.get("test_owner") == "human"  # accept не смог перенести код человека во фрагменты
+    for i, f in enumerate(findings):
+        # находки в коде G stub и manual (файл, метод, строка тест-класса или номер шага): код пишет человек
+        if f.startswith(("STUB ", "ЧЕЛОВЕК ")):
+            continue
+        gs = finding_owners(text, target, f)
+        if gs and all(g in humans for g in gs):
+            findings[i] = humans[gs[0]] + " " + gs[0] + ": " + f
+        elif by_hand and str(target) in f:
+            findings[i] = "ЧЕЛОВЕК тест-класс: " + f
     routed = route_findings(key, text, target, findings)
     report = ["# Проверка автотеста " + key, "", "- Тест-класс: " + str(target), "- Компиляция: " + status,
               "- Находок: " + str(len(findings)), "", "| Находка |", "|---------|"]
@@ -783,11 +1090,18 @@ def cmd_check(key, compile_on):
     for gid, items in sorted(routed.items()):
         print("НУЖНО: " + gid + " - находок в классах шагов " + str(len(items)) + ": mark " + key + " " + gid
               + " todo, next - задание агенту pvatf-generator (находки уже в нём, раздел ИСПРАВЬ); классы шагов сам не правишь")
-    print("ИТОГ: находок " + str(len(findings)) + (" - чисто" if not findings else " - исправь и запусти снова"))
-    if not [f for f in findings if not f.startswith("STUB ")] and status in ("ok", "skipped"):
+    mine = [f for f in findings if not f.startswith(("STUB ", "ЧЕЛОВЕК "))]
+    person = [f for f in findings if f.startswith("ЧЕЛОВЕК ")]
+    print("ИТОГ: находок " + str(len(findings)) + (" - чисто" if not findings else
+          " - исправь и запусти снова" if mine else
+          " - только строки STUB и ЧЕЛОВЕК: не исправляй, итог человеку: находки в коде, который он дописывает" if person
+          else " - только строки STUB: не исправляй, тест не запускается, итог с заглушками человеку"))
+    if not mine and not person and (status in ("ok", "skipped") or owners):
         path.write_text(journal(set_head(text, "plan_status", "checked"), "check -> чисто"), encoding="utf-8")
         print("plan_status: checked")
-        sync_tasks(key)
+    else:
+        print("plan_status: assembled - check не чист, запуск после чистого check")
+    sync_tasks(key)
     return 0 if not findings and status in ("ok", "skipped") else 1
 
 
@@ -895,7 +1209,7 @@ def report_result(key, path, text, head, reports, since, run_status, command, ta
     if counts:
         print("РЕЗУЛЬТАТ: %s · тестов %d · упало %d · пропущено %d" % (status, counts["tests"], counts["failures"] + counts["errors"], counts["skipped"]))
     else:
-        print("РЕЗУЛЬТАТ: " + status + " - отчёта " + str(reports[0]) + " нет")
+        print("РЕЗУЛЬТАТ: " + status + " - отчёта " + str(reports[0]) + " нет или он старше кода (прогон старой версии не в счёт)")
         for line in tail[-15:]:
             print("  " + line)
     for m, k, s in falls:
@@ -915,6 +1229,10 @@ def cmd_run(key, args):
         return fail("СНАЧАЛА check: plan_status " + head.get("plan_status", "-") + " - запуск только после чистой проверки", 1)
     if not Path(head.get("test_file", "-")).is_file():
         return fail("НЕТ ТЕСТ-КЛАССА " + head.get("test_file", "-"))
+    stubs = sorted(set(re.findall(r"//\s*STUB\s+(G-\d+)", read(head["test_file"]))))
+    if stubs:  # и для --report-only: прогон человека с заглушкой тоже не в счёт
+        return fail("ЗАГЛУШКИ " + ", ".join(stubs) + ": тест с заглушкой не запускается - итог человеку (os_work.py next);"
+                    " человек дописал код и убрал строки // STUB -> check, потом run", 1)
     try:
         env = json.loads(read(pp.env_dir() / "ENV.json") or "{}")
     except ValueError:
@@ -939,7 +1257,11 @@ def cmd_run(key, args):
         print("ОТЧЁТ СБОРКИ: " + str(reports[0]).replace("\\", "/"))
         return 0
     if "--report-only" in args:
-        return report_result(key, path, text, head, reports, 0, "no-report", command + " (запускал человек)", [])
+        # отчёт - только прогона текущего кода: новее тест-класса и файлов шагов плана
+        code = [head["test_file"]] + [f for f in file_groups(text, head["test_file"]) if Path(f).is_file()]
+        newest = max(Path(f).stat().st_mtime for f in code)
+        return report_result(key, path, text, head, reports, newest, "no-report",
+                             command + " (запускал человек; отчёт новее кода)", [])
     since = time.time() - 1
     try:
         result = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=RUN_TIMEOUT)
@@ -955,8 +1277,8 @@ def cmd_run(key, args):
 
 
 def main(args):
-    if len(args) < 2 or args[0] not in ("rules", "next", "mark", "compile", "assemble", "check", "run"):
-        print("Использование: at_tools.py rules|next|assemble|check|run <ключ ТК> | mark <ключ ТК> <G-n> <статус>"
+    if len(args) < 2 or args[0] not in ("rules", "next", "mark", "compile", "assemble", "accept", "check", "run"):
+        print("Использование: at_tools.py rules|next|assemble|accept|check|run <ключ ТК> | mark <ключ ТК> <G-n> <статус>"
               " | compile <ключ ТК> <G-n>")
         return 2
     if args[0] == "compile":
@@ -967,7 +1289,9 @@ def main(args):
         return cmd_check(args[1], "--no-compile" not in args)
     if args[0] == "run":
         return cmd_run(args[1], args[2:])
-    return {"rules": cmd_rules, "next": cmd_next, "assemble": cmd_assemble}[args[0]](args[1])
+    if args[0] == "assemble":
+        return cmd_assemble(args[1], "--force" in args)
+    return {"rules": cmd_rules, "next": cmd_next, "accept": cmd_accept}[args[0]](args[1])
 
 
 if __name__ == "__main__":

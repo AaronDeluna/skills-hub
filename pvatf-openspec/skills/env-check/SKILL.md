@@ -34,7 +34,7 @@ description: 'Проверка, настройка и создание с нул
 - Режим `setup`: агент `pvatf-docs` (из папки `agents/` набора); документация MCP - только через него.
 
 **Скрипты лежат в `.gigacode/skills/env-check/scripts/`.** Скрипта по этому пути нет -> найди
-один раз: `find . ~/.gigacode -path "*env-check/scripts/env_check.py" 2>/dev/null | head -1` -
+один раз инструментом поиска файлов: файл `env_check.py` в каталоге проекта и в `~/.gigacode` (работает и на Windows) -
 и подставляй найденный путь.
 
 ## Шаги

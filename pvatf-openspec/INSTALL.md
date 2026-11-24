@@ -67,7 +67,7 @@ python3 .gigacode/skills/orchestrator/scripts/os_work.py next
 | Просьба | Изменение |
 |---------|-----------|
 | «сгенерируй автотест по CMN-T120» | `autotest-cmn-t120` (схема pvatf-autotests) |
-| «проверь тест-кейс CMN-T120» | `tc-check-cmn-t120` |
+| «проверь тест-кейс CMN-T120» | `autotest-cmn-t120` с остановкой после артефакта tc; «сгенерируй автотест по CMN-T120» снимает остановку |
 | «настрой окружение» | `env-setup` |
 | «обнови фрейм» | `frame-update` |
 | «мигрируй проект на PVATF» | `migration` (сначала карта migration-map) |
