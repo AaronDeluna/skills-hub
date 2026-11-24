@@ -235,19 +235,27 @@ def cmd_next(key):
     if files:
         stems = {m[1] for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[0] == g[0]}
         lines.append("- ДОГОВОР ПЛАНА (подтверждён человеком; код только так, ничего сверх):")
+        impl = re.search(r"(?ms)^## 14а\. Реализация по G\s*\n(.*?)(?=^## |\Z)", text)
+        block = next((b for b in re.split(r"(?m)^### ", impl.group(1) if impl else "")[1:] if b.split()[0] == g[0]), "")
+        if block:
+            lines.append("  - РЕАЛИЗАЦИЯ " + g[0] + " (design.md, раздел 14а - что делаешь, как на фрейме по порядку, почему;"
+                         " пиши код ровно по этому тексту):")
+            lines += ["    " + ("### " if i == 0 else "") + l for i, l in enumerate(block.rstrip().splitlines())]
         lines.append("  - файлы этого G (путь - действие - что в нём):")
         lines += ["    - " + r[0] + " - " + r[1] + " - " + r[2] for r in files
                   if r[3] == g[0] or Path(r[0]).stem in stems or (r[1] == "создать" and "testdata/" in r[0])] or ["    - нет"]
-        lines.append("  - методы (класс - сигнатура - шаги ТК - запрос - параметры и откуда):")
+        lines.append("  - методы (класс - сигнатура - шаги ТК - запрос - параметры и откуда; под методом - как на фрейме и основание:"
+                     " вызовы фрейма - ровно эти, основание - записи конспекта, образец проекта-примера или класс проекта):")
         lines += ["    - " + m[1] + " - " + m[2] + "(" + ", ".join(
                       p.strip().split()[1] + " " + p.strip().split()[0] for p in m[5].split(";")
                       if len(p.strip().split()) >= 2 and p.strip() != "нет") + ") - " + m[3] + " - " + m[4] + " - " + m[5]
+                  + ("\n      - как на фрейме: " + m[6] + "\n      - основание: " + m[7] if len(m) >= 8 else "")
                   for m in section_rows(text, "12. Методы шагов") if len(m) >= 6 and m[0] == g[0]] or ["    - нет"]
         lines.append("  - проверки (шаг - объект - поле - как - ожидаемое; одна строка = одна проверка в коде):")
         lines += ["    - " + " - ".join(c[:5]) for c in section_rows(text, "13. Проверки")
                   if len(c) >= 5 and c[0].split(".")[0] in ids] or ["    - нет"]
-        lines.append("  - настройки (ключ - файл - кто читает):")
-        lines += ["    - " + st[0] + " - " + st[1] + " - " + st[3] for st in section_rows(text, "14. Настройки")
+        lines.append("  - настройки (ключ - файл - кто читает - основание):")
+        lines += ["    - " + st[0] + " - " + st[1] + " - " + st[3] + (" - " + st[4] if len(st) >= 5 else "") for st in section_rows(text, "14. Настройки")
                   if len(st) >= 4 and st[0] != "-"] or ["    - нет"]
         sect = re.search(r"(?ms)^## 16\. Планируемые изменения\s*\n(.*?)(?=^## |\Z)", text)
         blocks = [b for b in re.split(r"(?m)^### ", sect.group(1) if sect else "")[1:]

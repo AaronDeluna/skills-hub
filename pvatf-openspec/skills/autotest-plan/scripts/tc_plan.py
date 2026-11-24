@@ -53,6 +53,8 @@ TRANSLIT = dict(zip("абвгдеёжзийклмнопрстуфхцчшщъы�
 JAVA_NAME = re.compile(r"[A-Z][A-Za-z0-9]*")
 JAVA_PACKAGE = re.compile(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*")
 FILL = "ЗАПОЛНИТЬ"  # клетка, которую дописывает модель по references/design-rules.md
+IMPL = "14а. Реализация по G"  # текст плана: что делает G, как на фрейме, почему так - генератор пишет по нему
+IMPL_FIELDS = ("Что делает", "Где", "Как на фрейме", "Почему так", "Чего не делать")
 FILE_ACTIONS = ("создать", "дополнить", "не трогать", "скрипт", "env-check")
 CHECK_KINDS = ("равно", "не равно", "содержит", "ключ есть", "ключа нет", "не пусто", "пусто", "статус", "больше", "меньше",
                "по шаблону", "проверено в шаге")
@@ -389,7 +391,7 @@ def detail_sections(test_file, package, env, rows, groups, consts, index, arts):
             files.append((steps_dir + "/" + FILL + ".java", "создать", "методы шагов " + g["id"] + " (раздел 12)", g["id"]))
         g_class[g["id"]] = stem
         reqs = sorted({l[1] for l in arts.get("links", []) if l[0] in {str(r["n"]) for r in work} and l[1].startswith(("A-", "N-"))})
-        methods.append((g["id"], stem, FILL, ", ".join(r["id"] for r in work), ", ".join(reqs) or "-", FILL))
+        methods.append((g["id"], stem, FILL, ", ".join(r["id"] for r in work), ", ".join(reqs) or "-", FILL, FILL, FILL))
     bodies = {c["value"]: c["step"] for c in consts if c["source"] == "TESTDATA_FILE_REF"}
     for l in arts.get("links", []):
         inv = {r[0]: r for r in arts.get("inventory", [])}.get(l[1])
@@ -411,7 +413,7 @@ def detail_sections(test_file, package, env, rows, groups, consts, index, arts):
     files.append(((env_cfg or [lay["dir"](lay["root"] + ".config") + "/" + FILL + "EnvironmentConfiguration.java"])[0],
                   "env-check", "регистрация сервисов технологий раздела 8 (настраивает env-check, генерация не трогает)", "-"))
     for c in prop_consts:
-        settings.append((FILL, props_file, c["value"], FILL))
+        settings.append((FILL, props_file, c["value"], FILL, FILL))
     expected = {}
     for c in consts:
         if c["name"].startswith("EXPECTED_"):
@@ -431,14 +433,36 @@ def render_detail(files, methods, checks, settings):
            "| Файл | Действие | Что в нём | G |", "|------|----------|-----------|---|"]
     out += ["| %s | %s | %s | %s |" % f for f in files]
     out += ["", "## 12. Методы шагов", "",
-            "| G | Класс | Метод | Шаги ТК | Запрос | Параметры |", "|---|-------|-------|---------|--------|-----------|"]
-    out += ["| %s | %s | %s | %s | %s | %s |" % m for m in methods] or ["| - | - | - | - | - | - |"]
+            "| G | Класс | Метод | Шаги ТК | Запрос | Параметры | Как на фрейме | Основание |",
+            "|---|-------|-------|---------|--------|-----------|---------------|-----------|"]
+    out += ["| %s | %s | %s | %s | %s | %s | %s | %s |" % m for m in methods] or ["| - | - | - | - | - | - | - | - |"]
     out += ["", "## 13. Проверки", "",
             "| Шаг | Объект | Поле | Как | Ожидаемое |", "|-----|--------|------|-----|-----------|"]
     out += ["| %s | %s | %s | %s | %s |" % c for c in checks] or ["| - | - | - | - | - |"]
     out += ["", "## 14. Настройки", "",
-            "| Ключ | Файл | Значение | Кто читает |", "|------|------|----------|------------|"]
-    out += ["| %s | %s | %s | %s |" % tuple(esc(x) for x in st) for st in settings] or ["| - | - | - | - |"]
+            "| Ключ | Файл | Значение | Кто читает | Основание |", "|------|------|----------|------------|-----------|"]
+    out += ["| %s | %s | %s | %s | %s |" % tuple(esc(x) for x in st) for st in settings] or ["| - | - | - | - | - |"]
+    out += impl_section([(m[0], m[3]) for m in methods])
+    return out
+
+
+def impl_section(gens):
+    """Раздел 14а: блок на G - шаблон, который модель заполняет текстом (references/design-rules.md)."""
+    out = ["", "## " + IMPL, "",
+           "Пишет модель по references/design-rules.md: по каждой G текстом - что делает, где, как на фрейме по порядку"
+           " (каждая строка с [основанием]), почему так, чего не делать. Генератор пишет код по этому тексту."]
+    seen = []
+    for gid, steps in gens:
+        if gid in seen:
+            continue
+        seen.append(gid)
+        out += ["", "### " + gid + " · шаги " + steps,
+                "- Что делает: " + FILL,
+                "- Где: " + FILL,
+                "- Как на фрейме:",
+                "  1. " + FILL + " [" + FILL + "]",
+                "- Почему так: " + FILL,
+                "- Чего не делать: " + FILL]
     return out
 
 
@@ -777,6 +801,192 @@ def plan_hash(text):
     return hashlib.sha1(body.encode("utf-8")).hexdigest()[:12]
 
 
+UPGRADE = {"12. Методы шагов": (6, ["Как на фрейме", "Основание"]), "14. Настройки": (4, ["Основание"])}
+
+
+def upgrade_tables(text):
+    """План старого вида (раздел 12 без «Как на фрейме» и «Основание», раздел 14 без «Основание») -> колонки
+    дописываются, клетки - ЗАПОЛНИТЬ: реализацию на фрейме решает план, а не генератор."""
+    lines, title = text.split("\n"), ""
+    for i, line in enumerate(lines):
+        if line.startswith("## "):
+            title = line[3:].strip()
+            continue
+        if title not in UPGRADE or not line.startswith("|"):
+            continue
+        width, extra = UPGRADE[title]
+        cells = [c for c in re.split(r"(?<!\\)\|", line.strip())[1:-1]]
+        if len(cells) != width:
+            continue
+        if re.match(r"^\|[-\s|]+\|$", line):
+            add = ["-" * (len(x) + 2) for x in extra]
+        elif cells[0].strip() in ("G", "Ключ"):
+            add = [" " + x + " " for x in extra]
+        else:
+            add = [" " + ("-" if cells[0].strip() == "-" else FILL) + " " for _ in extra]
+        lines[i] = line.rstrip().rstrip("|") + "|" + "|".join(add) + "|"
+    text = "\n".join(lines)
+    if "## 12. Методы шагов" in text and not re.search(r"(?m)^## " + re.escape(IMPL) + r"\s*$", text):
+        gens = [(m[0], m[3]) for m in table(text, "12. Методы шагов") if len(m) >= 4 and m[0] not in ("-", "G")]
+        block = "\n".join(impl_section(gens)).lstrip("\n") + "\n\n"
+        m = re.search(r"(?m)^## (15\.|16\.|\d+\. Журнал)", text)
+        text = text[:m.start()] + block + text[m.start():] if m else text.rstrip("\n") + "\n\n" + block
+    return text
+
+
+JAVA_STD = {"String", "Integer", "Long", "Boolean", "Double", "BigDecimal", "List", "Map", "Set", "Object", "Optional",
+            "Path", "Paths", "Files", "Duration", "UUID", "LocalDate", "LocalDateTime", "Collections", "Arrays",
+            "should"}  # .should(...) - проверка фрейма, её требует правило 6 autotest-rules.md
+
+
+def frame_names(cell):
+    """Имена фрейма в клетке: классы (CamelCase), вызовы методов (имя перед скобкой), аннотации."""
+    names = set(re.findall(r"@?\b[A-Z][a-z0-9]+[A-Za-z0-9]*\b", cell))
+    names = {n for n in names if not re.fullmatch(r"[A-Z0-9_]+", n.lstrip("@"))}
+    names |= set(re.findall(r"\b([a-z][A-Za-z0-9]*)\s*\(", cell))
+    return names
+
+
+def note_records():
+    """ID записи конспекта -> (статус, текст) по всем файлам doc-notes (общий и миграции)."""
+    found = {}
+    for folder in (tcc.pp.root() / "doc-notes", tcc.pp.migration_notes()):
+        if not folder.is_dir():
+            continue
+        for path in sorted(folder.glob("*.md")):
+            for m in re.finditer(r"(?ms)^#{2,3} (D-[A-Za-z0-9-]+-\d+)\b(.*?)(?=^#{2,3} |\Z)", path.read_text(encoding="utf-8")):
+                status = re.search(r"(?m)^- Статус:\s*(.+?)\s*$", m.group(2))
+                found[m.group(1)] = (status.group(1) if status else "-", m.group(0))
+    return found
+
+
+def basis_text(cell, text, records):
+    """Основание -> (текст источников, проблемы). Можно: D-<tech>-<n> (запись конспекта не «НЕТ В ДОКЕ»),
+    examples/<метка>.md [вопрос n] (образцы проекта-примера), класс или путь .java проекта."""
+    sources, problems = [], []
+    project = {Path(p).stem: p for p in re.findall(r"(?m)^- \w+ · `([^`]+)` ·", text)}
+    parts = [x.strip() for x in re.split(r"[;,]", cell) if x.strip()]
+    if not parts or parts == ["-"]:
+        return "", ["нет основания"]
+    for part in parts:
+        rid = re.match(r"(D-[A-Za-z0-9-]+-\d+)", part)
+        ex = re.search(r"examples/[\w-]+\.md", part)
+        java = re.search(r"[\w./-]+\.java", part)
+        if rid:
+            status, body = records.get(rid.group(1), ("", ""))
+            if not body:
+                problems.append("записи " + rid.group(1) + " нет в конспекте")
+            elif status == "НЕТ В ДОКЕ":
+                problems.append("запись " + rid.group(1) + " - НЕТ В ДОКЕ, это не основание")
+            sources.append(body)
+        elif ex:
+            path = tcc.pp.root() / ex.group(0)
+            if path.is_file():
+                sources.append(path.read_text(encoding="utf-8"))
+            else:
+                problems.append("файла " + ex.group(0) + " нет в " + str(tcc.pp.root()).replace("\\", "/"))
+        elif java or part.split()[0] in project:
+            path = Path(java.group(0) if java else project[part.split()[0]])
+            if path.is_file():
+                sources.append(path.read_text(encoding="utf-8", errors="replace"))
+            else:
+                problems.append("файла " + str(path) + " нет в проекте")
+        else:
+            problems.append("«" + part + "» - основание: D-<tech>-<n>, examples/<метка>.md или класс проекта")
+    return "\n".join(sources), problems
+
+
+def impl_blocks(text):
+    """Раздел 14а -> {G: {поле: текст}}; «Как на фрейме» - список строк пунктов."""
+    sect = re.search(r"(?ms)^## " + re.escape(IMPL) + r"\s*\n(.*?)(?=^## |\Z)", text)
+    blocks = {}
+    for chunk in re.split(r"(?m)^### ", sect.group(1) if sect else "")[1:]:
+        gid = chunk.split()[0]
+        fields, current = {}, None
+        for line in chunk.splitlines()[1:]:
+            m = re.match(r"^- ([^:]+):\s*(.*)$", line)
+            if m and m.group(1) in IMPL_FIELDS:
+                current = m.group(1)
+                fields[current] = [m.group(2)] if current == "Как на фрейме" and m.group(2).strip() else ([] if current == "Как на фрейме" else m.group(2))
+            elif current == "Как на фрейме" and re.match(r"^\s+\d+\.\s", line):
+                fields[current].append(line.strip())
+        blocks[gid] = fields
+    return blocks
+
+
+def impl_problems(text, head, records, own):
+    """Раздел 14а: блок на каждую G раздела 12, все поля заполнены, класс из «Где» - класс G, каждая строка
+    «Как на фрейме» с [основанием], имена фрейма - из основания."""
+    if not re.search(r"(?m)^## " + re.escape(IMPL) + r"\s*$", text):
+        return ["нет раздела «" + IMPL + "» - validate допишет шаблон, заполни по references/design-rules.md"]
+    problems, blocks = [], impl_blocks(text)
+    classes = {}
+    for m in table(text, "12. Методы шагов"):
+        if len(m) >= 3 and m[0] not in ("-", "G"):
+            classes.setdefault(m[0], set()).add(m[1])
+    for gid, names in classes.items():
+        b = blocks.get(gid)
+        if b is None:
+            problems.append("раздел 14а: нет блока «### " + gid + "» - опиши реализацию G текстом")
+            continue
+        for field in IMPL_FIELDS:
+            value = b.get(field)
+            if value in (None, "", []) or FILL in (" ".join(value) if isinstance(value, list) else value):
+                problems.append("раздел 14а, " + gid + ": поле «" + field + "» - заполни по references/design-rules.md")
+        where = b.get("Где", "")
+        if isinstance(where, str) and FILL not in where and not any(n in where for n in names):
+            problems.append("раздел 14а, " + gid + ": в «Где» нет класса из раздела 12 (" + ", ".join(sorted(names)) + ")")
+        for line in b.get("Как на фрейме", []):
+            if FILL in line:
+                continue
+            m = re.search(r"\[([^\]]+)\]\s*$", line)
+            if not m:
+                problems.append("раздел 14а, " + gid + ": «" + line[:60] + "» - в конце строки [основание]: D-<tech>-<n>,"
+                                " examples/<метка>.md или класс проекта")
+                continue
+            sources, bad = basis_text(m.group(1), text, records)
+            problems.extend("раздел 14а, " + gid + ": " + x for x in bad)
+            missing = sorted(n for n in frame_names(line[:m.start()]) if n.lstrip("@") not in own and n.lstrip("@") not in sources)
+            if missing and not bad:
+                problems.append("раздел 14а, " + gid + ": " + ", ".join(missing) + " - нет в основании [" + m.group(1)
+                                + "]: имя фрейма только из конспекта, образца проекта-примера или кода проекта")
+    return problems
+
+
+def basis_problems(text, head):
+    """Разделы 12 и 14: реализация на фрейме описана и каждое имя фрейма есть в основании (конспект, образец
+    проекта-примера, код проекта) или в самом плане. Придуманных имён в договоре нет."""
+    problems, records = [], note_records()
+    own = {Path(f[0]).stem for f in table(text, "11. Файлы") if f and f[0].endswith(".java")}
+    own |= {m[2] for m in table(text, "12. Методы шагов") if len(m) > 2}
+    own |= {c[0] for c in table(text, "4. Константы") if c} | {v[0] for v in table(text, "5. Переменные") if v}
+    own |= {v[4] for v in table(text, "10. Значения из выборки") if len(v) >= 5}
+    own |= {head.get("base_fqn", "-").rsplit(".", 1)[-1], head.get("class", "-")} | JAVA_STD
+
+    def check(where, how, cell):
+        if how in ("", "-", FILL) or cell in ("", FILL):
+            return
+        sources, bad = basis_text(cell, text, records)
+        problems.extend(where + ": " + b for b in bad)
+        missing = sorted(n for n in frame_names(how) if n.lstrip("@") not in own and n.lstrip("@") not in sources)
+        if missing and not bad:
+            problems.append(where + ": " + ", ".join(missing) + " - нет в основании «" + cell + "»: имя фрейма только из"
+                            " конспекта, образца проекта-примера или кода проекта (иначе - вопрос документации)")
+
+    for m in table(text, "12. Методы шагов"):
+        if m and m[0] not in ("-", "G"):
+            if len(m) < 8:
+                problems.append("метод " + m[2] + ": нет колонок «Как на фрейме» и «Основание» - validate допишет их, заполни")
+                continue
+            if m[6] in ("", "-"):
+                problems.append("метод " + m[2] + ": «Как на фрейме» пусто - опиши вызовы фрейма по references/design-rules.md")
+            check("метод " + m[1] + "." + m[2], m[6], m[7])
+    for st in table(text, "14. Настройки"):
+        if st and st[0] != "-" and len(st) >= 5:
+            check("настройка " + st[0], st[3], st[4])
+    return problems + impl_problems(text, head, records, own)
+
+
 def detail_problems(text, head, steps):
     """Разделы 11-14 заполнены и сходятся друг с другом и с разделами 2-5, 9-10 (references/design-rules.md)."""
     problems = []
@@ -852,6 +1062,7 @@ def detail_problems(text, head, steps):
     for r in steps:
         if len(r) > 3 and r[3] != "SERVICE" and r[2] not in ("", "-") and r[0] not in checked:
             problems.append("шаг " + r[0] + ": ожидаемый результат «" + r[2][:60] + "» без строки в разделе 13")
+    problems += basis_problems(text, head)
     file_names = {f[0] for f in files}
     for st in [x for x in table(text, "14. Настройки") if len(x) >= 4 and x[0] != "-"]:
         if FILL in " ".join(st):
@@ -971,6 +1182,9 @@ def derived_sections(text, head):
                            + ("; запрос " + m[4] if m[4] not in ("-", "") else ""))
                 for n, t, w in params(m[5]):
                     out.append("  - параметр `" + n + "` (" + t + ") - " + w)
+                if len(m) >= 8:
+                    out.append("  - как на фрейме: " + m[6])
+                    out.append("  - основание: " + m[7])
                 for c in cks:
                     out.append("  - проверка шага " + c[0] + ": " + check_text(c))
             if not own_methods:
@@ -982,7 +1196,8 @@ def derived_sections(text, head):
         else:
             keys = [x for x in settings if x[1] == path]
             for x in keys:
-                out.append("- Ключ: `" + x[0] + "` = `" + x[2] + "` - читает " + x[3])
+                out.append("- Ключ: `" + x[0] + "` = `" + x[2] + "` - читает " + x[3]
+                           + (" (основание: " + x[4] + ")" if len(x) >= 5 else ""))
             out.append("- Что: " + what)
         out.append("- G: " + g)
     rest = [f for f in files if f[1] not in ("создать", "дополнить")]
@@ -1034,6 +1249,12 @@ def validate(key):
         print("НЕТ ПЛАНА " + str(plan).replace("\\", "/") + ": сначала tc_plan.py build " + key)
         return 2
     text = plan.read_text(encoding="utf-8")
+    upgraded = upgrade_tables(text)
+    if upgraded != text:
+        text = upgraded
+        plan.write_text(text, encoding="utf-8")
+        print("ДОПИСАНО: колонки «Как на фрейме» и «Основание» (разделы 12, 14) и раздел «" + IMPL + "» - заполни по"
+              " references/design-rules.md")
     head = dict(re.findall(r"(?m)^(\w+):\s*(.*)$", text.split("\n---", 1)[0]))
     problems = []
     if tc_changed(text):
@@ -1129,7 +1350,7 @@ def validate(key):
     now = re.search(r"(?m)^plan_status:\s*(\S+)", text)
     print("ИТОГ: план сошёлся, plan_status: %s · шагов %d · G %d" % (now.group(1) if now else "planned", len(steps), len(gens)))
     if not still:
-        print("ПОДТВЕРЖДЕНИЕ: нужно - покажи человеку разделы 11-16 design.md (файлы, методы шагов, проверки, настройки, привязка шагов, планируемые изменения) и"
+        print("ПОДТВЕРЖДЕНИЕ: нужно - покажи человеку разделы 11-16 design.md (файлы, методы шагов, проверки, настройки, реализация по G - раздел 14а, привязка шагов, планируемые изменения) и"
               " спроси «План верен? да / номер строки и как исправить»; «да» -> tc_plan.py approve " + key)
     return 0
 

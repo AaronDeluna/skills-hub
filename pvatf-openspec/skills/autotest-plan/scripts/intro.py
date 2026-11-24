@@ -55,6 +55,8 @@ QUESTIONS = [
     "Пример класса шагов (или класса-флоу) для {what}: как объявлен класс, как в методе отправляют запрос или"
     " сообщение и возвращают ответ",
     "Как в примере проверяют результат {what}: matcher-ы в .should(...), проверка статуса, поля ответа, ожидание",
+    "Как в примере читают свои настройки для {what} (адрес сервиса, логин) из файла .properties: какой класс или"
+    " интерфейс, как он подключён, как вызывается в классе шагов",
 ]
 
 
@@ -330,6 +332,12 @@ def plan_needs(text):
             add(label, ("проверить: " + r[2] if kind == "ASSERT" else r[1])[:120] + " (шаг " + r[0] + ")")
         if WAIT.search(words):
             add(label, "дождаться результата ожиданием фрейма, без sleep")
+    for c in section(text, "4. Константы"):
+        if len(c) >= 6 and c[2] == "PROPERTIES_FILE":
+            for sid in re.split(r"[,\s]+", c[5] + "," + c[4]):
+                label = label_of.get(sid, label_of.get(sid.split(".")[0], ""))
+                if label not in ("", "-"):
+                    add(label, "прочитать свой ключ настроек (адрес, логин) из файла .properties в классе шагов")
     for v in values:
         label = label_of.get(v[1], label_of.get(v[1].split(".")[0], ""))
         if label not in ("", "-"):
