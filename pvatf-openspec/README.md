@@ -10,9 +10,9 @@ proposal -> (tc) -> design -> tasks -> apply -> архив. Артефакты �
 | Установка и как пользоваться | [INSTALL.md](INSTALL.md) |
 | Схема автотеста по ТК | `openspec/schemas/pvatf-autotests/` (proposal -> tc -> design -> tasks) |
 | Схема остальных работ | `openspec/schemas/pvatf-work/` (proposal -> design -> tasks) |
-| Создание изменений и «что дальше» | `skills/orchestrator/scripts/os_work.py` |
-| Артефакты автотеста | `skills/autotest-plan/scripts/os_artifacts.py` |
-| Точка входа | скилл `orchestrator`, Шаг 0 (режим OpenSpec) |
+| Создание изменений и «что дальше» | `skills/de-pvatf-orchestrator/scripts/os_work.py` |
+| Артефакты автотеста | `skills/de-pvatf-autotest-plan/scripts/os_artifacts.py` |
+| Точка входа | скилл `de-pvatf-orchestrator`, Шаг 0 (режим OpenSpec) |
 
 Всё по работе лежит в `openspec/changes/<имя>/` (план автотеста и карта миграции - это `design.md` изменения,
 рабочие файлы - `outputs/`), общее для проекта - в `openspec/pvatf/`. Пути считает `skills/*/scripts/pvatf_paths.py`.

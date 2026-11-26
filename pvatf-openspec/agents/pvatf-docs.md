@@ -1,6 +1,6 @@
 ---
 name: pvatf-docs
-description: Достаёт справку из документации фрейма PVATF (MCP, инструменты get_pv_at_doc и retrieve_doc_by_log / retrieve_doc_by_code / retrieve_doc_by_test_case) по готовому заданию из скиллов migration-map, migration-step, env-check, env-update, autotest-gen, autotest-review и dependency-review. Вызывать только из этих скиллов, по имени. Для других задач не использовать.
+description: Достаёт справку из документации фрейма PVATF (MCP, инструменты get_pv_at_doc и retrieve_doc_by_log / retrieve_doc_by_code / retrieve_doc_by_test_case) по готовому заданию из скиллов de-pvatf-migration-map, de-pvatf-migration-step, de-pvatf-env-check, de-pvatf-env-update, de-pvatf-autotest-gen, de-pvatf-autotest-review и de-pvatf-dependency-review. Вызывать только из этих скиллов, по имени. Для других задач не использовать.
 disallowedTools:
   - edit
   - run_shell_command

@@ -55,14 +55,14 @@ gigacode
 openspec --version
 openspec schema validate pvatf-autotests
 openspec schema validate pvatf-work
-ls .gigacode/skills/orchestrator/SKILL.md .gigacode/agents/pvatf-generator.md .gigacode/agents/pvatf-artifacts.md
-python3 .gigacode/skills/orchestrator/scripts/os_work.py next
+ls .gigacode/skills/de-pvatf-orchestrator/SKILL.md .gigacode/agents/pvatf-generator.md .gigacode/agents/pvatf-artifacts.md
+python3 .gigacode/skills/de-pvatf-orchestrator/scripts/os_work.py next
 ```
 Последняя команда печатает `ИЗМЕНЕНИЯ: нет` и `ДЕЙСТВИЕ: создай изменение ...` - всё стоит.
 
 ## Как пользоваться
 
-В чате GigaCode: `/orchestrator <просьба>` (или команда `/pvatf <просьба>`).
+В чате GigaCode: `/opsx-de-pvatf <просьба>` (или команда `/pvatf <просьба>`).
 
 | Просьба | Изменение |
 |---------|-----------|
@@ -70,7 +70,7 @@ python3 .gigacode/skills/orchestrator/scripts/os_work.py next
 | «проверь тест-кейс CMN-T120» | `autotest-cmn-t120` с остановкой после артефакта tc; «сгенерируй автотест по CMN-T120» снимает остановку |
 | «настрой окружение» | `env-setup` |
 | «обнови фрейм» | `frame-update` |
-| «мигрируй проект на PVATF» | `migration` (сначала карта migration-map) |
+| «мигрируй проект на PVATF» | `migration` (сначала карта de-pvatf-migration-map) |
 | «проверь автотест src/test/java/.../XTest.java» | `autotest-review-xtest` |
 | «разметь тесты» | `markup` |
 | «проверь зависимости» | `deps-review` |

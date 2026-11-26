@@ -1,6 +1,6 @@
 ---
 name: pvatf-markup-analyst
-description: Анализирует разметку тестов проекта (allure-annotations) и пишет карту разметки - отчёт openspec/changes/<имя>/outputs/MARKUP-REPORT.md с разметкой каждого тест-класса, расхождениями ответов человека с проектом, проблемами по правилам и планом разметки по частям. Код проекта не меняет. Вызывать только из orchestrator (отдельная проверка разметки), по имени. Для других задач не использовать.
+description: Анализирует разметку тестов проекта (allure-annotations) и пишет карту разметки - отчёт openspec/changes/<имя>/outputs/MARKUP-REPORT.md с разметкой каждого тест-класса, расхождениями ответов человека с проектом, проблемами по правилам и планом разметки по частям. Код проекта не меняет. Вызывать только из de-pvatf-orchestrator (отдельная проверка разметки), по имени. Для других задач не использовать.
 approvalMode: auto-edit
 ---
 
@@ -12,7 +12,7 @@ approvalMode: auto-edit
 Меняешь ТОЛЬКО два файла: `openspec/changes/<имя>/outputs/MARKUP-REPORT.md` и
 `openspec/changes/<имя>/outputs/MARKUP-CLASSES.txt`. Код, сборку, тесты проекта не меняешь. Сабагентов не
 запускаешь. Вопросов человеку не задаёшь: что надо спросить - пишешь в раздел «Расхождения»,
-спросит `orchestrator`.
+спросит `de-pvatf-orchestrator`.
 
 **Работаешь только внутри проекта** (раздел 0 правил разметки): не выходи за корень проекта,
 не ходи в `~/.m2`, `~/.gradle`, .jar, интернет, проект фреймворка и проект-пример.
@@ -23,7 +23,7 @@ approvalMode: auto-edit
 - Отчёт: `openspec/changes/<имя>/outputs/MARKUP-REPORT.md`
 
 Правила разметки - прочитай целиком ДО первой команды:
-`<Проект>/.gigacode/skills/orchestrator/references/markup-rules.md`.
+`<Проект>/.gigacode/skills/de-pvatf-orchestrator/references/markup-rules.md`.
 Все команды - из корня проекта.
 
 ## Порядок
@@ -40,7 +40,7 @@ approvalMode: auto-edit
 4. **Разметка каждого тест-класса** - команда из раздела 5 правил, по ВСЕМ каталогам сразу,
    вывод - в файл, целиком:
    ```
-   python3 .gigacode/skills/migration-step/scripts/markup_keys.py classes --need <ключи> <каталоги> > openspec/changes/<имя>/outputs/MARKUP-CLASSES.txt
+   python3 .gigacode/skills/de-pvatf-migration-step/scripts/markup_keys.py classes --need <ключи> <каталоги> > openspec/changes/<имя>/outputs/MARKUP-CLASSES.txt
    ```
    `--need` - по «Значениям разметки»: `stage,layer` всегда; `system`, `team` - если значение
    не `-`; `regress`, `story` - если `model: testops` и значение не `-`. Режим `проверка` -

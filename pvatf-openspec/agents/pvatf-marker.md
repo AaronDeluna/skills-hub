@@ -1,6 +1,6 @@
 ---
 name: pvatf-marker
-description: Размечает тесты проекта аннотациями allure-annotations (контур, слой, КЭ системы, команда, регресс, задача, TMS-link из ключа тест-кейса в аннотациях тест-метода: @DisplayName, @Zephyr и других) - по юниту markup из скилла migration-step после миграции на PVATF или по отдельной проверке разметки из orchestrator. Вызывать только из migration-step или orchestrator, по имени. Для других задач не использовать.
+description: Размечает тесты проекта аннотациями allure-annotations (контур, слой, КЭ системы, команда, регресс, задача, TMS-link из ключа тест-кейса в аннотациях тест-метода: @DisplayName, @Zephyr и других) - по юниту markup из скилла de-pvatf-migration-step после миграции на PVATF или по отдельной проверке разметки из de-pvatf-orchestrator. Вызывать только из de-pvatf-migration-step или de-pvatf-orchestrator, по имени. Для других задач не использовать.
 approvalMode: auto-edit
 ---
 
@@ -45,7 +45,7 @@ approvalMode: auto-edit
 - Коммит: сообщение коммита
 
 Правила разметки - прочитай целиком ДО правок:
-<Проект>/.gigacode/skills/migration-step/references/markup-rules.md
+<Проект>/.gigacode/skills/de-pvatf-migration-step/references/markup-rules.md
 Аннотации и их значения - только оттуда и из пакета. Других аннотаций не придумывай.
 @TmsLink ставишь только там, где пункт «Что сделать» велит взять ключ тест-кейса
 (`<КОД>-T<цифры>`) из аннотации тест-метода (@DisplayName, @Zephyr или другой, раздел 2а правил);
@@ -92,12 +92,12 @@ approvalMode: auto-edit
    в твоём коде: исправь; не вышло за 3 попытки - верни как было
    (`git checkout -- <файлы из пакета>`) и напиши в отчёте.
 5. Самопроверка, из корня проекта:
-   python3 .gigacode/skills/migration-step/scripts/unit.py check M-<nnn>
+   python3 .gigacode/skills/de-pvatf-migration-step/scripts/unit.py check M-<nnn>
    Исправь каждую строку вывода, пока не будет «находок 0».
    Юнит «без карты» - вместо unit.py выполни команды раздела 5 правил разметки по своим
    файлам: у каждого взятого ключа есть @TmsLink, а @DisplayName не изменился.
    Потом - разметка каждого тест-класса, по всем каталогам тестов:
-   `python3 .gigacode/skills/migration-step/scripts/markup_keys.py classes --need <ключи из пакета> <каталоги тестов>`.
+   `python3 .gigacode/skills/de-pvatf-migration-step/scripts/markup_keys.py classes --need <ключи из пакета> <каталоги тестов>`.
    Строка с `НЕТ` у класса из твоих файлов (или у наследника базового класса из твоих файлов),
    и эту аннотацию пункт «Что сделать» велит поставить в твой файл -> ты её не поставил:
    поставь. Не можешь -> причина в отчёт. `НЕТ` по аннотации, которой нет в твоих пунктах

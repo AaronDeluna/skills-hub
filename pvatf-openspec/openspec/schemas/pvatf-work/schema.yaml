@@ -12,7 +12,7 @@ artifacts:
     template: proposal.md
     instruction: |
       Не пиши файл сам. Запусти (таймаут 600 секунд):
-        python3 .gigacode/skills/orchestrator/scripts/os_work.py proposal <имя изменения>
+        python3 .gigacode/skills/de-pvatf-orchestrator/scripts/os_work.py proposal <имя изменения>
       Код 0 -> покажи строки «ИТОГ» и «ФАЙЛ». Код 1 -> сделай то, что в строках «НУЖНО», и
       запусти снова. Код 2 -> покажи вывод и остановись.
     requires: []
@@ -22,11 +22,11 @@ artifacts:
     template: design.md
     instruction: |
       Не пиши файл сам. Запусти (таймаут 600 секунд):
-        python3 .gigacode/skills/orchestrator/scripts/os_work.py design <имя изменения>
+        python3 .gigacode/skills/de-pvatf-orchestrator/scripts/os_work.py design <имя изменения>
       Код 0 -> покажи строки «ИТОГ» и «ФАЙЛ».
       Код 1 -> строки «НУЖНО» называют скилл, который подготовит данные. Запусти этот скилл
       по его SKILL.md, потом этот скрипт снова. Вид migration: design.md изменения - это карта
-      миграции, её пишет скилл migration-map по этапам (несколько чатов) и утверждает человек;
+      миграции, её пишет скилл de-pvatf-migration-map по этапам (несколько чатов) и утверждает человек;
       скрипт только проверяет, что карта утверждена. Код 2 -> покажи вывод и остановись.
     requires:
       - proposal
@@ -36,7 +36,7 @@ artifacts:
     template: tasks.md
     instruction: |
       Не пиши файл сам. Запусти (таймаут 600 секунд):
-        python3 .gigacode/skills/orchestrator/scripts/os_work.py tasks <имя изменения>
+        python3 .gigacode/skills/de-pvatf-orchestrator/scripts/os_work.py tasks <имя изменения>
       Код 0 -> покажи строки «ИТОГ» и «ФАЙЛ». Код 1 или 2 -> покажи вывод и остановись.
     requires:
       - design
@@ -47,16 +47,16 @@ apply:
   instruction: |
     Ты выполняешь задачи tasks.md по порядку групп. Ты не автор плана.
 
-    Каждая задача называет скилл набора и что передать ему - например «скилл migration-step,
+    Каждая задача называет скилл набора и что передать ему - например «скилл de-pvatf-migration-step,
     юнит M-007». Открой SKILL.md этого скилла и выполни его шаги ровно для этой задачи.
     Скилл закончил по своему контракту (его итог без ошибок) -> отметь задачу `- [x]`
-    (миграция: статус юнита в карте ставит migration-step, чекбокс отметит
-    `python3 .gigacode/skills/orchestrator/scripts/os_work.py sync <имя изменения>`).
+    (миграция: статус юнита в карте ставит de-pvatf-migration-step, чекбокс отметит
+    `python3 .gigacode/skills/de-pvatf-orchestrator/scripts/os_work.py sync <имя изменения>`).
     Скилл остановился (вопрос человеку, блокер, FAIL) -> задачу не отмечай, покажи итог
     скилла человеку и остановись.
 
-    Одна задача с правкой кода на чат, если скилл так требует (migration-step: один юнит на
-    чат). После такой задачи скажи человеку: «Задача <N> готова. Новый чат: /orchestrator
+    Одна задача с правкой кода на чат, если скилл так требует (de-pvatf-migration-step: один юнит на
+    чат). После такой задачи скажи человеку: «Задача <N> готова. Новый чат: /opsx-de-pvatf
     продолжи <имя изменения>».
 
     Запрещено: работа вне задач tasks.md, правка tasks.md кроме чекбоксов, пропуск задачи.

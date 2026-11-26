@@ -1,6 +1,6 @@
 ---
 name: pvatf-examples
-description: Ищет в проекте-примере или в исходниках фрейма PVATF, как делается конкретная вещь, по готовому заданию из скиллов migration-map, migration-step, env-check и autotest-plan. Только читает. Вызывать только из этих скиллов, по имени. Для других задач не использовать.
+description: Ищет в проекте-примере или в исходниках фрейма PVATF, как делается конкретная вещь, по готовому заданию из скиллов de-pvatf-migration-map, de-pvatf-migration-step, de-pvatf-env-check и de-pvatf-autotest-plan. Только читает. Вызывать только из этих скиллов, по имени. Для других задач не использовать.
 disallowedTools:
   - write_file
   - edit
