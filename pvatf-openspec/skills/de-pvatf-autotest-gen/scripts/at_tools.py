@@ -121,6 +121,9 @@ def plan(key):
         return None, None, None
     head = head_of(text)
     unpark(key, head)
+    NAMES.clear()
+    if head.get("step_style") == "flow":
+        NAMES.update(step_names(key, text))
     return path, text, head
 
 
@@ -442,6 +445,10 @@ def missing_fields(key, text, gid):
         other = folder(key) / "fragments" / (g[0] + ".md")
         if g[0] != gid and len(g) >= 8 and g[7] in READY and other.is_file():
             fields += "\n" + fragment(other)["fields"]
+    if head_of(text).get("step_style") == "flow":  # flow: константы шагов - поля класса-флоу
+        name_f, path_f = flow_class(text)
+        if path_f not in ("", "-") and Path(path_f).is_file():
+            fields += "\n" + read(path_f)
     return [n for n in names if not re.search(r"\b" + re.escape(n) + r"\s*=", fields)]
 
 
@@ -540,6 +547,54 @@ def fragment(path):
 
 
 STEP_MARK = re.compile(r"^\s*(?://\s*|\.step\(\s*\")Шаг\s+([0-9]+(?:\.[0-9]+)?)(?:\s*,\s*[0-9.]+)*\s*:")  # steps: «// Шаг N:», flow: «.step("Шаг N:»
+# flow: во фрагменте «.step("Шаг 6, 7: <описание>"», в тест-классе - «.step("<описание>"» (номер шага в отчёте не нужен)
+STEP_TITLE = re.compile(r'^(\s*\.step\(\s*")Шаг\s+([0-9.]+(?:\s*,\s*[0-9.]+)*)\s*:\s*')
+STEP_NAME = re.compile(r'^\s*\.step\(\s*"((?:[^"\\]|\\.)*)"')
+NAMES = {}  # flow: название шага в тест-классе -> номера шагов ТК (из фрагментов; заполняет plan())
+
+
+def step_names(key, text):
+    """flow: {описание шага без «Шаг N:»: [номера шагов ТК]} по фрагментам G - так тест-класс без номеров шагов
+    связан с шагами ТК (покрытие, G находки, приём кода человека)."""
+    names = {}
+    actions = {r[0]: r[1] for r in section_rows(text, "2. Шаги") if len(r) > 1}
+    base = folder(key) / "fragments"
+    for f in sorted(base.glob("G-*.md")) if base.is_dir() else []:
+        if f.name.endswith(".rejected.md"):
+            continue
+        for line in fragment(f)["body"].split("\n"):
+            m = STEP_TITLE.match(line)
+            if m:
+                name = STEP_NAME.match(flow_title(line, actions))
+                ids = [n.strip() for n in m.group(2).split(",") if n.strip()]
+                if name:
+                    names.setdefault(name.group(1), [])
+                    names[name.group(1)] += [i for i in ids if i not in names[name.group(1)]]
+    return names
+
+
+def line_steps(line):
+    """Номера шагов ТК, с которых начинается строка тест-класса: «// Шаг N:», «.step("Шаг N:» или (flow)
+    «.step("<описание>"» из фрагментов. Не начало шага - []."""
+    m = STEP_MARK.match(line)
+    if m:
+        return [m.group(1)]
+    name = STEP_NAME.match(line)
+    return list(NAMES.get(name.group(1), [])) if name else []
+
+
+def flow_title(line, actions):
+    """Строка цепочки фрагмента -> строка тест-класса: «Шаг N[, M]:» из названия .step убирается. Описания нет -
+    действие первого шага из плана."""
+    m = STEP_TITLE.match(line)
+    if not m:
+        return line
+    rest = line[m.end():]
+    if rest.startswith('"'):
+        first = m.group(2).split(",")[0].strip()
+        desc = actions.get(first, "Шаг " + first).replace("\\", "\\\\").replace('"', '\\"')
+        rest = desc + rest
+    return m.group(1) + rest
 DECL = re.compile(r"^(\s*)(?:final\s+)?([A-Z][\w.]*(?:<[^=;]*>)?(?:\[\])?)\s+([a-z]\w*)\s*=\s*(.*)$")
 PHASE = {"SETUP": "before", "TEARDOWN_CLEANUP": "after"}
 
@@ -614,6 +669,44 @@ def known_import(parts, word, skip=""):
     return ""
 
 
+TC_TAG = re.compile(r"@([A-Z][\w]*)(\([^)]*\))?")
+OWN_TAGS = ("Test", "DisplayName", "TmsLink", "Step", "ParameterizedTest")
+ALWAYS = ("io.qameta.allure.", "org.junit.jupiter.api.")  # allure и JUnit 5 есть в любом проекте на фрейме
+ANN_SKIPPED = []  # аннотации ТК без import в проекте (печатает assemble)
+STANDARD = {"Tag": "org.junit.jupiter.api.Tag", "Epic": "io.qameta.allure.Epic", "Feature": "io.qameta.allure.Feature",
+            "Story": "io.qameta.allure.Story", "Link": "io.qameta.allure.Link", "Owner": "io.qameta.allure.Owner",
+            "Severity": "io.qameta.allure.Severity", "Description": "io.qameta.allure.Description"}
+
+
+def tc_annotations(key, parts, skip=""):
+    """Аннотации из строки «Тэги» TC.md (@Epic, @Feature, @Tag, @Link, @System...) -> (строки аннотаций, импорты).
+    import - из фрагментов или файлов проекта; нет - из файла источника ТК, если пакет allure или JUnit 5.
+    Без import аннотация не ставится (иначе тест не соберётся) и попадает в ANN_SKIPPED."""
+    tc = read(folder(key) / "TC.md")
+    tags = re.search(r"(?m)^- Тэги:\s*(.+?)\s*$", tc)
+    origin = re.search(r"(?m)^- Файл источника:\s*(.+?)\s*$", tc)
+    origin_file = origin.group(1).split("#", 1)[0] if origin else ""
+    source = read(origin_file) if origin_file.endswith(".java") else ""
+    lines, imports = [], []
+    ANN_SKIPPED.clear()
+    for m in TC_TAG.finditer(tags.group(1) if tags else ""):
+        name = m.group(1)
+        if name in OWN_TAGS or any(l.startswith("@" + name + "(") or l == "@" + name for l in lines):
+            continue
+        line = known_import(parts, name, skip)
+        if not line:
+            src = re.search(r"(?m)^import\s+([\w.]+\." + re.escape(name) + r")\s*;", source)
+            line = "import " + src.group(1) + ";" if src and src.group(1).startswith(ALWAYS) else ""
+        if not line and name in STANDARD:
+            line = "import " + STANDARD[name] + ";"
+        if not line:
+            ANN_SKIPPED.append("@" + name)
+            continue
+        lines.append(m.group(0))
+        imports.append(line)
+    return lines, imports
+
+
 def env_config(text):
     """Класс конфигурации окружения фрейма: раздел 11 плана (*EnvironmentConfiguration.java), иначе класс проекта
     с extends DefaultEnvironmentConfiguration. Возвращает (имя, пакет) или ("", "")."""
@@ -622,6 +715,24 @@ def env_config(text):
         paths = [str(f) for f in sorted(Path(".").glob("**/src/test/java/**/*.java"))[:400]
                  if re.search(r"extends\s+DefaultEnvironmentConfiguration\b", read(f))]
     return (Path(paths[0]).stem, java_package_of(paths[0])) if paths else ("", "")
+
+
+def used_fields(fields, used):
+    """flow: объявления полей (константа может занимать несколько строк, SQL в \"\"\"), имя которых есть в цепочке."""
+    blocks, cur = [], []
+    for line in fields:
+        cur.append(line)
+        if line.rstrip().endswith(";") and "\n".join(cur).count('"""') % 2 == 0:
+            blocks.append(cur)
+            cur = []
+    if cur:
+        blocks.append(cur)
+    kept = []
+    for block in blocks:
+        name = re.search(r"\b([A-Za-z_]\w*)\s*(?:=|;)", block[0])
+        if not name or re.search(r"\b" + re.escape(name.group(1)) + r"\b", used):
+            kept += block
+    return kept
 
 
 def render_class(key, text, head, parts):
@@ -643,8 +754,11 @@ def render_class(key, text, head, parts):
     types = {r[0]: r[3] for r in section_rows(text, "2. Шаги") if len(r) > 3}
     flow = head.get("step_style") == "flow"
     if flow:  # цепочка FlowRunner: все шаги по порядку плана в одном тест-методе, состояние - в полях флоу
-        chain = [l for p in parts for l in p["body"].split("\n") if l.strip()]
+        actions = {r[0]: r[1] for r in section_rows(text, "2. Шаги") if len(r) > 1}
+        chain = [flow_title(l, actions) for p in parts for l in p["body"].split("\n") if l.strip()]
         phases = {"before": [], "test": chain, "after": []}
+        # поле тест-класса, которого нет в цепочке, не нужно: константы шагов живут в классе-флоу
+        fields = used_fields(fields, "\n".join(chain))
     else:
         phases = split_phases(parts, types)
     for line in lift_shared(phases):
@@ -692,6 +806,10 @@ def render_class(key, text, head, parts):
                 imports.append("import " + pkg + "." + name_f + ";")
             phases["test"] = ["FlowRunner.flowRunnerFor(" + name_f + ".class)"] + ["        " + l.strip() for l in phases["test"]] \
                 + ["        .run();"]
+    tags, tag_imports = tc_annotations(key, parts, head.get("test_file", ""))
+    for line in tag_imports:
+        if line not in imports:
+            imports.append(line)
     base_fqn = head.get("base_fqn", "-")
     if "." in base_fqn and base_fqn.rsplit(".", 1)[0] != head["package"] and ("import " + base_fqn + ";") not in imports:
         imports.append("import " + base_fqn + ";")  # BaseTest в <корень>, тест - в <корень>.tests
@@ -705,8 +823,8 @@ def render_class(key, text, head, parts):
         out += ["    @BeforeEach", "    void before" + suffix + "() {"]
         out += [("        " + l if l.strip() else "") for l in phases["before"]] + ["    }", ""]
     out += ["    @Test"] + ([] if no_tc else ["    @TmsLink(\"" + key + "\")"]) + [
-            "    @DisplayName(\"" + ("" if no_tc else "[" + key + "] ") + title.replace("\\", "\\\\").replace("\"", "\\\"") + "\")",
-            "    void " + method + "() {"]
+            "    @DisplayName(\"" + ("" if no_tc else "[" + key + "] ") + title.replace("\\", "\\\\").replace("\"", "\\\"") + "\")"]
+    out += ["    " + a for a in tags] + ["    void " + method + "() {"]
     out += [("        " + l if l.strip() else "") for l in phases["test"]]
     out += ["    }"]
     if phases["after"]:
@@ -765,6 +883,9 @@ def cmd_assemble(key, force=False):
     print("СОБРАНО: " + str(target) + " · фрагментов " + str(len(parts)) + " · импортов " + str(len(imports)) + " · полей " + str(len(fields)))
     print("ЗАГЛУШКИ: " + (", ".join(stubs) or "нет"))
     print("МЕТОДЫ: @BeforeEach %s · @Test · @AfterEach %s" % ("есть" if phases["before"] else "нет", "есть" if phases["after"] else "нет"))
+    if ANN_SKIPPED:
+        print("АННОТАЦИИ ТК НЕ ПЕРЕНЕСЕНЫ: " + ", ".join(ANN_SKIPPED) + " - их класса нет в проекте (нет import ни в одном"
+              " файле проекта). Нужны - человек добавляет зависимость, потом assemble " + key)
     return 0
 
 
@@ -795,10 +916,10 @@ def cmd_accept(key):
                     " STUB, когда дописал код этой G", 1)
     steps_g, lines = step_groups(text), code.replace("\r\n", "\n").split("\n")
     bodies, current = {}, None
-    for line in lines:  # код шага - от «// Шаг <n>:» до следующего шага или конца метода
-        mark = STEP_MARK.match(line)
-        if mark:
-            current = steps_g.get(mark.group(1))
+    for line in lines:  # код шага - от «// Шаг <n>:» (flow - от .step шага) до следующего шага или конца метода
+        ids = line_steps(line)
+        if ids:
+            current = steps_g.get(ids[0])
         elif re.match(r"^ {0,4}\S", line):
             current = None
         if current in done:
@@ -1176,10 +1297,10 @@ def place_owners(text, target, path, number=0, method=""):
     if path.endswith(target) or target.endswith(path):
         lines = read(target).splitlines()
         for i in range(min(number, len(lines)) - 1, -1, -1):
-            m = STEP_MARK.match(lines[i])
-            if m:
-                gid = step_groups(text).get(m.group(1), "")
-                return [gid] if gid else []
+            ids = line_steps(lines[i])
+            if ids:
+                gs = sorted({step_groups(text).get(n, "") for n in ids} - {""})
+                return gs
         return []
     file_g = file_groups(text, target)
     known = next((f for f in file_g if path.endswith(f) or f.endswith(path)), None)
@@ -1346,13 +1467,14 @@ def cmd_check(key, compile_on):
     flow = head.get("step_style") == "flow"
     # flow: шаги в названии .step("Шаг 9, 18, 22: ...") - повторная проверка того же поля названа в шаге, где она есть
     titled = {n.strip() for t in re.findall(r"\.step\(\s*\"Шаг\s+([0-9.,\s]+):", body) for n in t.split(",") if n.strip()}
+    titled |= {n for line in body.splitlines() for n in line_steps(line)}
     for row in section_rows(text, "2. Шаги"):
         if flow and len(row) > 3 and row[3] == "SERVICE":
             continue  # flow: служебного шага в цепочке нет
         if flow and row[0] in titled:
             continue
         if not re.search(r"(?://\s*|\.step\(\s*\")Шаг\s+" + re.escape(row[0]) + r"(?=\s|:|$)", body, re.M):
-            findings.append(("ПОКРЫТИЕ шаг %s - в цепочке FlowRunner нет шага «.step(\"Шаг %s: ...\"»: шаг не сгенерирован" if flow else
+            findings.append(("ПОКРЫТИЕ шаг %s - в цепочке FlowRunner нет .step шага %s (название из фрагмента G): шаг не сгенерирован" if flow else
                              "ПОКРЫТИЕ шаг %s - в тест-методе нет комментария «// Шаг %s: ...»: шаг не сгенерирован") % (row[0], row[0]))
     if flow and not re.search(r"FlowRunner\.flowRunnerFor\(", body):
         findings.append("FLOW %s - стиль flow, а цепочки FlowRunner в тест-классе нет: assemble заново" % target)

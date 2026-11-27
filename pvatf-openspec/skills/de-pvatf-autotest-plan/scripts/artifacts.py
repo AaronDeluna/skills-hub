@@ -249,7 +249,7 @@ def cmd_scan(key, args):
     if meta_line(read(target), "Разбор агентом") == "готов" and "--force" not in args:
         out("ОПИСЬ УЖЕ РАЗОБРАНА: " + str(target).replace("\\", "/") + " - не перезаписываю (заново: --force)")
         return 0
-    origin = tc["fields"].get("Файл источника", "-")
+    origin = tc["fields"].get("Файл источника", "-").split("#", 1)[0]  # «файл#метод» - файл
     sources = [origin] if origin not in ("", "-") else []
     sources += [a for a in args if not a.startswith("--") and a not in sources]
     events, skipped = collect(sources, key)

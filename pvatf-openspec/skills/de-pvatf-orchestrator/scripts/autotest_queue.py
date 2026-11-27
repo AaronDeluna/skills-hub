@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Очередь генерации автотестов по нескольким тест-кейсам (скилл de-pvatf-orchestrator). Запуск из корня проекта:
 
-  python3 <каталог скилла>/scripts/autotest_queue.py add <каталог | файл со списком ключей | ключ ...> - добавить в очередь
+  python3 <каталог скилла>/scripts/autotest_queue.py add <каталог | файл со списком ключей | ключ ...> [--all] - добавить в очередь
+      --all: файл теста (.java .kt) с несколькими тест-методами - пункт на каждый метод («файл#метод»), по порядку
+      в файле: первый тест строит общий код (флоу, шаги), следующие его дополняют
   python3 <каталог скилла>/scripts/autotest_queue.py status                - сводка очереди
   python3 <каталог скилла>/scripts/autotest_queue.py skip <№ | ключ> <причина> - пропустить пункт (решил человек)
   python3 <каталог скилла>/scripts/autotest_queue.py block <№ | ключ> <причина> - разбор ТК не удался (ошибка de-pvatf-autotest-plan)
@@ -161,12 +163,39 @@ def keys_or_file(path):
     return [norm(path)]
 
 
+TEST_ANN = re.compile(r"@(Test|ParameterizedTest|RepeatedTest|TestFactory)\b")
+METHOD = re.compile(r"\b(?:void|fun)\s+(\w+)\s*\(")
+
+
+def test_methods(path):
+    """Тест-методы файла .java / .kt по порядку: имя метода после аннотации @Test (и её видов)."""
+    text, names = read(path), []
+    for m in TEST_ANN.finditer(text):
+        method = METHOD.search(text, m.end())
+        if method and method.group(1) not in names:
+            names.append(method.group(1))
+    return names
+
+
+def split_tests(items):
+    """--all: файл теста с несколькими тест-методами -> пункты «файл#метод»."""
+    out = []
+    for item in items:
+        names = test_methods(item) if Path(item).suffix.lower() in (".java", ".kt") and Path(item).is_file() else []
+        out.extend([item + "#" + n for n in names] if len(names) > 1 else [item])
+    return out
+
+
 def cmd_add(targets):
+    every = "--all" in targets
+    targets = [t for t in targets if t != "--all"]
     rows = load()
     known = {norm(r["source"]) for r in rows} | {r["key"] for r in rows if r["key"] != "-"}
     missing, added = [], 0
     for target in targets:
         items = collect(target)
+        if every:
+            items = split_tests(items)
         if not items:
             missing.append(target)
         for item in items:
@@ -253,7 +282,7 @@ def main(args):
         return cmd_mark(args[1], "skipped" if args[0] == "skip" else "blocked", " ".join(args[2:]))
     if args == ["clear"]:
         return cmd_clear()
-    print("Использование: autotest_queue.py add <каталог | файл со списком ключей | ключ ...> | status | skip|block <№ | ключ> <причина> | clear")
+    print("Использование: autotest_queue.py add <каталог | файл со списком ключей | ключ ...> [--all] | status | skip|block <№ | ключ> <причина> | clear")
     return 2
 
 

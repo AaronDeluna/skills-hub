@@ -69,7 +69,7 @@ IMPL = "14а. Реализация по G"  # текст плана: что де
 IMPL_FIELDS = ("Что делает", "Где", "Как на фрейме", "Почему так", "Чего не делать")
 FILE_ACTIONS = ("создать", "дополнить", "не трогать", "скрипт", "de-pvatf-env-check")
 CHECK_KINDS = ("равно", "не равно", "содержит", "ключ есть", "ключа нет", "не пусто", "пусто", "статус", "больше", "меньше",
-               "по шаблону", "проверено в шаге")
+               "в диапазоне", "по шаблону", "проверено в шаге")
 
 
 # Окружение под ТК (раздел 8 плана): метка -> слова, которые ищутся в файлах сборки (подсказка, не имя артефакта:
@@ -388,7 +388,8 @@ def detail_sections(test_file, package, env, rows, groups, consts, index, arts):
     lay = project_layout(env, package)
     steps_dir = lay["dir"](lay["root"] + ".steps" if lay["root"] not in ("", "-") else "-")
     files, methods, checks, settings = [], [], [], []
-    files.append((test_file, "создать", "тест-метод; ожидаемые значения ТК (константы раздела 4 TEST_CLASS_STATIC_FINAL)", "все"))
+    files.append((test_file, "создать", "цепочка FlowRunner; ожидаемые значения ТК (EXPECTED_*), PATH_/QUERY_/JSON_PATH_ - в классе-флоу"
+                  if style_choice(env) == "flow" else "тест-метод; ожидаемые значения ТК (константы раздела 4 TEST_CLASS_STATIC_FINAL)", "все"))
     g_class = {}
     for g in groups:
         work = [r for r in g["rows"] if r["type"] != "SERVICE"]
@@ -688,10 +689,15 @@ def set_package(key, package):
             m = re.search(r"(?m)^\s*package\s+([\w.]+)\s*;", Path(f).read_text(encoding="utf-8", errors="replace"))
             if m and (f.endswith("Test.java") or "/tests/" in f):
                 found[m.group(1)] += 1
-        if not found:
-            print("КАНДИДАТОВ НЕТ: тестов в проекте нет - спроси человека пакет одной строкой, ответ: tc_plan.py package "
-                  + key + " <пакет>")
-            return 1
+        if not found:  # тестов нет: пакет из координат сборки (ENV.json, de-pvatf-env-check), вопроса человеку нет
+            pkg = load_env().get("project", {}).get("test_package", "-")
+            if not JAVA_PACKAGE.fullmatch(pkg or ""):
+                print("КАНДИДАТОВ НЕТ: тестов в проекте нет и ENV.json без пакета - de-pvatf-env-check (режим check),"
+                      " потом снова tc_plan.py package " + key)
+                return 1
+            print("КАНДИДАТ: " + pkg + " · из координат сборки (тестов в проекте нет)")
+            print("ДАЛЬШЕ: tc_plan.py package " + key + " " + pkg)
+            return 0
         for pkg, n in found.most_common(3):
             print("КАНДИДАТ: " + pkg + " · тест-классов " + str(n))
         print("ДАЛЬШЕ: tc_plan.py package " + key + " " + found.most_common(1)[0][0])
@@ -1114,6 +1120,9 @@ def detail_problems(text, head, steps):
                             + head.get("tc", "<ключ>") + " <пакет тестов> (пакет - из шага 6 скилла de-pvatf-autotest-plan)")
         if f[1] not in FILE_ACTIONS:
             problems.append("файл " + f[0] + ": действие «" + f[1] + "» - одно из: " + ", ".join(FILE_ACTIONS))
+        if f[1] in ("создать", "дополнить") and "src/main/" in f[0].replace("\\", "/"):
+            problems.append("файл " + f[0] + ": набор пишет только в src/test/java и src/test/resources - путь в src/test"
+                            " (правило 13 autotest-rules.md)")
         if f[0].endswith(".java") and f[1] == "создать" and f[0] != head.get("test_file"):
             pkg = "/" + root.replace(".", "/") + "/"
             config = f[0].endswith("Configuration.java")
@@ -1153,6 +1162,10 @@ def detail_problems(text, head, steps):
             problems.append("проверка шага " + sid + ": «Как» = «" + how + "» - одно из: " + ", ".join(CHECK_KINDS))
         if how.startswith("проверено в шаге"):
             continue
+        if how.startswith(("содержит", "равно")) and re.search(r"HH:mm(?!:ss)", expected):
+            problems.append("проверка шага " + sid + ": время «" + field + "» сравнивается строкой до минуты - на смене минуты"
+                            " тест падает: «Как» = «в диапазоне», «Ожидаемое» = «<время запроса> ± <допуск из ТК, нет - 1 минута>»"
+                            " (MR-53)")
         key = (obj.lower(), field.lower())
         if key in seen:
             problems.append("проверка шага " + sid + ": поле «" + field + "» у «" + obj + "» уже проверяется в шаге " + seen[key]
@@ -1265,7 +1278,9 @@ def derived_sections(text, head):
             out.append("- Аннотации: " + ("ТК нет (ключ " + head.get("tc", "-") + ") - без @TmsLink"
                                           if head.get("tc", "").startswith("NOTC-") else "`@TmsLink(\"" + head.get("tc", "-") + "\")`"))
             own = [c for c in consts if c[2] == "TEST_CLASS_STATIC_FINAL"]
-            out.append("- Константы класса: " + (", ".join("`" + c[0] + "` = `" + c[1] + "`" for c in own) or "нет"))
+            out.append(("- Константы (стиль flow: EXPECTED_* - в тест-классе, параметром в .step; остальные - поля класса-флоу): "
+                        if head.get("step_style") == "flow" else "- Константы класса: ")
+                       + (", ".join("`" + c[0] + "` = `" + c[1] + "`" for c in own) or "нет"))
             other = [c for c in consts if c[2] != "TEST_CLASS_STATIC_FINAL"]
             if other:
                 out.append("- Значения не в тест-классе: " + ", ".join("`" + c[0] + "` - " + c[2] for c in other))

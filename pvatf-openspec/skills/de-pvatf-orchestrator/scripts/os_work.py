@@ -10,6 +10,7 @@
   python3 <скилл>/scripts/os_work.py sync <имя изменения>                         - чекбоксы tasks.md по статусам
   python3 <скилл>/scripts/os_work.py next [<имя изменения>]                      - что делать дальше
   python3 <скилл>/scripts/os_work.py steps-ok <имя изменения>                     - человек подтвердил шаги из лога или кода
+  python3 <скилл>/scripts/os_work.py archive <имя изменения>                      - убрать служебные файлы и openspec archive
 
 Виды (x-pvatf-kind) и объект:
   autotest <ключ ТК>       - автотест по ТК: схема pvatf-autotests, артефакты пишет os_artifacts.py
@@ -152,11 +153,18 @@ def cmd_new(args):
             "ДАЛЬШЕ: спроси имя тест-класса, потом tc_convert.py <файл> --key " + obj + " --class <Имя>Test",
             "ФАЙЛ: " + rel(root / ".openspec.yaml"))
         return 0
-    if kind in ("autotest", "tc-check") and Path(obj).is_file():
+    if kind in ("autotest", "tc-check") and Path(obj.split("#", 1)[0]).is_file():  # «файл#метод» - один тест класса
         code, text = run("de-pvatf-autotest-plan", "tc_convert.py", [obj])  # ключ - из файла ТК, человека не спрашиваем
         key = re.search(r"(?m)^ТК:\s*(\S+)", text)
         if code != 0 or not key:
             out(text.rstrip())
+            many = re.search(r"ТЕСТОВ НЕСКОЛЬКО:\s*([^-\n]+?)\s+-", text)
+            if many:
+                names = [n.strip() for n in many.group(1).split(",") if n.strip()]
+                out("НУЖНО: спроси человека одной строкой «В классе " + str(len(names)) + " тестов: " + ", ".join(names)
+                    + ". Какой взять - имя теста или «все»?»; имя -> os_work.py new " + kind + " " + obj + "#<имя>;"
+                    " «все» -> python3 .gigacode/skills/de-pvatf-orchestrator/scripts/autotest_queue.py add " + obj
+                    + " --all, потом next_action.py autotest queue (первый тест строит общий код, следующие его дополняют)")
             return code or 1
         obj = key.group(1)
     if kind in ("autotest", "tc-check"):
@@ -518,8 +526,8 @@ def cmd_next(args):
                 "КОМАНДА: check нашёл ошибки в коде, который дописал человек (строки ЧЕЛОВЕК в outputs/CHECK.md) - сам их не"
                 " исправляешь. Покажи человеку эти строки и спроси «Находки в вашем коде: исправите сами или архивировать"
                 " как есть?»; «исправил» -> python3 .gigacode/skills/de-pvatf-autotest-gen/scripts/at_tools.py check " + obj
-                + " (assemble не запускай), потом os_work.py next " + name + "; «архивировать» -> openspec archive "
-                + name + " --yes")
+                + " (assemble не запускай), потом os_work.py next " + name + "; «архивировать» -> "
+                + archive_command(name))
             return 0
         if other:
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: apply · задач осталось " + str(left),
@@ -531,7 +539,7 @@ def cmd_next(args):
                 " «Заглушки " + ", ".join(stubs) + ": допишете код сами (в тест-классе и классах шагов, строки // STUB убрать)"
                 " или архивировать как есть?»; «дописал» -> os_work.py next " + name + " (даст приём кода: at_tools.py"
                 " accept; assemble не запускай)"
-                + "; «архивировать» -> openspec archive " + name + " --yes")
+                + "; «архивировать» -> " + archive_command(name))
             return 0
         if run == "env":
             out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: env-setup " + obj,
@@ -543,7 +551,7 @@ def cmd_next(args):
             "КОМАНДА: скилл de-pvatf-autotest-gen, шаг 8: падения КОД - исправление по шагу 8 (тест-класс - через фрагмент, класс шагов -"
             " агент), check, снова at_tools.py run " + obj
             + " (не больше 2 кругов); СТЕНД, ПРОВЕРКА, окружение - покажи человеку RUN.md и спроси «Тест не прошёл: <причина>."
-            " Исправить и запустить снова или архивировать как есть?»; «архивировать» -> openspec archive " + name + " --yes")
+            " Исправить и запустить снова или архивировать как есть?»; «архивировать» -> " + archive_command(name))
         return 0
     if kind == "autotest" and run == "passed" and summary_left and not other:
         out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: итог",
@@ -561,17 +569,64 @@ def cmd_next(args):
             + " - тест не запускался, архив только после запуска")
         return 0
     out("ИЗМЕНЕНИЕ: " + name, "ДЕЙСТВИЕ: архив",
-        "КОМАНДА: openspec archive " + name + " --yes")
+        "КОМАНДА: " + archive_command(name) + " (убирает служебные файлы и выполняет openspec archive)")
     return 0
 
 
-COMMANDS = {"new": cmd_new, "proposal": cmd_proposal, "design": cmd_design, "tasks": cmd_tasks,
+def archive_command(name):
+    return "python3 .gigacode/skills/de-pvatf-orchestrator/scripts/os_work.py archive " + name
+
+
+def tidy(root):
+    """Служебные файлы генерации перед архивом: compile/ (кроме непустого parked/), fix/, tasks/*.sum.
+    Отчёты, задания и фрагменты остаются. Возвращает список убранного."""
+    outputs, gone = root / "outputs", []
+    compile_dir, parked = root / "outputs" / "compile", root / "outputs" / "compile" / "parked"
+    keep_parked = parked.is_dir() and any(parked.iterdir())
+    if compile_dir.is_dir():
+        if keep_parked:
+            for item in compile_dir.iterdir():
+                if item != parked:
+                    shutil.rmtree(item) if item.is_dir() else item.unlink()
+            gone.append(rel(compile_dir) + "/ (кроме parked/ - там файл)")
+        else:
+            shutil.rmtree(compile_dir)
+            gone.append(rel(compile_dir) + "/")
+    if (outputs / "fix").is_dir():
+        shutil.rmtree(outputs / "fix")
+        gone.append(rel(outputs / "fix") + "/")
+    sums = sorted((outputs / "tasks").glob("*.sum")) if (outputs / "tasks").is_dir() else []
+    for f in sums:
+        f.unlink()
+    if sums:
+        gone.append(rel(outputs / "tasks") + "/*.sum (" + str(len(sums)) + ")")
+    return gone
+
+
+def cmd_archive(args):
+    t = target(args)
+    if t is None:
+        return 2
+    name, root = t[0], t[1]
+    gone = tidy(root)
+    out("УБРАНО: " + (", ".join(gone) or "нечего"))
+    res = openspec(["archive", name, "--yes"])
+    if res is None:
+        out("НЕТ openspec: CLI не найден - openspec archive " + name + " --yes не выполнен")
+        return 2
+    if res[1].strip():
+        out(res[1].rstrip())
+    out("АРХИВ: " + ("готово - openspec/changes/archive/" if res[0] == 0 else "не выполнен (код " + str(res[0]) + ")"))
+    return 0 if res[0] == 0 else 1
+
+
+COMMANDS = {"archive": cmd_archive, "new": cmd_new, "proposal": cmd_proposal, "design": cmd_design, "tasks": cmd_tasks,
             "sync": cmd_sync, "next": cmd_next, "steps-ok": cmd_steps_ok}
 
 
 def main(argv):
     if not argv or argv[0] not in COMMANDS:
-        out("Использование: os_work.py new <вид> [<объект>] | proposal | design | tasks | sync | next | steps-ok <имя изменения>")
+        out("Использование: os_work.py new <вид> [<объект>] | proposal | design | tasks | sync | next | steps-ok | archive <имя изменения>")
         return 2
     return COMMANDS[argv[0]](argv[1:])
 

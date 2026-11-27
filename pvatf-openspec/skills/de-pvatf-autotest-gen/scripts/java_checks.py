@@ -25,7 +25,9 @@ CHECKS = [
     ("MR-43", r"\b(log|logger|LOG|LOGGER)\.(info|debug|trace|warn|error)\(|System\.(out|err)\.print|\.prettyPrint\(|\.prettyPeek\(", "ручное логирование"),
     ("MR-48", r"implements [A-Za-z.]*(Matcher|Condition)\b|List<[A-Za-z.]*Matcher>|matchers\.add\(|JacksonHelper|JsonNode|textOrNull|intOrNull|assertAll\(", "своя конструкция вокруг matcher или разбор ответа руками"),
     ("MR-49", r"^\s+(public |private |protected )?(static )?(final )?(class|interface|enum|record) [A-Z]", "вложенный класс"),
-    ("MR-47", r"ConfigFactory\.create|new Properties\(\)|getResourceAsStream\(|ResourceBundle\.getBundle|System\.(getProperty|getenv)\(", "своё чтение настроек"),
+    ("MR-47", r"ConfigFactory\.create|new Properties\(\)|getResourceAsStream\([^)]*\.properties|ResourceBundle\.getBundle|System\.(getProperty|getenv)\(", "своё чтение настроек"),
+    ("MR-52", r"(Path\.of|Paths\.get|new File|new FileInputStream|new FileReader)\(\s*\"(\./)?src/", "файл данных читают по пути от корня проекта: читай как ресурс classpath (путь без src/test/resources)"),
+    ("MR-53", r"ofPattern\(\s*\"[^\"]*HH:mm\"\s*\)", "время сравнивают строкой до минуты: на смене минуты тест падает - сравнивай с допуском из ТК"),
     ("MR-47", r"readOptionalPropertyFileFromClasspath\(|readPropertyFileFromClasspath\(|\"perfeccionista\.properties\"", "свои настройки читают из perfeccionista.properties: там только ключи фрейма, свои - отдельный файл и своя конфигурация"),
     ("MR-15", r"\"https?://|\"(jdbc|kafka|ldap)s?:|(password|passwd|token|secret)\s*=\s*\"[^\"]+\"", "адрес или секрет прямо в коде - только ключ настроек"),
     ("MR-45", r"(^|[ .(])[a-z][A-Za-z0-9]*_[A-Za-z0-9_]*( *\(| *=| *;|,|\))", "имя с нижним подчёркиванием"),
@@ -70,6 +72,8 @@ def scan_items(lines, checks):
             if re.search(pattern, line, re.ASCII):
                 if rule == "MR-49" and re.search(r"static (final )?class [A-Za-z]*Builder\b", line):
                     continue
+                if rule == "MR-53" and not re.search(r"(?i)contains\(", line + (lines[number - 2] if number > 1 else "")):
+                    continue  # формат до минуты без сравнения «содержит» - не находка
                 found.append((rule, number, message, line.strip()[:140]))
     return found
 

@@ -149,6 +149,14 @@ public class Allure2RestServiceConfiguration extends DefaultRestServiceConfigura
   зависимости логгера (`slf4j-*`) - `${log.version}` по рецепту «Логирование» выше;
 - класс конфигурации - в `<корень пакетов>.config` (строка «Корень пакетов» в `ENV-INIT.md`, правило 13
   `autotest-rules.md`); `ENV-INIT.md` нет - базовый пакет тестов из строки `ПРОЕКТ`, подпакет `config`;
+  базового пакета нет (`-`) - «корень пакетов» из строки `ПРОЕКТ` (его берёт скрипт из координат
+  сборки), подпакет `config`. Корень пакетов у человека не спрашиваешь;
+- каждый класс и файл, который ты создаёшь (конфигурация, `BaseTest`, настройки), - только в
+  `src/test/java` и `src/test/resources` модуля с тестами. В `src/main` не пишешь;
+- проект-пример (драфт) - источник только кода: как вызывать фрейм, какие классы настройки нужны.
+  Имя пакета, папки и раскладку из него не берёшь.
+  - нельзя: `src/main/java/ru/sber/qa/<имя проекта-примера>/config/ApiEnvironmentConfiguration.java`
+    -> нужно: `src/test/java/<корень пакетов>/config/ApiEnvironmentConfiguration.java`;
 - `perfeccionista.properties` - только скриптом `env_props.py ensure` (кладёт в `src/test/resources/`
   модуля с тестами).
 

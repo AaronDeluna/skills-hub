@@ -13,7 +13,8 @@
   заголовки и тело - на разных строках), SQL (и многострочного), топиков Kafka, ошибок проверок;
 - код автотеста на любом фреймворке (.java, .kt): шаги из Allure.step, методов @Step, вызовов
   REST / SQL / Kafka, проверок; @BeforeEach / @BeforeAll - предусловия, @AfterEach / @AfterAll -
-  шаги очистки; импорты - строка «Технологии источника». Несколько тестов в файле - нужен --method.
+  шаги очистки; импорты - строка «Технологии источника». Несколько тестов в файле - нужен --method
+  или путь вида <файл>#<метод> (так пункт очереди называет один тест класса).
 HTML в полях (<br>, <pre>, <p>) превращается в текст. Ключа нет -> нужен --key или, если ТК ещё не
 заведён, --no-tc --class <Имя>Test: служебный ключ NOTC-<n> (следующий свободный номер), имя тест-класса -
 из --class (строка «Класс теста» в TC.md), @TmsLink в тест не ставится.
@@ -341,7 +342,8 @@ def from_code(source, method):
     if not tests:
         raise ValueError("в файле нет тест-метода" + (" " + method if method else " с @Test"))
     if len(tests) > 1:
-        raise LookupError("ТЕСТОВ НЕСКОЛЬКО: " + ", ".join(t[0] for t in tests) + " - запусти с --method <имя метода>")
+        raise LookupError("ТЕСТОВ НЕСКОЛЬКО: " + ", ".join(t[0] for t in tests) + " - один тест: --method <имя метода>;"
+                          " все тесты класса: autotest_queue.py add <файл> --all (скилл de-pvatf-orchestrator)")
     name, notes, end = tests[0]
     shown = re.search(r"@DisplayName\s*\(\s*\"([^\"]+)\"", notes)
     tms = re.search(r"@TmsLink\s*\(\s*\"([^\"]+)\"", notes)
@@ -379,6 +381,8 @@ def main(args):
         return 2
     path = Path(args[0])
     key_arg, method, name = option(args, "--key"), option(args, "--method"), option(args, "--name")
+    if "#" in args[0] and not path.exists():  # пункт очереди «файл#метод»: один тест из класса с несколькими
+        path, method = Path(args[0].split("#", 1)[0]), method or args[0].split("#", 1)[1]
     no_tc, test_class = "--no-tc" in args or bool(re.fullmatch(NO_TC + r"-[0-9]+", key_arg)), option(args, "--class")
     if no_tc and ((key_arg and not re.fullmatch(NO_TC + r"-[0-9]+", key_arg)) or not JAVA_CLASS.fullmatch(test_class)):
         if not JAVA_CLASS.fullmatch(test_class):
@@ -413,7 +417,8 @@ def main(args):
         print("ФОРМАТ НЕ РАСПОЗНАН: " + str(error))
         return 1
     tc.setdefault("source", "tms")
-    tc["origin"] = path.as_posix().rstrip("/")  # по нему очередь генерации находит ключ ТК
+    tc["origin"] = path.as_posix().rstrip("/") + ("#" + method if method and suffix in (".java", ".kt") else "")
+    # по «Файл источника» очередь генерации находит ключ ТК; «#метод» - тест из класса с несколькими тестами
     if key_arg:
         tc["key"] = key_arg
     if no_tc:

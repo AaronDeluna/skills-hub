@@ -168,9 +168,10 @@ def summary(report):
     project = report["project"]
     lines = ["СТАТУС: " + report["status"],
              "ФАЙЛ: " + str(OUT_FILE).replace("\\", "/"),
-             "ПРОЕКТ: сборка %s · модулей %d · тест-классов %s · базовый пакет %s · UI %s · стиль шагов %s" % (
+             "ПРОЕКТ: сборка %s · модулей %d · тест-классов %s · базовый пакет %s · корень пакетов %s · UI %s · стиль шагов %s" % (
                  project.get("build_tool", "-"), len(project.get("modules", [])), project.get("test_classes", "-"),
-                 project.get("base_package", "-"), project.get("ui_lib", "-"), project.get("step_style", "-")),
+                 project.get("base_package", "-"), project.get("root_package", "-"), project.get("ui_lib", "-"),
+                 project.get("step_style", "-")),
              "КОМПИЛЯЦИЯ: " + project.get("compile_command", "-") + " -> " + report["compile"]["status"]]
     if "latest_version" in report:
         lines.append("САМАЯ НОВАЯ: " + report["latest_version"]
@@ -448,6 +449,11 @@ def describe_tests(report, root, java_files, test_roots, build_text):
     # новый проект (каркас init): тест-классы - в <корень>.tests, иначе - пакет существующих тестов
     report["project"]["root_package"] = root_match.group(1) if root_match else "-"
     report["project"]["test_package"] = (root_match.group(1) + ".tests") if root_match else report["project"]["base_package"]
+    if not root_match and report["project"]["base_package"] == "-":
+        # тестов и BaseTest ещё нет (сборка есть, каркас init не запускали): корень - из координат сборки, вопроса нет
+        derived = build_root(root)
+        report["project"]["root_package"] = derived
+        report["project"]["test_package"] = derived + ".tests"
     report["project"]["base_test_classes"] = base_classes[:10]
     lowered = build_text.lower()
     libs = [name for name in ("playwright", "selenide") if name in lowered]
@@ -588,6 +594,32 @@ def is_inside(path, folder):
         return True
     except ValueError:
         return False
+
+
+def build_root(root):
+    """Корень пакетов по координатам сборки: <groupId>.<artifactId> из pom.xml (Gradle - group и rootProject.name),
+    artifactId - строчными буквами и цифрами. Нет groupId - ru.sber.<artifactId>; нет ничего - ru.sber.<имя каталога>."""
+    group, name = "", ""
+    pom = read(Path(root) / "pom.xml")
+    if pom:
+        parent = re.search(r"(?s)<parent>(.*?)</parent>", pom)
+        own = re.sub(r"(?s)<parent>.*?</parent>|<dependencies>.*|<dependencyManagement>.*|<build>.*|<profiles>.*", "", pom)
+        g = re.search(r"<groupId>\s*([\w.\-]+)\s*</groupId>", own) or (parent and re.search(r"<groupId>\s*([\w.\-]+)\s*</groupId>", parent.group(1)))
+        a = re.search(r"<artifactId>\s*([\w.\-]+)\s*</artifactId>", own)
+        group, name = (g.group(1) if g else ""), (a.group(1) if a else "")
+    else:
+        gradle = read(Path(root) / "build.gradle") + read(Path(root) / "build.gradle.kts")
+        g = re.search(r"(?m)^\s*group\s*=\s*[\"']([\w.\-]+)[\"']", gradle)
+        a = re.search(r"rootProject\.name\s*=\s*[\"']([\w.\-]+)[\"']",
+                      read(Path(root) / "settings.gradle") + read(Path(root) / "settings.gradle.kts"))
+        group, name = (g.group(1) if g else ""), (a.group(1) if a else "")
+    name = re.sub(r"[^a-z0-9]", "", (name or Path(root).resolve().name).lower()) or "autotests"
+    if not name[0].isalpha():
+        name = "at" + name
+    group = ".".join(re.sub(r"[^a-z0-9_]", "", part) for part in group.lower().split(".") if re.sub(r"[^a-z0-9_]", "", part))
+    if not group or not group[0].isalpha():
+        group = "ru.sber"
+    return group + "." + name
 
 
 def common_package(packages):
